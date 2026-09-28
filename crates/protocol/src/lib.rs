@@ -34,6 +34,10 @@ pub trait PluginApi {
         surface: Ref<SurfaceApi>,
         cx: &mut gpui::Context<Self>,
     ) -> Ref<ToolApi>;
+
+    /// Draw this plugin's settings page on `surface`, in its page of the settings
+    /// window: `false` if it has none.
+    fn open_settings(&mut self, surface: Ref<SurfaceApi>, cx: &mut gpui::Context<Self>) -> bool;
 }
 
 /// One open tool, homed in the plugin. Its home notifies (`cx.notify`) when its
@@ -254,7 +258,7 @@ mod tests {
         let methods = |schema: embedded_gpui::Schema| -> Vec<&str> {
             schema.methods.iter().map(|method| method.name).collect()
         };
-        assert_eq!(methods(PluginApi::schema()), ["detect", "open_tool"]);
+        assert_eq!(methods(PluginApi::schema()), ["detect", "open_tool", "open_settings"]);
         assert_eq!(
             methods(ToolApi::schema()),
             ["on_input_changed", "list_actions", "perform_action"]

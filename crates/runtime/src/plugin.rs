@@ -125,6 +125,22 @@ impl Plugin {
         )
     }
 
+    /// Ask the plugin to draw its settings page on `surface`, shared with it like a
+    /// tool's: whether it has one. A plugin that can't answer (built before settings
+    /// pages, or stopped) has none.
+    pub fn open_settings(&self, surface: &Entity<Surface>, cx: &mut App) -> Task<bool> {
+        let host = self.host.clone();
+        let surface = surface.clone();
+        let asked = self.call(
+            move |root, cx| {
+                let surface = host.share(&surface, cx);
+                root.open_settings(surface, cx)
+            },
+            cx,
+        );
+        cx.spawn(async move |_| asked.await.unwrap_or(false))
+    }
+
     /// Make a call on the plugin's root, unless it stopped, and wait for the answer
     /// for at most [`CALL_TIMEOUT`]. A timeout or embedded_gpui's stop marks it
     /// stopped; the plugin's own errors (such as an unknown operation) don't.

@@ -28,6 +28,7 @@ use gpui::{
 use crate::hotkey;
 use crate::plugins::{self as loaded, Broken, Source};
 use install::Pending;
+use plugins::SettingsPage;
 use shortcut_recorder::{Recorded, ShortcutRecorder};
 
 /// The window's size: it doesn't resize.
@@ -66,6 +67,8 @@ pub struct SettingsWindow {
     shortcut: Entity<ShortcutRecorder>,
     /// The plugin picked to install, while its sheet shows.
     installing: Option<Pending>,
+    /// The shown plugin's own settings page, while its page shows.
+    settings_page: Option<SettingsPage>,
     _subscriptions: Vec<Subscription>,
 }
 
@@ -130,6 +133,7 @@ impl SettingsWindow {
             search,
             shortcut,
             installing: None,
+            settings_page: None,
             _subscriptions: subscriptions,
         }
     }
@@ -228,7 +232,7 @@ impl SettingsWindow {
             .child(Icon::new(IconName::Search).size(px(14.)).color(t.text_muted))
             .child(div().flex_1().min_w(px(0.)).child(self.search.clone()));
         let starting = loaded::loading(cx).then(|| {
-            div().px(px(8.)).py(px(4.)).text_size(px(11.)).text_color(t.text_muted).child("Starting plugins…")
+            div().px(px(8.)).py(px(4.)).text_size(px(11.)).text_color(t.text_muted).child("Re/Loading plugins…")
         });
         let list = v_flex()
             .id("sidebar-entries")
@@ -271,7 +275,12 @@ impl Focusable for SettingsWindow {
 impl Render for SettingsWindow {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let t = cx.theme().clone();
-        let (header, page) = match self.shown(cx) {
+        let shown = self.shown(cx);
+        // A plugin's settings page lives while its page shows.
+        if !matches!(shown, Shown::Plugin(..)) {
+            self.settings_page = None;
+        }
+        let (header, page) = match shown {
             Shown::General => (
                 div().text_size(px(20.)).font_weight(FontWeight::SEMIBOLD).child("General").into_any_element(),
                 self.render_general(&t, cx),

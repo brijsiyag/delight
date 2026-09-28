@@ -275,3 +275,16 @@ async fn the_plugin_follows_the_apps_theme(cx: &mut TestAppContext) {
     settle(cx);
     assert!(app.read_with(cx, |app, _| app.theme_requests) > asked, "the plugin asks again");
 }
+
+#[gpui::test]
+async fn its_settings_page_opens_on_a_surface(cx: &mut TestAppContext) {
+    let (plugin, _app) = start("settings", cx).await;
+    let surface = cx.new(Surface::new);
+    let opened = cx.update(|cx| plugin.open_settings(&surface, cx));
+    settle(cx);
+    assert!(opened.await, "the fixture has a settings page");
+    assert!(
+        surface.read_with(cx, |surface, _| surface.view().is_some()),
+        "it's drawn on the surface"
+    );
+}

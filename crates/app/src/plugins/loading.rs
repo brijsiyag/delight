@@ -77,6 +77,7 @@ pub fn reload(cx: &mut App) {
             plugins.sources = sources.into();
             plugins.broken = broken.into();
             plugins.loading = false;
+            plugins.generation += 1;
             launcher::plugins_loaded(cx);
             cx.refresh_windows();
         });

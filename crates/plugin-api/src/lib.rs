@@ -49,7 +49,7 @@ pub use embedded_gpui::gpui;
 pub use host::{Host, host, theme};
 pub use tool::AnyTool;
 
-use gpui::{App, AssetSource, Context, Render, Window};
+use gpui::{AnyView, App, AssetSource, Context, Render, Window};
 
 /// A plugin. Its type also carries [`#[plugin(...)]`](plugin), which makes it the
 /// component's entry point.
@@ -69,6 +69,14 @@ pub trait Plugin: Sized + 'static {
     /// it.
     fn open_tool(&mut self, operation: Self::Operation, window: &mut Window, cx: &mut App)
     -> AnyTool;
+
+    /// The plugin's settings page, shown in its page of Delight's settings window: a
+    /// view in the window it draws in. `None` by default, for a plugin without
+    /// settings. It keeps what it saves itself, such as in its data folder (`/data`).
+    fn settings_page(&mut self, window: &mut Window, cx: &mut App) -> Option<AnyView> {
+        let _ = (window, cx);
+        None
+    }
 
     /// Files the plugin's views load by path, such as the SVG icons GPUI's `svg()`
     /// draws. None by default.

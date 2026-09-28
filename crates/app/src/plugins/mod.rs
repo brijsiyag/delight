@@ -84,6 +84,9 @@ struct Plugins {
     broken: Rc<[Broken]>,
     /// While they're being started (again).
     loading: bool,
+    /// How many times they've started: what holds on to a plugin (a surface it
+    /// draws on) knows to ask again when this changes.
+    generation: u64,
     /// What they shape their text with: the app's.
     text_system: Option<Arc<dyn PlatformTextSystem>>,
 }
@@ -101,6 +104,11 @@ pub fn sources(cx: &App) -> Rc<[Source]> {
 
 pub fn broken(cx: &App) -> Rc<[Broken]> {
     cx.try_global::<Plugins>().map(|plugins| plugins.broken.clone()).unwrap_or_default()
+}
+
+/// Which start of the plugins [`all`] is: it goes up each time they start again.
+pub fn generation(cx: &App) -> u64 {
+    cx.try_global::<Plugins>().map_or(0, |plugins| plugins.generation)
 }
 
 /// Whether the plugins are being started (again) now.

@@ -58,7 +58,7 @@ impl<P: Plugin> PluginApi for PluginRoot<P> {
             let opened = self.plugin.open_tool(operation, window, cx);
             let view = opened.view.clone();
             tool = Some(opened.tool);
-            cx.new(|_| ToolView { tool: view })
+            cx.new(|_| Filling { view: Some(view) })
         });
         let result = match (opened, tool) {
             (Ok(_), Some(tool)) => {
@@ -70,20 +70,31 @@ impl<P: Plugin> PluginApi for PluginRoot<P> {
         };
         Task::ready(result)
     }
+
+    fn open_settings(&mut self, surface: Ref<SurfaceApi>, cx: &mut Context<Self>) -> bool {
+        let mut has_page = false;
+        let opened = open_view(surface, cx, |window, cx| {
+            let page = self.plugin.settings_page(window, cx);
+            has_page = page.is_some();
+            // Without a page the view is empty, and the app drops the surface.
+            cx.new(|_| Filling { view: page })
+        });
+        if let Err(error) = &opened {
+            log::error!("opening the settings page: {error:#}");
+        }
+        opened.is_ok() && has_page
+    }
 }
 
-/// The window's root view: the tool, filling the pane.
-struct ToolView {
-    tool: AnyView,
+/// The window's root view: a tool, or the settings page, filling the space it's
+/// given.
+struct Filling {
+    view: Option<AnyView>,
 }
 
-impl Render for ToolView {
+impl Render for Filling {
     fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
-        div()
-            .size_full()
-            .flex()
-            .flex_col()
-            .child(self.tool.clone())
+        div().size_full().flex().flex_col().children(self.view.clone())
     }
 }
 

@@ -5,19 +5,68 @@ use std::path::Path;
 
 use delight_protocol::Permission;
 use delight_runtime::Plugin;
+use embedded_gpui::Surface;
 use delight_ui::{Button, Disableable as _, Icon, IconName, LogoBadge, Switch, Theme, h_flex, v_flex};
 use gpui::{
-    AnyElement, App, ClipboardItem, Context, FontWeight, IntoElement, ParentElement, PromptLevel, SharedString, Styled,
-    div, prelude::*, px,
+    AnyElement, App, AppContext as _, ClipboardItem, Context, Entity, FontWeight, IntoElement, ParentElement,
+    PromptLevel, SharedString, Styled, Task, div, prelude::*, px,
 };
 
 use super::{Page, SettingsWindow, item, section};
 use crate::plugins::{self, Broken, Source};
 use crate::settings;
 
+/// How tall a plugin's settings page is: its surface can't say.
+const SETTINGS_PAGE_HEIGHT: f32 = 320.;
+
+/// The shown plugin's own settings page, on a surface it draws on.
+pub(super) struct SettingsPage {
+    plugin_id: String,
+    /// Which start of the plugins it was asked of.
+    generation: u64,
+    surface: Entity<Surface>,
+    /// Whether the plugin drew a page: `None` until it has answered.
+    has_page: Option<bool>,
+    _asking: Task<()>,
+}
+
 impl SettingsWindow {
-    /// The plugin's page: what it is, its tools, its permissions, and deleting it.
-    pub(super) fn render_plugin(&self, plugin: &Plugin, source: &Source, t: &Theme, cx: &mut Context<Self>) -> AnyElement {
+    /// The plugin's settings page, asked for when its page first shows (and again when
+    /// the plugins have started again); `None` if it has none.
+    fn settings_page(&mut self, plugin: &Plugin, cx: &mut Context<Self>) -> Option<Entity<Surface>> {
+        let id = plugin.manifest().plugin.id.clone();
+        let generation = plugins::generation(cx);
+        let asked = self.settings_page.as_ref().is_some_and(|page| page.plugin_id == id && page.generation == generation);
+        if !asked {
+            if plugin.stopped().is_some() {
+                self.settings_page = None;
+                return None;
+            }
+            let surface = cx.new(Surface::new);
+            let answer = plugin.open_settings(&surface, cx);
+            let for_plugin = id.clone();
+            let asking = cx.spawn(async move |this, cx| {
+                let has_page = answer.await;
+                this.update(cx, |this, cx| {
+                    if let Some(page) = &mut this.settings_page
+                        && page.plugin_id == for_plugin
+                        && page.generation == generation
+                    {
+                        page.has_page = Some(has_page);
+                        cx.notify();
+                    }
+                })
+                .ok();
+            });
+            self.settings_page = Some(SettingsPage { plugin_id: id, generation, surface, has_page: None, _asking: asking });
+        }
+        let page = self.settings_page.as_ref()?;
+        (page.has_page == Some(true)).then(|| page.surface.clone())
+    }
+
+    /// The plugin's page: what it is, its tools, its permissions, its own settings,
+    /// and deleting it.
+    pub(super) fn render_plugin(&mut self, plugin: &Plugin, source: &Source, t: &Theme, cx: &mut Context<Self>) -> AnyElement {
         let manifest = plugin.manifest();
         let id = manifest.plugin.id.clone();
         let current = settings::get(cx).clone();
@@ -102,6 +151,10 @@ impl SettingsWindow {
                 page.child(section("Tips", tip_rows(&manifest.plugin.tips, t)))
             })
             .child(section("Permissions", permission_rows(&manifest.plugin.permissions, t)))
+            .children(self.settings_page(plugin, cx).map(|surface| {
+                let page = div().h(px(SETTINGS_PAGE_HEIGHT)).overflow_hidden().child(surface).into_any_element();
+                section("Settings", vec![page])
+            }))
             .child(footer)
             .into_any_element()
     }

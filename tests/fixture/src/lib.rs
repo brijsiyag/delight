@@ -1,7 +1,7 @@
 //! The plugin Delight's headless tests drive: one tool that shows the input, with
 //! actions that depend on it.
 
-use delight_plugin_api::gpui::{App, AppContext as _, Context, IntoElement, Render, Window, div};
+use delight_plugin_api::gpui::{AnyView, App, AppContext as _, Context, IntoElement, Render, Window, div};
 use delight_plugin_api::gpui::{Hsla, ParentElement as _, Styled as _, prelude::FluentBuilder as _};
 use delight_plugin_api::{
     Action, AnyTool, Detection, Input, Operations, Plugin, Shortcut, Tool, host, plugin, theme,
@@ -51,6 +51,19 @@ impl Plugin for Fixture {
         match operation {
             FixtureOperation::Echo => cx.new(|_| Echo::default()).into(),
         }
+    }
+
+    fn settings_page(&mut self, _window: &mut Window, cx: &mut App) -> Option<AnyView> {
+        Some(cx.new(|_| FixtureSettings).into())
+    }
+}
+
+/// The fixture's settings page: only there to be shown.
+struct FixtureSettings;
+
+impl Render for FixtureSettings {
+    fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
+        div().p_2().child("The fixture has no settings")
     }
 }
 
