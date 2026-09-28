@@ -1042,7 +1042,6 @@ dependencies = [
  "anyhow",
  "serde",
  "serde_json",
- "toml 1.1.2+spec-1.1.0",
 ]
 
 [[package]]
@@ -1059,10 +1058,10 @@ dependencies = [
 name = "delight-plugin-api-macros"
 version = "2.0.0"
 dependencies = [
- "anyhow",
  "delight-manifest",
  "proc-macro2",
  "quote",
+ "syn",
 ]
 
 [[package]]

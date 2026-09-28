@@ -1,9 +1,0 @@
-id = "dev.delight.fixture"
-name = "Fixture"
-description = "Echoes the input, for Delight's tests"
-author = "Delight"
-icon = "assets/icon.svg"
-
-[[operations]]
-id = "echo"
-title = "Echo"
