@@ -4,11 +4,13 @@ resolver = "3"
 # ui). Each crate is added in the step that introduces it; see docs/plan.md. Plugins (built-in
 # or not) are wasm32-wasip2 crates in their own workspaces.
 members = [
+    "crates/app",
     "crates/manifest",
     "crates/protocol",
     "crates/plugin-api",
     "crates/plugin-api-macros",
     "crates/runtime",
+    "crates/ui",
     "tests",
 ]
 
@@ -30,22 +32,44 @@ delight-manifest = { path = "crates/manifest" }
 delight-protocol = { path = "crates/protocol" }
 delight-plugin-api-macros = { path = "crates/plugin-api-macros" }
 delight-runtime = { path = "crates/runtime" }
+delight-ui = { path = "crates/ui" }
 # The fork (github.com/brijsiyag/embedded_gpui, branch `delight`), checked out
 # next to this repository. It brings GPUI (see docs/plan.md, Layout).
 embedded_gpui = { path = "../embedded_gpui/embedded_gpui" }
 anyhow = "=1.0.103"
 # Attribute parsing for the plugin API's proc macros.
 darling = "=0.23.0"
+dirs = "=6.0.0"
+env_logger = { version = "=0.11.8", default-features = false, features = ["auto-color", "humantime"] }
 futures = "=0.3.32"
+global-hotkey = "=0.8.0"
+# The version GPUI links, for rasterising logos.
+image = { version = "=0.25.10", default-features = false }
 # Named exactly as embedded_gpui names it, or Cargo links a second GPUI (see
 # docs/plan.md, Layout); Cargo.lock pins the commit.
 gpui = { git = "https://github.com/zed-industries/zed.git", branch = "gpui-embedded-in-gpui", version = "=0.2.2", default-features = false }
+gpui_platform = { git = "https://github.com/zed-industries/zed.git", branch = "gpui-embedded-in-gpui", features = ["font-kit"] }
 log = "=0.4.33"
+# The versions tray-icon links.
+objc2 = "=0.6.4"
+objc2-app-kit = { version = "=0.3.2", default-features = false, features = [
+    "std", "NSAnimation", "NSApplication", "NSBezierPath", "NSColor", "NSEvent", "NSGlassEffectView", "NSGraphics",
+    "NSImage", "NSResponder", "NSRunningApplication", "NSView", "NSVisualEffectView", "NSWindow", "NSWorkspace",
+    "libc", "objc2-quartz-core",
+] }
+objc2-foundation = { version = "=0.3.2", default-features = false, features = ["std", "NSGeometry", "NSString"] }
 proc-macro2 = "=1.0.106"
+# The version GPUI links: the NSView behind a GPUI window.
+raw-window-handle = "=0.6.2"
 quote = "=1.0.46"
+# GPUI's version; no features of its own, so GPUI's build of it is reused.
+resvg = { version = "=0.46.0", default-features = false }
+smallvec = "=1.15.2"
 serde = { version = "=1.0.228", features = ["derive"] }
 serde_json = "=1.0.150"
 syn = "=2.0.118"
+tray-icon = "=0.25.1"
+unicode-segmentation = "=1.13.3"
 # The versions wasmtime (inside embedded_gpui) uses, with only the features it
 # already enables: reading a plugin's custom section, and writing test components.
 wasm-encoder = "=0.236.1"

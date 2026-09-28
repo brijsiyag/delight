@@ -55,14 +55,15 @@ that code was organised. Where the rewrite changes something on purpose,
 - Esc hides (deferred). Losing activation while visible hides if "Hide when
   focus is lost" is on (default on).
 - At launch the window is shown and the app activated.
-- **GPUI deadlock workaround**: a window becoming key while the app is
-  inactive makes AppKit report `isKeyWindow == NO` inside
-  `windowDidBecomeKey:`; GPUI then calls `resignKeyWindow` holding its lock,
-  the notification re-enters, and the main thread deadlocks. Fixed by
-  swizzling `windowDidBecomeKey:` on `GPUIPanel`/`GPUIWindow`: forward only if
-  really key, retry once on the next run-loop turn, else drop. Settings also
-  activates the app before opening its window for the same reason.
-  (`app/src/platform.rs`)
+- **GPUI deadlock (fixed upstream)**: a window becoming key while the app
+  is inactive makes AppKit report `isKeyWindow == NO` inside
+  `windowDidBecomeKey:`, and GPUI then calls `resignKeyWindow`. crates.io
+  GPUI 0.2.2 did that holding its window-state lock, so the notification
+  re-entered and deadlocked the main thread; the previous attempt swizzled
+  `windowDidBecomeKey:` on `GPUIPanel`/`GPUIWindow` to avoid it, and its
+  Settings activated the app before opening its window. The GPUI the
+  rewrite uses releases the lock first, and showing the launcher from the
+  hotkey was tested without the workaround, so the rewrite has none.
 
 ### Single instance, tray, login
 
@@ -91,9 +92,9 @@ that code was organised. Where the rewrite changes something on purpose,
 - ↵ never inserts a newline (typed `\n`/`\r` are dropped unless an IME is
   composing), so ↵ is free for footer actions. ⇧↵ / ⌥↵ insert a newline
   keeping indentation. Pasted `\r\n` becomes `\n`.
-- On change: recompute footer stats; if text is blank and no files, forget
-  the picked tool; reset and recompute the ghost completion; re-detect after
-  30 ms (a newer change cancels the pending one).
+- On change: if text is blank and no files, forget the picked tool; reset
+  and recompute the ghost completion; re-detect after 30 ms (a newer change
+  cancels the pending one).
 - ⌘K or ⓧ clears text and files and refocuses the input. ⌘, opens Settings.
 - **Pasted files**: ⌘V is captured before the editor. If the input is
   focused and the pasteboard has `public.file-url` items (Finder copy), their
@@ -152,12 +153,10 @@ that code was organised. Where the rewrite changes something on purpose,
 
 ## Footer
 
-- 44px. Left: stats, "N files · size" when there are files, then (if there
-  are chars or no files) "size · N lines · N chars · N words", joined by
-  "  ·  ". Lines = `lines().count().max(1)`, +1 if the text ends with `\n`;
-  words split on whitespace; sizes B / KB / MB, 2 decimals, base 1024.
-- A toast replaces the stats: green check + message for 1.6 s (stopped-plugin
-  toasts 8 s, once per plugin per run).
+- 44px. Left: toasts, a green check + message for 1.6 s (stopped-plugin
+  toasts 8 s, once per plugin per run). The previous attempt showed input
+  statistics there (size, lines, chars, words); the rewrite drops them, and a
+  tool can offer them instead.
 - Right: the tool's first 4 actions as text buttons with keycaps, vertical
   dividers between, then ⚙ (Settings → General).
 - **Action keys**: each action's shortcut is parsed as a GPUI keystroke. It

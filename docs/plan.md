@@ -206,13 +206,20 @@ fork's `delight` branch.
    marks it stopped and it isn't called again; calls also time out, since
    one made just after the stop is never answered.
 7. **App shell**: single instance, tray icon and menu, global hotkey, the
-   launcher window with its input; no tools yet.
+   launcher window with its input; no tools yet. In two parts: the shell
+   (single-instance lock, no Dock icon, the menu bar icon with Open and
+   Quit, ⌘⇧Space toggling the bar, Esc and focus loss hiding it); then the
+   launcher and `delight-ui`, ported from the previous attempt: the UI kit
+   with a small theme, the input (its text editor), the bar growing into
+   the panel with its empty states, the compiled-in keymap, and the macOS
+   finish (the borderless restyle, backdrop and corners, and remembering
+   and re-activating the previous app).
 8. **Launcher with tools**: load built-ins and the plugins folder, show
    matches, open a tool on a surface, footer actions and their keys, Esc
    and reopen behaviour.
 9. **Input history**: ⌃R, ⌃N / ⌃P completions, history per tool.
-10. **`delight-ui` + theme**: the theme on both sides (host object observed
-    by plugins), the shared components the built-ins need.
+10. **Theme for plugins**: the theme on both sides (host object observed
+    by plugins), and what the built-ins need from `delight-ui`.
 11. **Built-in JSON, YAML and SVG plugins**: the WASI SDK xtask (tree-sitter
     is C), an xtask building `plugins/`, and the app loading the `.wasm`
     files from its built-in plugins folder (the build output during

@@ -1,0 +1,18 @@
+[package]
+name = "delight-ui"
+description = "Delight's UI kit: the theme, icons and font, components and the text editor"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+gpui = { workspace = true }
+image = { workspace = true }
+log = { workspace = true }
+resvg = { workspace = true }
+smallvec = { workspace = true }
+unicode-segmentation = { workspace = true }
