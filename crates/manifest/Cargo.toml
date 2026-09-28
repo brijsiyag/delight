@@ -1,0 +1,15 @@
+[package]
+name = "delight-manifest"
+description = "What a Delight plugin's .wasm says about itself: its protocol version and manifest"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+anyhow = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
