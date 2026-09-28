@@ -21,7 +21,7 @@ pub const PLUGIN_API_VERSION: &str = env!("CARGO_PKG_VERSION");
 /// method, changing a type, a new enum variant sent to plugins, a change to the Rust
 /// API that plugins can't build against unchanged. Bump the patch for the rest.
 ///
-/// 1.1 added `HostApi::remember_input`.
+/// 1.1 added `HostApi::remember_input`; 1.2 `HostApi::current_theme`.
 pub const PROTOCOL_VERSION: ProtocolVersion = ProtocolVersion {
     major: number(env!("CARGO_PKG_VERSION_MAJOR")),
     minor: number(env!("CARGO_PKG_VERSION_MINOR")),

@@ -224,12 +224,14 @@ fork's `delight` branch.
    matches, open a tool on a surface, footer actions and their keys, Esc
    and reopen behaviour.
 9. **Input history**: ⌃R, ⌃N / ⌃P completions, history per tool.
-10. **Theme for plugins**: the theme on both sides (host object observed
-    by plugins), and what the built-ins need from `delight-ui`.
+10. **Theme for plugins**: `HostApi::current_theme` (protocol 1.2), the
+    app's theme as data; each plugin's host object notifies when it
+    changes, so the plugin API keeps a copy (`theme(cx)`) and redraws.
 11. **Built-in JSON, YAML and SVG plugins**: the WASI SDK xtask (tree-sitter
     is C), an xtask building `plugins/`, and the app loading the `.wasm`
     files from its built-in plugins folder (the build output during
-    development).
+    development). `delight-ui` in them: its wasm build, its theme from
+    `theme(cx)`, and its icons through embedded_gpui's asset hook.
 12. **Settings window and permissions**: general settings, the plugins page
     (list, enable, permissions shown, Install… with confirmation, plugin
     settings pages on surfaces), the gated host capabilities (commands,

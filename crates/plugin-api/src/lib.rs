@@ -44,9 +44,9 @@ mod host;
 mod tool;
 
 pub use delight_plugin_api_macros::{Operations, plugin};
-pub use delight_protocol::{Action, Input, Shortcut};
+pub use delight_protocol::{Action, Color, Input, Shortcut, Theme};
 pub use embedded_gpui::gpui;
-pub use host::{Host, host};
+pub use host::{Host, host, theme};
 pub use tool::AnyTool;
 
 use gpui::{App, Context, Render, Window};

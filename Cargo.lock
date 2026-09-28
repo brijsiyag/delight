@@ -1709,7 +1709,7 @@ dependencies = [
 
 [[package]]
 name = "delight-manifest"
-version = "1.1.0"
+version = "1.2.0"
 dependencies = [
  "anyhow",
  "serde",
@@ -1718,7 +1718,7 @@ dependencies = [
 
 [[package]]
 name = "delight-plugin-api"
-version = "1.1.0"
+version = "1.2.0"
 dependencies = [
  "anyhow",
  "delight-plugin-api-macros",
@@ -1728,7 +1728,7 @@ dependencies = [
 
 [[package]]
 name = "delight-plugin-api-macros"
-version = "1.1.0"
+version = "1.2.0"
 dependencies = [
  "anyhow",
  "darling",
@@ -1740,7 +1740,7 @@ dependencies = [
 
 [[package]]
 name = "delight-protocol"
-version = "1.1.0"
+version = "1.2.0"
 dependencies = [
  "delight-manifest",
  "embedded_gpui",

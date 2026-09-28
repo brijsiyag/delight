@@ -2,9 +2,9 @@
 //! actions that depend on it.
 
 use delight_plugin_api::gpui::{App, AppContext as _, Context, IntoElement, Render, Window, div};
-use delight_plugin_api::gpui::{ParentElement as _, Styled as _};
+use delight_plugin_api::gpui::{Hsla, ParentElement as _, Styled as _, prelude::FluentBuilder as _};
 use delight_plugin_api::{
-    Action, AnyTool, Detection, Input, Operations, Plugin, Shortcut, Tool, host, plugin,
+    Action, AnyTool, Detection, Input, Operations, Plugin, Shortcut, Tool, host, plugin, theme,
 };
 
 #[plugin(
@@ -98,7 +98,9 @@ impl Tool for Echo {
 }
 
 impl Render for Echo {
-    fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
-        div().p_2().child(self.text.clone())
+    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        // The app's text colour, once the app has said what it is.
+        let color = theme(cx).map(|theme| Hsla::from(theme.text));
+        div().p_2().when_some(color, |div, color| div.text_color(color)).child(self.text.clone())
     }
 }

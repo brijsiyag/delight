@@ -11,7 +11,7 @@ use std::sync::{Arc, Once};
 use std::time::Duration;
 
 use delight_protocol::{
-    Action, HostApi, Input, Shortcut, ToolApi, ToolApiCaller as _,
+    Action, Color, HostApi, Input, Shortcut, Theme, ToolApi, ToolApiCaller as _,
 };
 use delight_runtime::{Candidate, Plugin, detect_all, plugin_options, read_manifest};
 use embedded_gpui::{Remote, Surface, shared};
@@ -44,6 +44,8 @@ struct FakeApp {
     hides: usize,
     /// (operation, text) pairs.
     remembered: Vec<(String, String)>,
+    /// How many times the plugin asked for the theme.
+    theme_requests: usize,
 }
 
 #[shared]
@@ -62,6 +64,29 @@ impl HostApi for FakeApp {
 
     fn remember_input(&mut self, operation: String, text: String, _cx: &mut Context<Self>) {
         self.remembered.push((operation, text));
+    }
+
+    fn current_theme(&mut self, _cx: &mut Context<Self>) -> Theme {
+        self.theme_requests += 1;
+        let gray = |l| Color { h: 0., s: 0., l, a: 1. };
+        Theme {
+            dark: true,
+            text: gray(0.9),
+            text_muted: gray(0.6),
+            text_faint: gray(0.4),
+            surface: gray(0.2),
+            fill: gray(0.3),
+            border: gray(0.3),
+            accent: gray(0.5),
+            accent_text: gray(1.),
+            success: gray(0.5),
+            warning: gray(0.5),
+            error: gray(0.5),
+            font: "Test".into(),
+            mono_font: "Test Mono".into(),
+            text_size: 13.,
+            radius: 8.,
+        }
     }
 }
 
@@ -236,4 +261,17 @@ async fn a_plugin_that_overruns_its_turn_is_stopped(cx: &mut TestAppContext) {
     let ranked = cx.update(|cx| detect_all(std::slice::from_ref(&plugin), &input("hello"), cx));
     settle(cx);
     assert!(ranked.await.is_empty());
+}
+
+#[gpui::test]
+async fn the_plugin_follows_the_apps_theme(cx: &mut TestAppContext) {
+    let (_plugin, app) = start("theme", cx).await;
+    settle(cx);
+    let asked = app.read_with(cx, |app, _| app.theme_requests);
+    assert!(asked >= 1, "the plugin asks for the theme when it starts");
+
+    // The app's theme changed: it notifies its object, and the plugin asks again.
+    app.update(cx, |_, cx| cx.notify());
+    settle(cx);
+    assert!(app.read_with(cx, |app, _| app.theme_requests) > asked, "the plugin asks again");
 }

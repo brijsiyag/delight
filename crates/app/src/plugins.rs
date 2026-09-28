@@ -8,10 +8,11 @@ use std::rc::Rc;
 use std::sync::Arc;
 
 use anyhow::Context as _;
-use delight_protocol::{HostApi, Manifest};
+use delight_protocol::{Color, HostApi, Manifest, Theme};
 use delight_runtime::{Plugin, plugin_options, read_manifest};
 use embedded_gpui::shared;
-use gpui::{App, AppContext as _, ClipboardItem, Context, Global, PlatformTextSystem};
+use delight_ui::ActiveTheme as _;
+use gpui::{App, AppContext as _, ClipboardItem, Context, Global, PlatformTextSystem, Subscription};
 
 use crate::{history, launcher};
 
@@ -60,7 +61,11 @@ pub fn load(text_system: Arc<dyn PlatformTextSystem>, cx: &mut App) {
                     continue;
                 }
                 let options = plugin_options(&manifest, data_dir(&id), text_system.clone());
-                let root = cx.new(|_| HostRoot { plugin_id: id.clone() });
+                let root = cx.new(|cx| HostRoot {
+                    plugin_id: id.clone(),
+                    // The plugin observes this object: tell it when the theme changes.
+                    _theme_changes: cx.observe_global::<delight_ui::Theme>(|_, cx| cx.notify()),
+                });
                 starting.push((file.clone(), Plugin::start(file, manifest, options, root, cx)));
             }
             starting
@@ -105,6 +110,7 @@ fn manifests(dir: &Path) -> Vec<(PathBuf, anyhow::Result<Manifest>)> {
 /// that plugin's.
 struct HostRoot {
     plugin_id: String,
+    _theme_changes: Subscription,
 }
 
 #[shared]
@@ -127,5 +133,32 @@ impl HostApi for HostRoot {
         if let Err(error) = history::get_mut(cx).remember(plugin_id, &operation, &text) {
             log::error!("remembering {plugin_id}'s input: {error:#}");
         }
+    }
+
+    fn current_theme(&mut self, cx: &mut Context<Self>) -> Theme {
+        theme_for_plugins(cx.theme())
+    }
+}
+
+/// The app's theme, as plugins get it.
+fn theme_for_plugins(theme: &delight_ui::Theme) -> Theme {
+    let color = Color::from;
+    Theme {
+        dark: theme.dark,
+        text: color(theme.text),
+        text_muted: color(theme.text_muted),
+        text_faint: color(theme.text_faint),
+        surface: color(theme.surface),
+        fill: color(theme.fill),
+        border: color(theme.border),
+        accent: color(theme.accent),
+        accent_text: color(theme.accent_text),
+        success: color(theme.success),
+        warning: color(theme.warning),
+        error: color(theme.error),
+        font: theme.font.to_string(),
+        mono_font: theme.mono_font.to_string(),
+        text_size: theme.text_size.into(),
+        radius: theme.radius.into(),
     }
 }

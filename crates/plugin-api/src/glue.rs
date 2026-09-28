@@ -16,10 +16,11 @@ use crate::host::HostRoot;
 use crate::tool::DynTool;
 use crate::{Operations as _, Plugin};
 
-/// Start the plugin: remember the app's root, build the author's plugin, and install
-/// the plugin's root object. The returned entity must be kept alive.
+/// Start the plugin: connect to the app's root (and follow its theme), build the
+/// author's plugin, and install the plugin's root object. The returned entity must be
+/// kept alive.
 pub fn start<P: Plugin>(cx: &mut App) -> AnyEntity {
-    cx.set_global(HostRoot(root::<HostApi>()));
+    HostRoot::connect(root::<HostApi>(), cx);
     let plugin = P::new(cx);
     let plugin_root = cx.new(|_| PluginRoot { plugin });
     share_root(&plugin_root, cx);
