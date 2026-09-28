@@ -1,1 +1,3 @@
 /target
+# The fixture plugin is its own workspace.
+/tests/fixture/target

@@ -1,0 +1,26 @@
+[package]
+name = "delight-fixture"
+description = "The plugin Delight's headless tests drive"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+publish = false
+
+# Its own workspace: it only builds for wasm32-wasip2.
+[workspace]
+
+[lib]
+path = "src/lib.rs"
+crate-type = ["cdylib"]
+
+[dependencies]
+delight-plugin-api = { path = "../../crates/plugin-api" }
+
+[profile.release]
+lto = true
+opt-level = "s"
+strip = true
+
+# GPUI's patches, as the root workspace has them: patches don't propagate.
+[patch.crates-io]
+async-task = { git = "https://github.com/smol-rs/async-task.git", rev = "b4486cd71e4e94fbda54ce6302444de14f4d190e" }
