@@ -31,6 +31,8 @@ delight-plugin-api-macros = { path = "crates/plugin-api-macros" }
 # next to this repository. It brings GPUI (see docs/plan.md, Layout).
 embedded_gpui = { path = "../embedded_gpui/embedded_gpui" }
 anyhow = "=1.0.103"
+# Attribute parsing for the plugin API's proc macros.
+darling = "=0.23.0"
 proc-macro2 = "=1.0.106"
 quote = "=1.0.46"
 serde = { version = "=1.0.228", features = ["derive"] }
