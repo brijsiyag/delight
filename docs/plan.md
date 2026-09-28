@@ -29,8 +29,11 @@ These were settled in the previous attempt (see its
    `wasi:sockets`, and plugins use `wstd`.
 6. GPUI is not forked: it is used directly from Zed's repository by the
    app, embedded_gpui and every plugin.
-7. embedded_gpui is the fork `brijsiyag/embedded_gpui`, used by path, never
-   vendored; its changes stay small and upstreamable.
+7. embedded_gpui is used from upstream (`zed-industries/embedded_gpui`) at a
+   commit (`rev`), never vendored, so the app and every plugin get exactly the
+   same one. Changes are made in the fork `brijsiyag/embedded_gpui`, stay
+   small and upstreamable, and are proposed upstream; Delight moves to the
+   fork's commit only for a change upstream won't take.
 
 ## What is different this time
 
@@ -91,7 +94,7 @@ delight-umbrella/
 │  ├─ tests/                the headless test crate; fixture/ is its plugin (own workspace)
 │  ├─ xtask/                WASI SDK download, building built-ins, bundling, signing, version checks
 │  └─ docs/
-├─ embedded_gpui/           the fork, branch `delight`
+├─ embedded_gpui/           the fork, branch `delight`: where embedded_gpui changes are made
 └─ wstd/                    only if upstream won't take the reactor change (step 13)
 ```
 
@@ -103,8 +106,8 @@ serves those WASI calls with wasmtime's `wasmtime-wasi` (sockets) and
 Built-in plugins live in their own workspace because they only build for
 `wasm32-wasip2`. A path dependency's `workspace = true` resolves in its own workspace, so the
 crates they share (`manifest`, `protocol`, `plugin-api`, `ui`) stay members of the root one.
-Every workspace (root, `plugins/`, the fork, third-party plugins) names GPUI
-exactly as the fork does, `git = "https://github.com/zed-industries/zed.git",
+Every workspace (root, `plugins/`, embedded_gpui, third-party plugins) names GPUI
+exactly as embedded_gpui does, `git = "https://github.com/zed-industries/zed.git",
 branch = "gpui-embedded-in-gpui"` (plus `version = "=0.2.2"`), or Cargo links
 two GPUIs: a `rev` for the same commit counts as a different source. Each
 workspace's `Cargo.lock` pins the commit.

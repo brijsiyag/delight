@@ -1,22 +1,40 @@
 //! The launcher: a floating input bar that grows into a panel once there's input,
-//! with the tools that fit it on the left, the selected tool on the right, and the
-//! footer (the tool's actions) under them. Tools and the footer join it in the next
-//! part; for now the panel says no tool fits.
+//! with the tools that fit it on the left, the selected tool on the right, and its
+//! actions in the footer.
 //!
-//! * `window`: opening, showing and hiding the window.
+//! * `window`: opening, showing and hiding the window, and what the rest of the
+//!   app asks of it.
 //! * this file: the launcher's state and behaviour.
 //! * `view`: drawing it.
+//! * `tool_pane`: one tool, on the surface its plugin draws on.
+//! * `footer`: which key runs which footer action.
+//!
+//! Keys come from the keymap (`crate::keymap`) by focus: the input
+//! (`Launcher > Editor`) edits text, the tool list (`Launcher > ToolList`) moves
+//! between tools, and `Launcher` keys work in both.
 
+mod footer;
+mod tool_pane;
 mod view;
 mod window;
 
+use std::collections::{HashMap, HashSet};
+use std::time::Duration;
+
+use delight_protocol::{Action, Input};
+use delight_runtime::{Candidate, detect_all};
 use delight_ui::theme::{INPUT_FONT_SIZE, INPUT_LINE_HEIGHT};
 use delight_ui::{EditorEvent, EditorFont, TextEditor};
-use gpui::{App, AppContext as _, Context, Entity, FocusHandle, Focusable as _, Subscription, Window, actions, px};
+use gpui::{
+    App, AppContext as _, Context, Entity, FocusHandle, Focusable as _, KeyDownEvent, Keystroke, ScrollHandle,
+    SharedString, Subscription, Task, Window, actions, px,
+};
 
-pub use window::{hide, open, show, toggle};
+pub use window::{hide, open, plugins_loaded, show, toast, toggle};
 
-use crate::platform::{self, NativeWindow};
+use crate::macos::{self, NativeWindow};
+use crate::plugins;
+use tool_pane::ToolPane;
 
 /// The empty bar, and the panel once there's input.
 const BAR_WIDTH: f32 = 640.;
@@ -30,17 +48,68 @@ const BAR_ICON_GAP: f32 = 16.;
 const BAR_ICON_SIZE: f32 = 22.;
 const PANEL_HEIGHT: f32 = 540.;
 const PANEL_RADIUS: f32 = 24.;
+/// Typing pauses this long before the tools are asked again.
+const DETECT_DELAY: Duration = Duration::from_millis(30);
+const TOAST: Duration = Duration::from_millis(1600);
+const STOPPED_TOAST: Duration = Duration::from_secs(8);
 
 /// The key context of the launcher window.
 pub const CONTEXT: &str = "Launcher";
+/// The key context of the tool list, while it has focus.
+pub const TOOL_LIST_CONTEXT: &str = "ToolList";
 
-actions!(launcher, [Dismiss, ClearInput]);
+actions!(
+    launcher,
+    [
+        Dismiss,
+        ClearInput,
+        /// Move focus to the next field: the input, then the tool list.
+        FocusNext,
+        FocusPrevious,
+        /// Move focus to the tool list.
+        FocusTools,
+        /// In the tool list; on the first tool, back to the input.
+        SelectPrevious,
+        SelectNext,
+    ]
+);
+
+/// Select the nth tool in the list, from 1.
+#[derive(Clone, Debug, PartialEq, gpui::Action)]
+#[action(namespace = launcher, no_json)]
+pub struct SelectTool(pub usize);
+
+/// A tool: its plugin's index in `plugins::all`, and the operation's index in that
+/// plugin's manifest (as in a [`Candidate`]).
+type ToolKey = (usize, usize);
+
+fn key(candidate: &Candidate) -> ToolKey {
+    (candidate.plugin, candidate.operation)
+}
 
 pub struct Launcher {
     focus_handle: FocusHandle,
-    /// The window's AppKit side, changed outside GPUI updates (see `platform`).
+    /// The window's AppKit side, changed outside GPUI updates (see `macos`).
     native: Option<NativeWindow>,
     input: Entity<TextEditor>,
+    /// The tool list's focus (a Tab stop after the input).
+    list_focus: FocusHandle,
+    list_scroll: ScrollHandle,
+    /// The tools that fit the input, best first.
+    candidates: Vec<Candidate>,
+    selected: Option<usize>,
+    /// The tool the user picked: it stays selected while the input changes, as long
+    /// as it still fits.
+    picked: Option<ToolKey>,
+    /// The tools opened so far, kept with their state while the plugins run; the
+    /// launcher redraws when a tool's actions change.
+    panes: HashMap<ToolKey, (Entity<ToolPane>, Subscription)>,
+    /// Replacing it cancels the detection before.
+    detecting: Option<Task<()>>,
+    toast: Option<SharedString>,
+    toast_timer: Option<Task<()>>,
+    /// Plugins whose stop was already announced, by id.
+    announced_stops: HashSet<String>,
     /// The window's size (width, height), once set.
     size: Option<(f32, f32)>,
     _subscriptions: Vec<Subscription>,
@@ -61,7 +130,7 @@ impl Launcher {
             // Losing the keyboard to another app hides the launcher (a setting
             // later, on by default).
             cx.observe_window_activation(window, |_, window, cx| {
-                if !window.is_window_active() && platform::is_window_visible(window) {
+                if !window.is_window_active() && macos::is_window_visible(window) {
                     cx.defer(hide);
                 }
             }),
@@ -70,9 +139,24 @@ impl Launcher {
             focus_handle: cx.focus_handle(),
             native: NativeWindow::of(window),
             input,
+            list_focus: cx.focus_handle().tab_stop(true),
+            list_scroll: ScrollHandle::new(),
+            candidates: Vec::new(),
+            selected: None,
+            picked: None,
+            panes: HashMap::new(),
+            detecting: None,
+            toast: None,
+            toast_timer: None,
+            announced_stops: HashSet::new(),
             size: None,
             _subscriptions: subscriptions,
         }
+    }
+
+    /// What the tools get.
+    fn input(&self, cx: &App) -> Input {
+        Input { text: self.input.read(cx).text().to_string() }
     }
 
     fn is_expanded(&self, cx: &App) -> bool {
@@ -108,16 +192,209 @@ impl Launcher {
         if self.size.is_some_and(|(_, height)| height > BAR_HEIGHT) { PANEL_RADIUS } else { BAR_RADIUS }
     }
 
+    // -------------------------------------------------------------------------
+    // Input
+    // -------------------------------------------------------------------------
+
     fn on_input_event(&mut self, event: &EditorEvent, cx: &mut Context<Self>) {
         match event {
-            // The panel opens and closes with the text.
-            EditorEvent::Changed => cx.notify(),
+            EditorEvent::Changed => self.input_changed(cx),
             EditorEvent::CompletionAccepted | EditorEvent::Focus | EditorEvent::Blur => {}
         }
+    }
+
+    fn input_changed(&mut self, cx: &mut Context<Self>) {
+        if !self.is_expanded(cx) {
+            self.picked = None;
+        }
+        self.detect(cx);
+        cx.notify();
     }
 
     fn clear_input(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.input.update(cx, |input, cx| input.set_text("", cx));
         window.focus(&self.input.focus_handle(cx), cx);
+    }
+
+    // -------------------------------------------------------------------------
+    // Tools
+    // -------------------------------------------------------------------------
+
+    /// Ask every plugin about the input once typing pauses.
+    fn detect(&mut self, cx: &mut Context<Self>) {
+        let input = self.input(cx);
+        self.detecting = Some(cx.spawn(async move |this, cx| {
+            cx.background_executor().timer(DETECT_DELAY).await;
+            let detected = cx.update(|cx| detect_all(&plugins::all(cx), &input, cx));
+            let candidates = detected.await;
+            this.update(cx, |this, cx| this.show_candidates(candidates, cx)).ok();
+        }));
+    }
+
+    /// List the tools and keep the selection: the picked tool, else the best one if
+    /// it's recommended, else nothing.
+    fn show_candidates(&mut self, candidates: Vec<Candidate>, cx: &mut Context<Self>) {
+        self.candidates = candidates;
+        let picked = self.picked.and_then(|picked| self.candidates.iter().position(|c| key(c) == picked));
+        let best = self.candidates.first().filter(|c| c.is_recommended()).map(|_| 0);
+        self.selected = picked.or(best);
+        self.announce_stops(cx);
+        self.update_selected_pane(cx);
+        cx.notify();
+    }
+
+    fn selected_candidate(&self) -> Option<&Candidate> {
+        self.candidates.get(self.selected?)
+    }
+
+    /// Select the `index`th tool: the user picked it.
+    fn select(&mut self, index: usize, cx: &mut Context<Self>) {
+        if index >= self.candidates.len() || self.selected == Some(index) {
+            return;
+        }
+        self.selected = Some(index);
+        self.picked = Some(key(&self.candidates[index]));
+        self.list_scroll.scroll_to_item(index);
+        self.update_selected_pane(cx);
+        cx.notify();
+    }
+
+    /// On the first tool (or none), back to the input.
+    fn select_previous(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        match self.selected.and_then(|index| index.checked_sub(1)) {
+            Some(index) => self.select(index, cx),
+            None => window.focus(&self.input.focus_handle(cx), cx),
+        }
+    }
+
+    fn select_next(&mut self, cx: &mut Context<Self>) {
+        self.select(self.selected.map_or(0, |index| index + 1), cx);
+    }
+
+    /// Move focus to the tool list, selecting the first tool if none is.
+    fn focus_tools(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.candidates.is_empty() {
+            return;
+        }
+        if self.selected.is_none() {
+            self.select(0, cx);
+        }
+        window.focus(&self.list_focus, cx);
+        cx.notify();
+    }
+
+    /// Typing while the tool list has focus goes on in the input.
+    fn on_list_key_down(&mut self, event: &KeyDownEvent, window: &mut Window, cx: &mut Context<Self>) {
+        let keystroke = &event.keystroke;
+        let Some(text) = keystroke.key_char.clone() else {
+            return;
+        };
+        if keystroke.modifiers.platform || keystroke.modifiers.control {
+            return;
+        }
+        cx.stop_propagation();
+        window.focus(&self.input.focus_handle(cx), cx);
+        self.input.update(cx, |input, cx| input.insert(&text, cx));
+    }
+
+    /// The selected tool's pane, opened on first use; `None` if its plugin stopped.
+    fn selected_pane(&mut self, cx: &mut Context<Self>) -> Option<Entity<ToolPane>> {
+        let key = key(self.selected_candidate()?);
+        if let Some((pane, _)) = self.panes.get(&key) {
+            return Some(pane.clone());
+        }
+        let plugins = plugins::all(cx);
+        let plugin = plugins.get(key.0)?;
+        if plugin.stopped().is_some() {
+            return None;
+        }
+        let operation = plugin.manifest().operations.get(key.1)?.id.clone();
+        let pane = cx.new(|cx| ToolPane::new(plugin, &operation, cx));
+        let redraw = cx.observe(&pane, |_, _, cx| cx.notify());
+        self.panes.insert(key, (pane.clone(), redraw));
+        Some(pane)
+    }
+
+    /// Tell the selected tool what the input is now.
+    fn update_selected_pane(&mut self, cx: &mut Context<Self>) {
+        let input = self.input(cx);
+        if let Some(pane) = self.selected_pane(cx) {
+            pane.update(cx, |pane, cx| pane.on_input_changed(input, cx));
+        }
+    }
+
+    /// A toast for each plugin that stopped since the last look (Delight keeps
+    /// running without it).
+    fn announce_stops(&mut self, cx: &mut Context<Self>) {
+        for plugin in plugins::all(cx).iter() {
+            let manifest = plugin.manifest();
+            if let Some(reason) = plugin.stopped()
+                && self.announced_stops.insert(manifest.plugin.id.clone())
+            {
+                let message = format!("{} stopped and is off until Delight restarts: {reason}", manifest.plugin.name);
+                self.flash_for(message, STOPPED_TOAST, cx);
+            }
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Footer actions
+    // -------------------------------------------------------------------------
+
+    /// The selected tool's footer actions with their keys. An action's shortcut
+    /// gives way to the keymap where the focus is.
+    fn keyed_actions(&self, window: &Window, cx: &App) -> Vec<(Action, Option<Keystroke>)> {
+        let Some((pane, _)) = self.selected_candidate().and_then(|c| self.panes.get(&key(c))) else {
+            return Vec::new();
+        };
+        let keymap = cx.key_bindings();
+        let keymap = keymap.borrow();
+        let context = window.context_stack();
+        let is_bound = |keystroke: &Keystroke| !keymap.bindings_for_input(std::slice::from_ref(keystroke), &context).0.is_empty();
+        footer::keyed(pane.read(cx).actions().to_vec(), is_bound)
+    }
+
+    /// Run the footer action whose shortcut was pressed (the keymap had no binding
+    /// for it).
+    fn on_key_down(&mut self, event: &KeyDownEvent, window: &mut Window, cx: &mut Context<Self>) {
+        let pressed = &event.keystroke;
+        let hit = self
+            .keyed_actions(window, cx)
+            .into_iter()
+            .find(|(_, key)| key.as_ref().is_some_and(|own| footer::matches(own, pressed)));
+        if let Some((action, _)) = hit {
+            cx.stop_propagation();
+            self.perform(&action, cx);
+        }
+    }
+
+    /// Run a footer action: the tool does what it's for.
+    fn perform(&mut self, action: &Action, cx: &mut Context<Self>) {
+        let pane = self.selected_candidate().and_then(|c| self.panes.get(&key(c))).map(|(pane, _)| pane.clone());
+        if let Some(pane) = pane {
+            pane.update(cx, |pane, cx| pane.perform(&action.id, cx));
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // Toasts
+    // -------------------------------------------------------------------------
+
+    fn flash(&mut self, message: impl Into<SharedString>, cx: &mut Context<Self>) {
+        self.flash_for(message, TOAST, cx);
+    }
+
+    /// Show `message` in the footer for `duration`.
+    fn flash_for(&mut self, message: impl Into<SharedString>, duration: Duration, cx: &mut Context<Self>) {
+        self.toast = Some(message.into());
+        cx.notify();
+        self.toast_timer = Some(cx.spawn(async move |this, cx| {
+            cx.background_executor().timer(duration).await;
+            this.update(cx, |this, cx| {
+                this.toast = None;
+                cx.notify();
+            })
+            .ok();
+        }));
     }
 }

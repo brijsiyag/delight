@@ -21,12 +21,18 @@ The umbrella folder `~/Desktop/delight-umbrella` holds this repo next to its
 forks:
 
 - `../embedded_gpui`: the fork `github.com/brijsiyag/embedded_gpui`, branch
-  `delight`. Used by path.
+  `delight`, where changes to embedded_gpui are made and proposed upstream.
+  Delight itself depends on upstream (`zed-industries/embedded_gpui`) at a
+  commit (the root `Cargo.toml`); a local `[patch]` points it at this checkout
+  while a change is being worked on.
 - `~/Desktop/delight` (branch `feat/wasm-plugins`, uncommitted) is the
-  previous attempt. Use it for what the app does and how it looks (behaviour,
-  UI, algorithms), never for its folder or code structure, and don't copy
-  code from it wholesale. `~/Desktop/delight/docs/wasm-rewrite-notes.md`
-  lists what that attempt learned.
+  previous attempt. Its UI was refined, so its UI and app features (the
+  launcher, the input history, the UI kit, every visual) are copied from it
+  and adapted to this architecture. Never reuse its folder or code
+  structure, or its plugin architecture; what connects the copied UI to the
+  plugins is written for this repo. Settings is the exception: it gets a
+  new design. `~/Desktop/delight/docs/wasm-rewrite-notes.md` lists what
+  that attempt learned.
 - `~/Desktop/delight-plugins`: the third-party plugins, ported once the plugin
   API is ready (not a git repo; don't break it).
 

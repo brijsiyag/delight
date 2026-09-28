@@ -1686,8 +1686,11 @@ name = "delight-app"
 version = "2.0.0"
 dependencies = [
  "anyhow",
+ "delight-protocol",
+ "delight-runtime",
  "delight-ui",
  "dirs 6.0.0",
+ "embedded_gpui",
  "env_logger",
  "futures",
  "global-hotkey",
@@ -1964,6 +1967,7 @@ checksum = "edd0f118536f44f5ccd48bcb8b111bdc3de888b58c74639dfb034a357d0f206d"
 [[package]]
 name = "embedded_gpui"
 version = "0.1.0"
+source = "git+https://github.com/zed-industries/embedded_gpui.git?rev=28bc6d3d559b62040626403040b680ad96ef696b#28bc6d3d559b62040626403040b680ad96ef696b"
 dependencies = [
  "anyhow",
  "embedded_gpui_macros",
@@ -1985,6 +1989,7 @@ dependencies = [
 [[package]]
 name = "embedded_gpui_macros"
 version = "0.1.0"
+source = "git+https://github.com/zed-industries/embedded_gpui.git?rev=28bc6d3d559b62040626403040b680ad96ef696b#28bc6d3d559b62040626403040b680ad96ef696b"
 dependencies = [
  "proc-macro2",
  "quote",

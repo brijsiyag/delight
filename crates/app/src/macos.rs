@@ -1,6 +1,7 @@
 //! AppKit calls GPUI doesn't expose: the menu-bar-only app, the launcher's panel
 //! look (a rounded native backdrop), resizing that keeps the top edge in place,
-//! and showing and hiding without closing.
+//! and showing and hiding without closing. Each is a workaround, listed in the
+//! README with what GPUI would need to offer before it can go.
 //!
 //! AppKit calls back into GPUI synchronously when a window changes (it resizes, it
 //! becomes or stops being key). GPUI drops those callbacks while one of its updates

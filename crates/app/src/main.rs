@@ -1,31 +1,35 @@
 //! Delight: a macOS launcher whose tools are plugins.
 //!
-//! This is the app's shell: one instance at a time, no Dock icon, a menu bar icon,
-//! and the launcher, shown and hidden with a global hotkey. Plugins and their tools
-//! join it next.
+//! One instance at a time, no Dock icon, a menu bar icon, and the launcher, shown
+//! and hidden with a global hotkey, which lists the plugins' tools that fit its
+//! input.
 
 mod hotkey;
 mod keymap;
 mod launcher;
-mod platform;
+mod macos;
+mod plugins;
 mod single_instance;
 mod tray;
 
 use delight_ui::ThemeMode;
+use std::path::PathBuf;
+
 use gpui::{App, Application, actions};
 
 use crate::single_instance::Acquired;
 
 actions!(delight, [Quit]);
 
+/// Delight's own folder: `~/Library/Application Support/Delight`.
+fn app_dir() -> PathBuf {
+    dirs::data_dir().unwrap_or_else(std::env::temp_dir).join("Delight")
+}
+
 fn main() {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
 
-    let lock = dirs::data_dir()
-        .unwrap_or_else(std::env::temp_dir)
-        .join("Delight")
-        .join("delight.lock");
-    let _instance = match single_instance::acquire(&lock) {
+    let _instance = match single_instance::acquire(&app_dir().join("delight.lock")) {
         Ok(Acquired::Locked(lock)) => lock,
         Ok(Acquired::Running { pid }) => {
             match pid {
@@ -40,9 +44,12 @@ fn main() {
         }
     };
 
-    let app = Application::with_platform(gpui_platform::current_platform(false)).with_assets(delight_ui::Assets);
-    app.run(|cx: &mut App| {
-        platform::set_accessory_app();
+    let platform = gpui_platform::current_platform(false);
+    // Plugins' text is shaped by the app's own text system.
+    let text_system = platform.text_system();
+    let app = Application::with_platform(platform).with_assets(delight_ui::Assets);
+    app.run(move |cx: &mut App| {
+        macos::set_accessory_app();
         delight_ui::init(cx, ThemeMode::System);
         keymap::init(cx);
         cx.on_action(|_: &Quit, cx| cx.quit());
@@ -57,5 +64,6 @@ fn main() {
         if let Err(error) = tray::install(cx) {
             log::error!("adding the menu bar icon: {error:#}");
         }
+        plugins::load(text_system, cx);
     });
 }

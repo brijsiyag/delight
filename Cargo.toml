@@ -33,9 +33,11 @@ delight-protocol = { path = "crates/protocol" }
 delight-plugin-api-macros = { path = "crates/plugin-api-macros" }
 delight-runtime = { path = "crates/runtime" }
 delight-ui = { path = "crates/ui" }
-# The fork (github.com/brijsiyag/embedded_gpui, branch `delight`), checked out
-# next to this repository. It brings GPUI (see docs/plan.md, Layout).
-embedded_gpui = { path = "../embedded_gpui/embedded_gpui" }
+# Upstream, at a commit: the app and every plugin (through delight-plugin-api) get
+# exactly this one, wherever they're built. It brings GPUI (see docs/plan.md,
+# Layout). To work on a change, point it at the checkout next to this repository
+# with a `[patch."https://github.com/zed-industries/embedded_gpui.git"]` entry.
+embedded_gpui = { git = "https://github.com/zed-industries/embedded_gpui.git", rev = "28bc6d3d559b62040626403040b680ad96ef696b" }
 anyhow = "=1.0.103"
 # Attribute parsing for the plugin API's proc macros.
 darling = "=0.23.0"

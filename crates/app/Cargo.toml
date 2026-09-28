@@ -14,7 +14,10 @@ name = "delight"
 path = "src/main.rs"
 
 [dependencies]
+delight-protocol = { workspace = true }
+delight-runtime = { workspace = true }
 delight-ui = { workspace = true }
+embedded_gpui = { workspace = true }
 anyhow = { workspace = true }
 dirs = { workspace = true }
 env_logger = { workspace = true }

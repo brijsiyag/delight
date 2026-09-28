@@ -2,12 +2,12 @@
 //! reaches it through these functions; the window is a global.
 
 use gpui::{
-    App, AppContext as _, Bounds, Focusable as _, Global, Pixels, Point, WindowBackgroundAppearance,
+    App, AppContext as _, Bounds, Focusable as _, Global, Pixels, Point, SharedString, WindowBackgroundAppearance,
     WindowBounds, WindowHandle, WindowKind, WindowOptions, point, px, size,
 };
 
 use super::{BAR_HEIGHT, BAR_RADIUS, BAR_WIDTH, Launcher};
-use crate::platform;
+use crate::macos;
 
 /// Where the bar sits: this far down the screen, centred across it.
 const FROM_TOP: f32 = 0.22;
@@ -37,7 +37,7 @@ pub fn open(cx: &mut App) -> anyhow::Result<()> {
         is_resizable: false,
         is_minimizable: false,
         display_id: display.map(|display| display.id()),
-        // Transparent: the blur is our own backdrop (see `platform`), shaped to our
+        // Transparent: the blur is our own backdrop (see `macos`), shaped to our
         // corners; GPUI's blurred background keeps macOS's own radius.
         window_background: WindowBackgroundAppearance::Transparent,
         ..Default::default()
@@ -75,7 +75,7 @@ fn handle(cx: &App) -> Option<WindowHandle<Launcher>> {
 pub fn toggle(cx: &mut App) {
     let Some(handle) = handle(cx) else { return };
     let in_front = handle
-        .update(cx, |_, window, _| platform::is_window_visible(window) && window.is_window_active())
+        .update(cx, |_, window, _| macos::is_window_visible(window) && window.is_window_active())
         .unwrap_or(false);
     if in_front { hide(cx) } else { show(cx) }
 }
@@ -88,7 +88,7 @@ pub fn show(cx: &mut App) {
         launcher.native.clone()
     });
     let Ok(Some(native)) = native else { return };
-    // Present outside this update (see `platform`), then focus the input once the
+    // Present outside this update (see `macos`), then focus the input once the
     // window is key: earlier focus doesn't stick.
     cx.spawn(async move |cx| {
         native.present();
@@ -111,6 +111,25 @@ pub fn hide(cx: &mut App) {
         return;
     };
     cx.spawn(async move |_| native.hide()).detach();
+}
+
+/// A brief message in the footer (a plugin's toast).
+pub fn toast(message: SharedString, cx: &mut App) {
+    if let Some(handle) = handle(cx) {
+        handle.update(cx, |launcher, _, cx| launcher.flash(message, cx)).ok();
+    }
+}
+
+/// The plugins have started: ask them about the input.
+pub fn plugins_loaded(cx: &mut App) {
+    if let Some(handle) = handle(cx) {
+        handle
+            .update(cx, |launcher, _, cx| {
+                launcher.panes.clear();
+                launcher.detect(cx);
+            })
+            .ok();
+    }
 }
 
 #[cfg(test)]

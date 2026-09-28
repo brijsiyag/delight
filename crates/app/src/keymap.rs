@@ -4,6 +4,7 @@
 //! binding wins:
 //!
 //! * `Editor`: a text input has focus.
+//! * `ToolList`: the launcher's tool list has focus.
 //! * `Launcher`: anywhere in the launcher window.
 //! * no context: anywhere in Delight.
 
@@ -11,13 +12,14 @@ use delight_ui::editor::actions::{self as editor, CONTEXT as EDITOR};
 use gpui::{App, KeyBinding};
 
 use crate::Quit;
-use crate::launcher::{self, CONTEXT as LAUNCHER};
+use crate::launcher::{self, CONTEXT as LAUNCHER, SelectTool, TOOL_LIST_CONTEXT as TOOL_LIST};
 
 pub fn init(cx: &mut App) {
     let editor = Some(EDITOR);
     let multiline = Some("Editor && multiline");
     let completing = Some("Editor && showing_completion");
     let launcher = Some(LAUNCHER);
+    let tool_list = Some(TOOL_LIST);
     cx.bind_keys([
         KeyBinding::new("cmd-q", Quit, None),
         // Text editing, wherever an input has focus.
@@ -65,5 +67,16 @@ pub fn init(cx: &mut App) {
         // The launcher.
         KeyBinding::new("escape", launcher::Dismiss, launcher),
         KeyBinding::new("cmd-k", launcher::ClearInput, launcher),
+        KeyBinding::new("tab", launcher::FocusNext, launcher),
+        KeyBinding::new("shift-tab", launcher::FocusPrevious, launcher),
+        // ↓ past the end of the input moves to the tool list.
+        KeyBinding::new("down", launcher::FocusTools, Some("Launcher > Editor && end_of_input")),
+        // ↑ on the first tool goes back to the input.
+        KeyBinding::new("up", launcher::SelectPrevious, tool_list),
+        KeyBinding::new("down", launcher::SelectNext, tool_list),
+        KeyBinding::new("ctrl-p", launcher::SelectPrevious, tool_list),
+        KeyBinding::new("ctrl-n", launcher::SelectNext, tool_list),
     ]);
+    // The nth tool in the list.
+    cx.bind_keys((1..=9).map(|n| KeyBinding::new(&format!("cmd-{n}"), SelectTool(n), launcher)));
 }
