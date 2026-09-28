@@ -1,0 +1,25 @@
+[workspace]
+resolver = "3"
+# Native crates only. Each crate is added in the step that introduces it; see
+# docs/plan.md. Plugins (built-in or not) are wasm32-wasip2 crates in their
+# own workspaces.
+members = []
+
+[workspace.package]
+# 2.x: plugins changed from dylibs to WASM components, so nothing built for
+# 1.x loads.
+version = "2.0.0"
+edition = "2024"
+license = "MIT"
+
+[workspace.lints.clippy]
+dbg_macro = "deny"
+todo = "deny"
+
+# Every dependency is declared once here, pinned exactly (`=x.y.z`, or a git
+# `rev`), and crates use `{ workspace = true }`.
+[workspace.dependencies]
+
+[profile.release]
+codegen-units = 1
+strip = true
