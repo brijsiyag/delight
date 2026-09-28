@@ -198,10 +198,13 @@ fork's `delight` branch.
    what a proc macro depends on is built natively for every plugin.
 6. **`delight-runtime`**: read and check a manifest from bytes (id,
    protocol version, permissions), build `PluginOptions`, start, exchange
-   roots, plugin stopped/crashed reporting,
-   detection across plugins and its ranking (a pure function). The headless
-   test crate: fake host root, the fixture plugin, open a tool on an
-   unattached surface, send it an input, read its actions.
+   roots, plugin stopped/crashed reporting, detection across plugins and
+   its ranking (a pure function). The headless test crate: fake host root,
+   the fixture plugin, open a tool on an unattached surface, send it an
+   input, read its actions. A stop needs no fork change: embedded_gpui
+   fails the calls in flight when a plugin traps, so the first failed call
+   marks it stopped and it isn't called again; calls also time out, since
+   one made just after the stop is never answered.
 7. **App shell**: single instance, tray icon and menu, global hotkey, the
    launcher window with its input; no tools yet.
 8. **Launcher with tools**: load built-ins and the plugins folder, show
@@ -250,6 +253,10 @@ Not needed to get the app working; each waits until it is.
   passed to tools with the text, their contents only with an `InputFiles`
   permission. `Input` is a struct so they can join it as a minor protocol
   change. The third-party image plugin waits for this.
+- **Calls to a stopped plugin fail at once** (**embedded_gpui**): today a
+  call made after the stop is dropped and never answered, so the runtime
+  times it out. Failing it instead, as embedded_gpui already does for the
+  calls in flight, is small and upstreamable.
 - **Zed's `main`**: see step 2.
 
 ## Watch out for
@@ -271,9 +278,6 @@ Not needed to get the app working; each waits until it is.
 
 ## Open questions
 
-- Whether stopping and reporting a crashed plugin needs a fork change (an
-  event from `PluginHost`) or can be seen from failed calls. Decided in
-  step 6.
 - Network, step 13: WASI network (above) or a host HTTP API. The latter
   needs no wstd change but adds a Delight method per kind of network use.
   Also: wstd behind a plugin API `network` feature, or kept out of it. And

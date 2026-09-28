@@ -1,0 +1,20 @@
+[package]
+name = "delight-tests"
+description = "Headless tests: the fixture plugin run by delight-runtime, without a window"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[[test]]
+name = "plugins"
+path = "plugins.rs"
+
+[dev-dependencies]
+delight-protocol = { workspace = true }
+delight-runtime = { workspace = true }
+embedded_gpui = { workspace = true }
+gpui = { workspace = true, features = ["test-support"] }

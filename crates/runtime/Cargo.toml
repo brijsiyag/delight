@@ -13,8 +13,11 @@ workspace = true
 anyhow = { workspace = true }
 delight-manifest = { workspace = true }
 delight-protocol = { workspace = true }
+embedded_gpui = { workspace = true }
+futures = { workspace = true }
 log = { workspace = true }
 wasmparser = { workspace = true }
+wasmtime-wasi = { workspace = true }
 
 [dev-dependencies]
 wasm-encoder = { workspace = true }

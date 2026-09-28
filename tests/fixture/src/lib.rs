@@ -30,6 +30,12 @@ impl Plugin for Fixture {
     }
 
     fn detect(&mut self, input: &Input, _cx: &mut App) -> Vec<Detection<FixtureOperation>> {
+        // The tests' way to make this plugin overrun its turn, so the app stops it.
+        if input.text == "hang" {
+            loop {
+                std::hint::spin_loop();
+            }
+        }
         if input.text.trim().is_empty() {
             return Vec::new();
         }

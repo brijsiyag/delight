@@ -9,6 +9,7 @@ members = [
     "crates/plugin-api",
     "crates/plugin-api-macros",
     "crates/runtime",
+    "tests",
 ]
 
 [workspace.package]
@@ -28,12 +29,17 @@ todo = "deny"
 delight-manifest = { path = "crates/manifest" }
 delight-protocol = { path = "crates/protocol" }
 delight-plugin-api-macros = { path = "crates/plugin-api-macros" }
+delight-runtime = { path = "crates/runtime" }
 # The fork (github.com/brijsiyag/embedded_gpui, branch `delight`), checked out
 # next to this repository. It brings GPUI (see docs/plan.md, Layout).
 embedded_gpui = { path = "../embedded_gpui/embedded_gpui" }
 anyhow = "=1.0.103"
 # Attribute parsing for the plugin API's proc macros.
 darling = "=0.23.0"
+futures = "=0.3.32"
+# Named exactly as embedded_gpui names it, or Cargo links a second GPUI (see
+# docs/plan.md, Layout); Cargo.lock pins the commit.
+gpui = { git = "https://github.com/zed-industries/zed.git", branch = "gpui-embedded-in-gpui", version = "=0.2.2", default-features = false }
 log = "=0.4.33"
 proc-macro2 = "=1.0.106"
 quote = "=1.0.46"
@@ -44,10 +50,21 @@ syn = "=2.0.118"
 # already enables: reading a plugin's custom section, and writing test components.
 wasm-encoder = "=0.236.1"
 wasmparser = { version = "=0.236.1", default-features = false, features = ["std", "component-model"] }
+# The version inside embedded_gpui: the plugin sandbox's folder permissions.
+wasmtime-wasi = "=36.0.12"
 
 [profile.release]
 codegen-units = 1
 strip = true
+
+# Compiling plugins is unusably slow when wasmtime itself is unoptimised, as
+# embedded_gpui's own workspace notes.
+[profile.dev.package.wasmtime]
+opt-level = 3
+[profile.dev.package.wasmtime-environ]
+opt-level = 3
+[profile.dev.package.cranelift-codegen]
+opt-level = 3
 
 # GPUI's patches, as embedded_gpui has them: patches don't propagate through
 # git dependencies.
