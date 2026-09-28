@@ -8,6 +8,7 @@ members = [
     "crates/protocol",
     "crates/plugin-api",
     "crates/plugin-api-macros",
+    "crates/runtime",
 ]
 
 [workspace.package]
@@ -33,11 +34,16 @@ embedded_gpui = { path = "../embedded_gpui/embedded_gpui" }
 anyhow = "=1.0.103"
 # Attribute parsing for the plugin API's proc macros.
 darling = "=0.23.0"
+log = "=0.4.33"
 proc-macro2 = "=1.0.106"
 quote = "=1.0.46"
 serde = { version = "=1.0.228", features = ["derive"] }
 serde_json = "=1.0.150"
 syn = "=2.0.118"
+# The versions wasmtime (inside embedded_gpui) uses, with only the features it
+# already enables: reading a plugin's custom section, and writing test components.
+wasm-encoder = "=0.236.1"
+wasmparser = { version = "=0.236.1", default-features = false, features = ["std", "component-model"] }
 
 [profile.release]
 codegen-units = 1

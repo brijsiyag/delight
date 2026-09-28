@@ -1,0 +1,20 @@
+[package]
+name = "delight-runtime"
+description = "Delight's plugins without windows: what a plugin file is, which tools fit an input, and running plugins"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+anyhow = { workspace = true }
+delight-manifest = { workspace = true }
+delight-protocol = { workspace = true }
+log = { workspace = true }
+wasmparser = { workspace = true }
+
+[dev-dependencies]
+wasm-encoder = { workspace = true }

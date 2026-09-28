@@ -1102,6 +1102,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "delight-runtime"
+version = "2.0.0"
+dependencies = [
+ "anyhow",
+ "delight-manifest",
+ "delight-protocol",
+ "log",
+ "wasm-encoder 0.236.1",
+ "wasmparser 0.236.1",
+]
+
+[[package]]
 name = "derive_more"
 version = "2.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
