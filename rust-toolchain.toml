@@ -1,7 +1,8 @@
 # Plugins are WASM components (wasm32-wasip2), and the app builds its
-# built-in plugins with this same toolchain.
+# built-in plugins with this same toolchain. The version embedded_gpui and
+# its GPUI branch pin.
 [toolchain]
-channel = "1.98.1"
+channel = "1.95.0"
 profile = "minimal"
 components = ["clippy"]
 targets = ["wasm32-wasip2"]

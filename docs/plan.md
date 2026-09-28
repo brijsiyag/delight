@@ -27,8 +27,8 @@ These were settled in the previous attempt (see its
    none). Settings shows them; installing asks to confirm them.
 5. No Delight HTTP API: the network is WASI's `wasi:http` and
    `wasi:sockets`, and plugins use `wstd`.
-6. GPUI is not forked: it is used directly from Zed's repository, `main`
-   pinned to one commit, by the app, embedded_gpui and every plugin.
+6. GPUI is not forked: it is used directly from Zed's repository by the
+   app, embedded_gpui and every plugin.
 7. embedded_gpui is the fork `brijsiyag/embedded_gpui`, used by path, never
    vendored; its changes stay small and upstreamable.
 
@@ -67,6 +67,9 @@ These were settled in the previous attempt (see its
 - **Fewer fork changes.** Network sockets and the data folder need none
   (upstream `PluginOptions::with_wasi` covers them); guest I/O is first
   tried SDK-side (below).
+- **GPUI stays on the branch embedded_gpui uses**
+  (`gpui-embedded-in-gpui`, commit `7bc1c05`) instead of Zed's `main`, so
+  the fork needs no port. Porting is left for later (step 2).
 
 ## Layout
 
@@ -95,9 +98,11 @@ Built-in plugins live in their own workspace because they only build for
 `wasm32-wasip2` and the app's build script runs a nested cargo on them. A
 path dependency's `workspace = true` resolves in its own workspace, so the
 crates they share (`protocol`, `sdk`, `ui`) stay members of the root one.
-Every workspace (root, `plugins/`, the fork, third-party plugins) uses the
-identical GPUI source (same URL and rev, `version = "=0.2.2"`), or Cargo
-links two GPUIs.
+Every workspace (root, `plugins/`, the fork, third-party plugins) names GPUI
+exactly as the fork does, `git = "https://github.com/zed-industries/zed.git",
+branch = "gpui-embedded-in-gpui"` (plus `version = "=0.2.2"`), or Cargo links
+two GPUIs: a `rev` for the same commit counts as a different source. Each
+workspace's `Cargo.lock` pins the commit.
 
 ## How the pieces talk
 
@@ -148,13 +153,14 @@ fork's `delight` branch.
 
 1. **Project setup** (this step): workspace, toolchain, rules
    (`CLAUDE.md`), this plan, the behaviour record.
-2. **embedded_gpui: build against GPUI from Zed's `main`.** Upstream
-   embedded_gpui still depends on Zed's older `gpui-embedded-in-gpui`
-   branch; point it at the `main` commit the previous attempt used, with
-   compile fixes only (`paint_image` bounds, atlas key by value,
-   `PaddedBool32`, new `Platform`/`PlatformWindow` items), in every crate
-   of embedded_gpui (examples and tests too), lock regenerated. Its own
-   tests and demo must still pass.
+2. **GPUI: the branch embedded_gpui uses.** Stay on Zed's
+   `gpui-embedded-in-gpui` branch (commit `7bc1c05`), as upstream
+   embedded_gpui does, with its Rust toolchain (1.95.0). No change to GPUI
+   or embedded_gpui. Porting to Zed's `main` waits until something needs it
+   or the branch is deleted (its one change merged into `main` as #60574,
+   so the commit is on no other branch). The port was tried and is small:
+   Rust 1.98.1, and compile fixes only (`paint_image` bounds, atlas key by
+   value, `PaddedBool32`, new `Platform`/`PlatformWindow` items).
 3. **embedded_gpui: load from bytes, compile cache, focusable surface.** Three small
    commits: `PluginInstance::from_bytes` / `PluginHost::load_bytes`;
    `PluginOptions::with_compile_cache(dir)` on wasmtime's `cache` feature;
@@ -207,8 +213,8 @@ fork's `delight` branch.
 (Each cost time in the previous attempt; details in its notes.)
 
 - Zed's repo has two packages named `gpui`: depend with `version = "=0.2.2"`.
-- GPUI's `main` needs `unicode-properties = 0.1.3` exactly; match GPUI's
-  `resvg` and `regex` versions.
+- Crates GPUI links too (`resvg`, `regex`, `image`): pin the versions GPUI
+  uses.
 - tree-sitter is C: WASM builds need the WASI SDK's clang (`WASI_SDK_PATH`).
 - The nested cargo in `build.rs` needs its own target dir and must clear
   `CARGO_ENCODED_RUSTFLAGS`, `RUSTFLAGS` and `CARGO_BUILD_TARGET`.

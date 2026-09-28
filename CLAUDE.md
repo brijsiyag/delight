@@ -35,7 +35,9 @@ forks:
 - Host is generic: tools draw all of their own UI. Keep the app's UI minimal.
 - Prefer popular crates over our own code.
 - Pin every dependency exactly (`=x.y.z` or a git `rev`), declared once in
-  the root `[workspace.dependencies]`.
+  the root `[workspace.dependencies]`. GPUI is the exception: it is named by
+  branch exactly as embedded_gpui names it, and `Cargo.lock` pins the commit
+  (see the plan's Layout).
 - Don't run `cargo fmt`.
 - A tool is self-contained: its code, assets and tests live in its folder.
   `delight-ui` holds only components more than one place uses.
