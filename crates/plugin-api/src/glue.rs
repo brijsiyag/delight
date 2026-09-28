@@ -55,7 +55,7 @@ impl<P: Plugin> PluginApi for PluginRoot<P> {
         let mut tool = None;
         let opened = open_view(surface, cx, |window, cx| {
             let opened = self.plugin.open_tool(operation, window, cx);
-            let view = opended.view.clone();
+            let view = opened.view.clone();
             tool = Some(opened.tool);
             cx.new(|_| ToolView { tool: view })
         });
