@@ -8,12 +8,14 @@
 //! * `view`: drawing it.
 //! * `tool_pane`: one tool, on the surface its plugin draws on.
 //! * `footer`: which key runs which footer action.
+//! * `history_search`: ⌃R, searching the input history.
 //!
 //! Keys come from the keymap (`crate::keymap`) by focus: the input
 //! (`Launcher > Editor`) edits text, the tool list (`Launcher > ToolList`) moves
 //! between tools, and `Launcher` keys work in both.
 
 mod footer;
+mod history_search;
 mod tool_pane;
 mod view;
 mod window;
@@ -30,11 +32,18 @@ use gpui::{
     SharedString, Subscription, Task, Window, actions, px,
 };
 
+pub use history_search::CONTEXT as HISTORY_SEARCH_CONTEXT;
 pub use window::{hide, open, plugins_loaded, show, toast, toggle};
 
 use crate::macos::{self, NativeWindow};
-use crate::plugins;
+use crate::{history, plugins};
+use history_search::HistorySearch;
 use tool_pane::ToolPane;
+
+/// The history search's actions, for the keymap.
+pub mod history_actions {
+    pub use super::history_search::{Cancel, Confirm, Search, SelectNext, SelectPrevious};
+}
 
 /// The empty bar, and the panel once there's input.
 const BAR_WIDTH: f32 = 640.;
@@ -71,6 +80,10 @@ actions!(
         /// In the tool list; on the first tool, back to the input.
         SelectPrevious,
         SelectNext,
+        /// Complete the input with an older remembered input.
+        OlderCompletion,
+        /// Complete the input with a newer remembered input.
+        NewerCompletion,
     ]
 );
 
@@ -82,6 +95,9 @@ pub struct SelectTool(pub usize);
 /// A tool: its plugin's index in `plugins::all`, and the operation's index in that
 /// plugin's manifest (as in a [`Candidate`]).
 type ToolKey = (usize, usize);
+
+/// A tool as the input history names it: (plugin id, operation id).
+type ToolIds = (String, String);
 
 fn key(candidate: &Candidate) -> ToolKey {
     (candidate.plugin, candidate.operation)
@@ -101,6 +117,16 @@ pub struct Launcher {
     /// The tool the user picked: it stays selected while the input changes, as long
     /// as it still fits.
     picked: Option<ToolKey>,
+    /// The tool the completion showing now was remembered for.
+    completion_tool: Option<ToolIds>,
+    /// Which remembered input the completion shows: 0 the newest that fits, then
+    /// older ones (⌃N older, ⌃P newer). Back to 0 whenever the input changes.
+    completion_index: usize,
+    /// After a remembered input is taken (a completion, or from ⌃R): the tool it
+    /// was for, to select once the plugins have been asked about it.
+    prefer_tool: Option<ToolIds>,
+    /// The history search (⌃R), while it's open.
+    history: Option<HistorySearch>,
     /// The tools opened so far, kept with their state while the plugins run; the
     /// launcher redraws when a tool's actions change.
     panes: HashMap<ToolKey, (Entity<ToolPane>, Subscription)>,
@@ -117,12 +143,16 @@ pub struct Launcher {
 
 impl Launcher {
     fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
+        // The input as it was when the launcher last hid.
+        let restored = history::get(cx).input_to_restore().unwrap_or_default().to_string();
         let input = cx.new(|cx| {
-            TextEditor::new(window, cx)
+            let mut input = TextEditor::new(window, cx)
                 .multiline(px(INPUT_LINE_HEIGHT * 4.))
                 .font(EditorFont::Input)
                 .text_size(px(INPUT_FONT_SIZE), px(INPUT_LINE_HEIGHT))
-                .placeholder("What you got this time?")
+                .placeholder("What you got this time?");
+            input.set_text(restored, cx);
+            input
         });
         let subscriptions = vec![
             cx.subscribe(&input, |this, _, event, cx| this.on_input_event(event, cx)),
@@ -135,7 +165,7 @@ impl Launcher {
                 }
             }),
         ];
-        Self {
+        let mut launcher = Self {
             focus_handle: cx.focus_handle(),
             native: NativeWindow::of(window),
             input,
@@ -144,6 +174,10 @@ impl Launcher {
             candidates: Vec::new(),
             selected: None,
             picked: None,
+            completion_tool: None,
+            completion_index: 0,
+            prefer_tool: None,
+            history: None,
             panes: HashMap::new(),
             detecting: None,
             toast: None,
@@ -151,7 +185,9 @@ impl Launcher {
             announced_stops: HashSet::new(),
             size: None,
             _subscriptions: subscriptions,
-        }
+        };
+        launcher.input_changed(cx);
+        launcher
     }
 
     /// What the tools get.
@@ -163,9 +199,16 @@ impl Launcher {
         !self.input.read(cx).text().trim().is_empty()
     }
 
-    /// The bar while the input is empty, the panel otherwise.
+    /// The bar while the input is empty, the panel otherwise. The history search
+    /// keeps the width and drops down to the panel's height.
     fn wanted_size(&self, cx: &App) -> (f32, f32) {
-        if self.is_expanded(cx) { (PANEL_WIDTH, PANEL_HEIGHT) } else { (BAR_WIDTH, BAR_HEIGHT) }
+        if self.history.is_some() {
+            (self.size.map_or(BAR_WIDTH, |(width, _)| width), PANEL_HEIGHT)
+        } else if self.is_expanded(cx) {
+            (PANEL_WIDTH, PANEL_HEIGHT)
+        } else {
+            (BAR_WIDTH, BAR_HEIGHT)
+        }
     }
 
     /// Resize the window to [`Self::wanted_size`]; it grows down.
@@ -199,7 +242,9 @@ impl Launcher {
     fn on_input_event(&mut self, event: &EditorEvent, cx: &mut Context<Self>) {
         match event {
             EditorEvent::Changed => self.input_changed(cx),
-            EditorEvent::CompletionAccepted | EditorEvent::Focus | EditorEvent::Blur => {}
+            // Tab took the completion (`Changed` follows): bring its tool up.
+            EditorEvent::CompletionAccepted => self.prefer_tool = self.completion_tool.take(),
+            EditorEvent::Focus | EditorEvent::Blur => {}
         }
     }
 
@@ -207,8 +252,30 @@ impl Launcher {
         if !self.is_expanded(cx) {
             self.picked = None;
         }
+        self.completion_index = 0;
+        self.show_completion(cx);
         self.detect(cx);
         cx.notify();
+    }
+
+    /// Offer how a remembered input would complete the text (Tab takes it).
+    fn show_completion(&mut self, cx: &mut Context<Self>) {
+        let text = self.input.read(cx).text().to_string();
+        let completion = history::get(cx).completion_for(&text, self.completion_index);
+        self.completion_tool = completion.map(|c| (c.plugin_id.to_string(), c.operation_id.to_string()));
+        let remainder = completion.map(|c| SharedString::from(c.remainder.to_string()));
+        self.input.update(cx, |input, cx| input.set_completion(remainder, cx));
+    }
+
+    /// Complete with an older (`by` 1) or newer (-1) remembered input, if there's
+    /// one.
+    fn step_completion(&mut self, by: isize, cx: &mut Context<Self>) {
+        let Some(index) = self.completion_index.checked_add_signed(by) else { return };
+        let text = self.input.read(cx).text().to_string();
+        if history::get(cx).completion_for(&text, index).is_some() {
+            self.completion_index = index;
+            self.show_completion(cx);
+        }
     }
 
     fn clear_input(&mut self, window: &mut Window, cx: &mut Context<Self>) {
@@ -235,6 +302,20 @@ impl Launcher {
     /// it's recommended, else nothing.
     fn show_candidates(&mut self, candidates: Vec<Candidate>, cx: &mut Context<Self>) {
         self.candidates = candidates;
+        // The remembered input's tool, or its plugin's first one if that isn't
+        // listed (or the input was remembered without its operation).
+        if let Some(tool) = self.prefer_tool.take() {
+            let plugins = plugins::all(cx);
+            let ids = |c: &Candidate| {
+                let manifest = plugins.get(c.plugin)?.manifest();
+                Some((manifest.plugin.id.as_str(), manifest.operations.get(c.operation)?.id.as_str()))
+            };
+            let exact = self.candidates.iter().find(|c| ids(c) == Some((tool.0.as_str(), tool.1.as_str())));
+            let same_plugin = || self.candidates.iter().find(|c| ids(c).is_some_and(|(plugin, _)| plugin == tool.0));
+            if let Some(candidate) = exact.or_else(same_plugin) {
+                self.picked = Some(key(candidate));
+            }
+        }
         let picked = self.picked.and_then(|picked| self.candidates.iter().position(|c| key(c) == picked));
         let best = self.candidates.first().filter(|c| c.is_recommended()).map(|_| 0);
         self.selected = picked.or(best);

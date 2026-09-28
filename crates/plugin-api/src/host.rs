@@ -3,6 +3,7 @@
 use delight_protocol::{HostApi, HostApiCaller as _};
 use embedded_gpui::Remote;
 
+use crate::Operations;
 use crate::gpui::{App, Global};
 
 /// The app, as a plugin reaches it: `host(cx).toast("Copied", cx)`. Calls don't
@@ -38,6 +39,15 @@ impl Host {
     pub fn hide(&self, cx: &mut App) {
         if let Some(remote) = &self.remote {
             drop(remote.hide(cx));
+        }
+    }
+
+    /// Remember `text` as an input worth coming back to, for `operation`: the
+    /// launcher offers it as a completion while typing and in its history search
+    /// (⌃R), and brings this tool up when it's used. Nothing else is remembered.
+    pub fn remember_input(&self, operation: impl Operations, text: impl Into<String>, cx: &mut App) {
+        if let Some(remote) = &self.remote {
+            drop(remote.remember_input(operation.id().to_string(), text.into(), cx));
         }
     }
 }

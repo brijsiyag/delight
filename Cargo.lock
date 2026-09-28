@@ -1702,12 +1702,14 @@ dependencies = [
  "objc2-foundation 0.3.2",
  "raw-window-handle",
  "resvg",
+ "serde",
+ "serde_json",
  "tray-icon",
 ]
 
 [[package]]
 name = "delight-manifest"
-version = "2.0.0"
+version = "1.1.0"
 dependencies = [
  "anyhow",
  "serde",
@@ -1716,7 +1718,7 @@ dependencies = [
 
 [[package]]
 name = "delight-plugin-api"
-version = "2.0.0"
+version = "1.1.0"
 dependencies = [
  "anyhow",
  "delight-plugin-api-macros",
@@ -1726,7 +1728,7 @@ dependencies = [
 
 [[package]]
 name = "delight-plugin-api-macros"
-version = "2.0.0"
+version = "1.1.0"
 dependencies = [
  "anyhow",
  "darling",
@@ -1738,7 +1740,7 @@ dependencies = [
 
 [[package]]
 name = "delight-protocol"
-version = "2.0.0"
+version = "1.1.0"
 dependencies = [
  "delight-manifest",
  "embedded_gpui",

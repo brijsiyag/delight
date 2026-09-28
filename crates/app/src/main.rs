@@ -4,6 +4,7 @@
 //! and hidden with a global hotkey, which lists the plugins' tools that fit its
 //! input.
 
+mod history;
 mod hotkey;
 mod keymap;
 mod launcher;
@@ -52,6 +53,7 @@ fn main() {
         macos::set_accessory_app();
         delight_ui::init(cx, ThemeMode::System);
         keymap::init(cx);
+        history::init(cx);
         cx.on_action(|_: &Quit, cx| cx.quit());
         if let Err(error) = launcher::open(cx) {
             log::error!("opening the launcher: {error:#}");

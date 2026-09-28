@@ -86,6 +86,7 @@ impl Tool for Echo {
             "copy" => {
                 host(cx).copy_text(self.text.clone(), cx);
                 host(cx).toast("Copied", cx);
+                host(cx).remember_input(FixtureOperation::Echo, self.text.clone(), cx);
             }
             "clear" => {
                 self.text.clear();

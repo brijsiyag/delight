@@ -45,10 +45,13 @@ These were settled in the previous attempt (see its
   anything. So:
   - Install… shows the name, icon and permissions and asks, and no code from
     the file has run yet;
-  - the protocol version is major.minor: additive changes bump the minor,
-    and plugins built for an older minor keep working. A plugin built for
-    another major, or a newer minor than the app's, is refused at load with
-    a clear message instead of failing at its first call;
+  - the protocol version is the plugin API's version (the crates plugins
+    build against: manifest, protocol, plugin-api and its macros, released
+    together, apart from the app's version), major.minor: additive changes
+    bump the minor, and plugins built for an older minor keep working. A
+    plugin built for another major, or a newer minor than the app's, is
+    refused at load with a clear message instead of failing at its first
+    call;
   - the WASI sandbox is configured once, at instantiation, from the granted
     permissions: no network switch flipped after start, and name lookups are
     allowed only for plugins with `Network`;

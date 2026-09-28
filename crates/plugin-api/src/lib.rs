@@ -125,3 +125,11 @@ pub mod __private {
     pub use crate::glue::{concat, start};
     pub use embedded_gpui;
 }
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn released_with_the_plugin_api() {
+        assert_eq!(env!("CARGO_PKG_VERSION"), delight_protocol::PLUGIN_API_VERSION);
+    }
+}

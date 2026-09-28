@@ -73,7 +73,8 @@ mod tests {
         let text = String::from_utf8(section(&sample())).unwrap();
         let lines: Vec<&str> = text.split('\n').collect();
         assert_eq!(lines.len(), 3);
-        assert_eq!(lines[0], r#"{"major":1,"minor":0}"#);
+        let version = format!(r#"{{"major":{},"minor":{}}}"#, PROTOCOL_VERSION.major, PROTOCOL_VERSION.minor);
+        assert_eq!(lines[0], version);
         assert!(lines[1].starts_with(r#"{"id":"dev.delight.json","#), "{}", lines[1]);
         assert!(lines[2].starts_with(r#"[{"id":"format","#), "{}", lines[2]);
     }

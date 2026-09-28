@@ -24,4 +24,4 @@ pub use manifest::{
     validate_operations,
 };
 pub use section::{SECTION, decode_section, encode_operations, encode_properties};
-pub use version::{PROTOCOL_VERSION, ProtocolVersion};
+pub use version::{PLUGIN_API_VERSION, PROTOCOL_VERSION, ProtocolVersion};

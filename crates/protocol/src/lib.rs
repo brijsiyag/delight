@@ -14,7 +14,7 @@
 //! are unique across the interfaces here and don't clash with type names.
 
 pub use delight_manifest::{
-    Manifest, Operation, PROTOCOL_VERSION, Permission, PluginProperties, ProtocolVersion,
+    Manifest, Operation, PLUGIN_API_VERSION, PROTOCOL_VERSION, Permission, PluginProperties, ProtocolVersion,
 };
 
 use embedded_gpui::surface::SurfaceApi;
@@ -66,6 +66,12 @@ pub trait HostApi {
 
     /// Hide the launcher.
     fn hide(&mut self, cx: &mut gpui::Context<Self>);
+
+    /// Remember `text` as an input worth coming back to, for this plugin's
+    /// `operation`: the launcher offers it as a completion while typing (Tab takes
+    /// it) and in its history search (⌃R), and brings this tool up when it's used.
+    /// Only what plugins remember is kept.
+    fn remember_input(&mut self, operation: String, text: String, cx: &mut gpui::Context<Self>);
 }
 
 /// What is in the launcher: the typed or pasted text. A struct, so more (such as
@@ -170,6 +176,11 @@ mod tests {
     }
 
     #[test]
+    fn released_with_the_plugin_api() {
+        assert_eq!(env!("CARGO_PKG_VERSION"), PLUGIN_API_VERSION);
+    }
+
+    #[test]
     fn interfaces_have_the_methods_of_the_contract() {
         let methods = |schema: embedded_gpui::Schema| -> Vec<&str> {
             schema.methods.iter().map(|method| method.name).collect()
@@ -179,6 +190,6 @@ mod tests {
             methods(ToolApi::schema()),
             ["on_input_changed", "list_actions", "perform_action"]
         );
-        assert_eq!(methods(HostApi::schema()), ["toast", "copy_text", "hide"]);
+        assert_eq!(methods(HostApi::schema()), ["toast", "copy_text", "hide", "remember_input"]);
     }
 }

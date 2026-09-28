@@ -14,7 +14,8 @@ use gpui::{
 
 use super::{
     BAR_HEIGHT, BAR_ICON_GAP, BAR_ICON_SIZE, BAR_PADDING_X, CONTEXT, ClearInput, Dismiss, FocusNext, FocusPrevious,
-    FocusTools, Launcher, SelectNext, SelectPrevious, SelectTool, TOOL_LIST_CONTEXT, hide,
+    FocusTools, Launcher, NewerCompletion, OlderCompletion, SelectNext, SelectPrevious, SelectTool, TOOL_LIST_CONTEXT,
+    hide, history_search,
 };
 use crate::{macos, plugins};
 
@@ -64,8 +65,18 @@ impl Render for Launcher {
                     this.select(index, cx);
                 }
             }))
+            .on_action(cx.listener(|this, _: &OlderCompletion, _, cx| this.step_completion(1, cx)))
+            .on_action(cx.listener(|this, _: &NewerCompletion, _, cx| this.step_completion(-1, cx)))
+            .on_action(cx.listener(|this, _: &history_search::Search, window, cx| this.open_history(window, cx)))
+            .on_action(cx.listener(|this, _: &history_search::SelectNext, _, cx| this.move_in_history(1, cx)))
+            .on_action(cx.listener(|this, _: &history_search::SelectPrevious, _, cx| this.move_in_history(-1, cx)))
+            .on_action(cx.listener(|this, _: &history_search::Confirm, window, cx| this.confirm_history(None, window, cx)))
+            .on_action(cx.listener(|this, _: &history_search::Cancel, window, cx| this.close_history(window, cx)))
             .on_key_down(cx.listener(Self::on_key_down))
             .child(self.render_bar(&t, cx));
+        if let Some(search) = &self.history {
+            return root.child(Divider::horizontal()).child(self.render_history(search, &t, cx));
+        }
         if !self.is_expanded(cx) {
             return root;
         }
@@ -90,8 +101,15 @@ impl Launcher {
         // icon and the clear button stay centred on that first line.
         let line = px(INPUT_LINE_HEIGHT);
         let on_first_line = |element: AnyElement| h_flex().h(line).flex_shrink_0().child(element);
-        let icon = Icon::new(IconName::Zap).size(px(BAR_ICON_SIZE)).color(t.text_muted);
+        // While searching the history, its search input takes the input's place.
+        let (icon, input) = match &self.history {
+            Some(search) => (history_search::icon(cx), search.query.clone()),
+            None => (Icon::new(IconName::Zap).color(t.text_muted), self.input.clone()),
+        };
+        let icon = icon.size(px(BAR_ICON_SIZE));
+        let searching = self.history.is_some();
         h_flex()
+            .when(searching, |bar| bar.key_context(history_search::CONTEXT))
             .flex_shrink_0()
             .items_start()
             .min_h(px(BAR_HEIGHT))
@@ -103,8 +121,8 @@ impl Launcher {
                 on_first_line(icon.into_any_element())
                     .on_mouse_down(MouseButton::Left, |_, window, _| window.start_window_move()),
             )
-            .child(div().flex_1().min_w(px(0.)).child(self.input.clone()))
-            .when(self.is_expanded(cx), |bar| {
+            .child(div().flex_1().min_w(px(0.)).child(input))
+            .when(!searching && self.is_expanded(cx), |bar| {
                 let clear = IconButton::new("clear", IconName::CircleX)
                     .on_click(cx.listener(|this, _, window, cx| this.clear_input(window, cx)));
                 bar.child(on_first_line(clear.into_any_element()))

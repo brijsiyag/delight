@@ -4,6 +4,7 @@
 //! binding wins:
 //!
 //! * `Editor`: a text input has focus.
+//! * `HistorySearch`: the launcher's history search (⌃R) is open.
 //! * `ToolList`: the launcher's tool list has focus.
 //! * `Launcher`: anywhere in the launcher window.
 //! * no context: anywhere in Delight.
@@ -12,7 +13,9 @@ use delight_ui::editor::actions::{self as editor, CONTEXT as EDITOR};
 use gpui::{App, KeyBinding};
 
 use crate::Quit;
-use crate::launcher::{self, CONTEXT as LAUNCHER, SelectTool, TOOL_LIST_CONTEXT as TOOL_LIST};
+use crate::launcher::{
+    self, CONTEXT as LAUNCHER, HISTORY_SEARCH_CONTEXT, SelectTool, TOOL_LIST_CONTEXT as TOOL_LIST, history_actions as history,
+};
 
 pub fn init(cx: &mut App) {
     let editor = Some(EDITOR);
@@ -76,6 +79,25 @@ pub fn init(cx: &mut App) {
         KeyBinding::new("down", launcher::SelectNext, tool_list),
         KeyBinding::new("ctrl-p", launcher::SelectPrevious, tool_list),
         KeyBinding::new("ctrl-n", launcher::SelectNext, tool_list),
+        KeyBinding::new("ctrl-r", history::Search, launcher),
+        // While the input shows a completion: ⌃N and ⌃P complete with the next
+        // (older) and previous (newer) remembered input.
+        KeyBinding::new("ctrl-n", launcher::OlderCompletion, Some("Launcher > Editor && showing_completion")),
+        KeyBinding::new("ctrl-p", launcher::NewerCompletion, Some("Launcher > Editor && showing_completion")),
+    ]);
+    // Searching the input history: ↑/↓ pick an input, ↵ or Tab uses it, Esc or ⌃R
+    // again goes back. Last, so they win over the launcher's input keys.
+    let searching = format!("{HISTORY_SEARCH_CONTEXT} > {EDITOR}");
+    let searching = Some(searching.as_str());
+    cx.bind_keys([
+        KeyBinding::new("up", history::SelectPrevious, searching),
+        KeyBinding::new("down", history::SelectNext, searching),
+        KeyBinding::new("ctrl-p", history::SelectPrevious, searching),
+        KeyBinding::new("ctrl-n", history::SelectNext, searching),
+        KeyBinding::new("ctrl-r", history::Cancel, searching),
+        KeyBinding::new("enter", history::Confirm, searching),
+        KeyBinding::new("tab", history::Confirm, searching),
+        KeyBinding::new("escape", history::Cancel, searching),
     ]);
     // The nth tool in the list.
     cx.bind_keys((1..=9).map(|n| KeyBinding::new(&format!("cmd-{n}"), SelectTool(n), launcher)));

@@ -7,7 +7,7 @@ use gpui::{
 };
 
 use super::{BAR_HEIGHT, BAR_RADIUS, BAR_WIDTH, Launcher};
-use crate::macos;
+use crate::{history, macos};
 
 /// Where the bar sits: this far down the screen, centred across it.
 const FROM_TOP: f32 = 0.22;
@@ -49,6 +49,12 @@ pub fn open(cx: &mut App) -> anyhow::Result<()> {
         launcher.native.clone()
     })?;
     cx.set_global(LauncherWindow(handle));
+    // Quitting while it shows keeps the input too.
+    cx.on_app_quit(|cx| {
+        save_input(cx);
+        async {}
+    })
+    .detach();
     cx.spawn(async move |cx| {
         if let Some(native) = native {
             native.style_floating_panel(BAR_RADIUS.into());
@@ -104,13 +110,29 @@ pub fn show(cx: &mut App) {
     .detach();
 }
 
-/// Hide the launcher, keeping its state for the next time it shows.
+/// Hide the launcher, keeping its state for the next time it shows, and its input
+/// for the next launch.
 pub fn hide(cx: &mut App) {
     let Some(handle) = handle(cx) else { return };
-    let Ok(Some(native)) = handle.read_with(cx, |launcher, _| launcher.native.clone()) else {
+    let native = handle.update(cx, |launcher, window, cx| {
+        launcher.close_history(window, cx);
+        launcher.native.clone()
+    });
+    save_input(cx);
+    if let Ok(Some(native)) = native {
+        cx.spawn(async move |_| native.hide()).detach();
+    }
+}
+
+/// Keep the input to bring back at the next launch.
+fn save_input(cx: &mut App) {
+    let Some(text) = handle(cx).and_then(|handle| handle.read(cx).ok()).map(|launcher| launcher.input.read(cx).text().to_string())
+    else {
         return;
     };
-    cx.spawn(async move |_| native.hide()).detach();
+    if let Err(error) = history::get_mut(cx).set_input_to_restore(&text) {
+        log::error!("keeping the input for the next launch: {error:#}");
+    }
 }
 
 /// A brief message in the footer (a plugin's toast).

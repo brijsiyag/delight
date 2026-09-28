@@ -111,3 +111,11 @@ fn values(literals: &[LitStr]) -> Vec<String> {
 fn invalid(error: anyhow::Error) -> darling::Error {
     darling::Error::custom(format!("{error:#}"))
 }
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn released_with_the_plugin_api() {
+        assert_eq!(env!("CARGO_PKG_VERSION"), delight_manifest::PLUGIN_API_VERSION);
+    }
+}

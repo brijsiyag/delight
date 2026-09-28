@@ -13,7 +13,7 @@ use delight_runtime::{Plugin, plugin_options, read_manifest};
 use embedded_gpui::shared;
 use gpui::{App, AppContext as _, ClipboardItem, Context, Global, PlatformTextSystem};
 
-use crate::launcher;
+use crate::{history, launcher};
 
 /// The plugins that started, in the app's order (by file path). Empty until they
 /// have all started or failed.
@@ -60,7 +60,7 @@ pub fn load(text_system: Arc<dyn PlatformTextSystem>, cx: &mut App) {
                     continue;
                 }
                 let options = plugin_options(&manifest, data_dir(&id), text_system.clone());
-                let root = cx.new(|_| HostRoot);
+                let root = cx.new(|_| HostRoot { plugin_id: id.clone() });
                 starting.push((file.clone(), Plugin::start(file, manifest, options, root, cx)));
             }
             starting
@@ -103,7 +103,9 @@ fn manifests(dir: &Path) -> Vec<(PathBuf, anyhow::Result<Manifest>)> {
 
 /// What one plugin may ask of the app. Each plugin has its own, so every call is
 /// that plugin's.
-struct HostRoot;
+struct HostRoot {
+    plugin_id: String,
+}
 
 #[shared]
 impl HostApi for HostRoot {
@@ -118,5 +120,12 @@ impl HostApi for HostRoot {
 
     fn hide(&mut self, cx: &mut Context<Self>) {
         cx.defer(launcher::hide);
+    }
+
+    fn remember_input(&mut self, operation: String, text: String, cx: &mut Context<Self>) {
+        let plugin_id = &self.plugin_id;
+        if let Err(error) = history::get_mut(cx).remember(plugin_id, &operation, &text) {
+            log::error!("remembering {plugin_id}'s input: {error:#}");
+        }
     }
 }

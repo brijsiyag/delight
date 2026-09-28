@@ -4,16 +4,36 @@ use std::fmt;
 
 use serde::{Deserialize, Serialize};
 
-/// The version of the contract between Delight and its plugins. Every plugin carries
-/// the version it was built against; see [`ProtocolVersion::supports`] for which ones
-/// the app runs.
+/// The version of the plugin API: of the crates plugins build against
+/// (delight-manifest, delight-protocol, delight-plugin-api and its macros), which
+/// are released together with this one version, in their `Cargo.toml`s.
+pub const PLUGIN_API_VERSION: &str = env!("CARGO_PKG_VERSION");
+
+/// The version of the contract between Delight and its plugins: the plugin API's
+/// major.minor. Every plugin carries the version it was built against; see
+/// [`ProtocolVersion::supports`] for which ones the app runs.
 ///
-/// Bump `minor` for changes that plugins built before them survive: a new host
-/// method, a new field in data the app sends (older plugins ignore it), a new field
-/// with a default in data plugins send, a new plugin or tool method the app copes
-/// with older plugins lacking. Bump `major` (and reset `minor`) for anything else:
-/// removing or renaming a method, changing a type, a new enum variant sent to plugins.
-pub const PROTOCOL_VERSION: ProtocolVersion = ProtocolVersion { major: 1, minor: 0 };
+/// Bump the plugin API's minor for changes that plugins built before them survive: a
+/// new host method, a new field in data the app sends (older plugins ignore it), a
+/// new field with a default in data plugins send, a new plugin or tool method the app
+/// copes with older plugins lacking. Bump its major (and reset the minor) for
+/// anything else that reaches built plugins or their code: removing or renaming a
+/// method, changing a type, a new enum variant sent to plugins, a change to the Rust
+/// API that plugins can't build against unchanged. Bump the patch for the rest.
+///
+/// 1.1 added `HostApi::remember_input`.
+pub const PROTOCOL_VERSION: ProtocolVersion = ProtocolVersion {
+    major: number(env!("CARGO_PKG_VERSION_MAJOR")),
+    minor: number(env!("CARGO_PKG_VERSION_MINOR")),
+};
+
+/// A version number from Cargo, at compile time.
+const fn number(digits: &str) -> u32 {
+    match u32::from_str_radix(digits, 10) {
+        Ok(number) => number,
+        Err(_) => panic!("Cargo's version numbers are decimal"),
+    }
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ProtocolVersion {

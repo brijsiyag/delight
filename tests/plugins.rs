@@ -42,6 +42,8 @@ struct FakeApp {
     toasts: Vec<String>,
     copied: Vec<String>,
     hides: usize,
+    /// (operation, text) pairs.
+    remembered: Vec<(String, String)>,
 }
 
 #[shared]
@@ -56,6 +58,10 @@ impl HostApi for FakeApp {
 
     fn hide(&mut self, _cx: &mut Context<Self>) {
         self.hides += 1;
+    }
+
+    fn remember_input(&mut self, operation: String, text: String, _cx: &mut Context<Self>) {
+        self.remembered.push((operation, text));
     }
 }
 
@@ -184,6 +190,7 @@ async fn its_tool_takes_input_and_offers_actions(cx: &mut TestAppContext) {
     app.read_with(cx, |app, _| {
         assert_eq!(app.copied, ["hi"]);
         assert_eq!(app.toasts, ["Copied"]);
+        assert_eq!(app.remembered, [("echo".to_string(), "hi".to_string())]);
         assert_eq!(app.hides, 0);
     });
 }
