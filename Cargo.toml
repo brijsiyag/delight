@@ -56,11 +56,13 @@ log = "=0.4.33"
 # The versions tray-icon links.
 objc2 = "=0.6.4"
 objc2-app-kit = { version = "=0.3.2", default-features = false, features = [
-    "std", "NSAnimation", "NSApplication", "NSBezierPath", "NSColor", "NSEvent", "NSGlassEffectView", "NSGraphics",
-    "NSImage", "NSResponder", "NSRunningApplication", "NSView", "NSVisualEffectView", "NSWindow", "NSWorkspace",
-    "libc", "objc2-quartz-core",
+    "std", "NSAnimation", "NSAppearance", "NSApplication", "NSBezierPath", "NSColor", "NSEvent",
+    "NSGlassEffectView", "NSGraphics", "NSImage", "NSResponder", "NSRunningApplication", "NSView",
+    "NSVisualEffectView", "NSWindow", "NSWorkspace", "libc", "objc2-quartz-core",
 ] }
 objc2-foundation = { version = "=0.3.2", default-features = false, features = ["std", "NSGeometry", "NSString"] }
+# Writing the open-at-login LaunchAgent.
+plist = "=1.10.1"
 proc-macro2 = "=1.0.106"
 # The version GPUI links: the NSView behind a GPUI window.
 raw-window-handle = "=0.6.2"

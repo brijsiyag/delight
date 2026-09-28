@@ -14,7 +14,7 @@ use embedded_gpui::shared;
 use delight_ui::ActiveTheme as _;
 use gpui::{App, AppContext as _, ClipboardItem, Context, Global, PlatformTextSystem, Subscription};
 
-use crate::{history, launcher};
+use crate::{history, launcher, settings};
 
 /// The plugins that started, in the app's order: the built-ins, then the installed
 /// ones, each by file path. Empty until they have all started or failed.
@@ -159,6 +159,9 @@ impl HostApi for HostRoot {
     }
 
     fn remember_input(&mut self, operation: String, text: String, cx: &mut Context<Self>) {
+        if !settings::get(cx).input_history {
+            return;
+        }
         let plugin_id = &self.plugin_id;
         if let Err(error) = history::get_mut(cx).remember(plugin_id, &operation, &text) {
             log::error!("remembering {plugin_id}'s input: {error:#}");

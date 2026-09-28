@@ -7,7 +7,7 @@ use gpui::{
 };
 
 use super::{BAR_HEIGHT, BAR_RADIUS, BAR_WIDTH, Launcher};
-use crate::{history, macos};
+use crate::{history, macos, settings};
 
 /// Where the bar sits: this far down the screen, centred across it.
 const FROM_TOP: f32 = 0.22;
@@ -101,6 +101,9 @@ pub fn show(cx: &mut App) {
         handle
             .update(cx, |launcher, window, cx| {
                 window.focus(&launcher.input.focus_handle(cx), cx);
+                if settings::get(cx).paste_clipboard_on_open {
+                    launcher.paste_clipboard(cx);
+                }
                 // Like Spotlight: the previous text stays, selected, so typing
                 // replaces it.
                 launcher.input.update(cx, |input, cx| input.select_all_text(cx));
@@ -124,8 +127,11 @@ pub fn hide(cx: &mut App) {
     }
 }
 
-/// Keep the input to bring back at the next launch.
+/// Keep the input to bring back at the next launch, if the history is on.
 fn save_input(cx: &mut App) {
+    if !settings::get(cx).input_history {
+        return;
+    }
     let Some(text) = handle(cx).and_then(|handle| handle.read(cx).ok()).map(|launcher| launcher.input.read(cx).text().to_string())
     else {
         return;

@@ -1,16 +1,16 @@
-//! The menu bar icon and its menu. Settings, updates and restarting join the menu in
-//! their own steps.
+//! The menu bar icon and its menu. Updates and restarting join the menu in their own
+//! steps.
 
 use anyhow::{Context as _, Result};
 use futures::StreamExt as _;
 use futures::channel::mpsc;
-use gpui::{App, Global};
+use gpui::{App, Global, Keystroke};
 use resvg::{tiny_skia, usvg};
-use tray_icon::menu::accelerator::{Accelerator, Code, Modifiers};
+use tray_icon::menu::accelerator::Accelerator;
 use tray_icon::menu::{Menu, MenuEvent, MenuItem, PredefinedMenuItem};
 use tray_icon::{Icon, TrayIcon, TrayIconBuilder};
 
-use crate::launcher;
+use crate::{hotkey, launcher, settings_window};
 
 /// Black on transparent, so macOS can tint it for light and dark menu bars.
 const LOGO: &[u8] = delight_ui::LOGO_SVG;
@@ -18,24 +18,31 @@ const LOGO: &[u8] = delight_ui::LOGO_SVG;
 const ICON_PIXELS: u32 = 36;
 
 /// The icon stays in the menu bar for as long as this lives.
-struct Tray(#[allow(dead_code)] TrayIcon);
+struct Tray {
+    _icon: TrayIcon,
+    /// "Open Delight", which shows the launcher shortcut.
+    open: MenuItem,
+}
 
 impl Global for Tray {}
 
-/// Put Delight's icon in the menu bar, with "Open Delight" and "Quit Delight". The
-/// menu's clicks arrive on the system's thread and reach GPUI through a channel.
+/// Put Delight's icon in the menu bar, with "Open Delight" (and the launcher
+/// shortcut), "Settings…" and "Quit Delight". The menu's clicks arrive on the system's
+/// thread and reach GPUI through a channel.
 pub fn install(cx: &mut App) -> Result<()> {
-    let hotkey = Accelerator::new(Modifiers::META | Modifiers::SHIFT, Code::Space);
-    let open = MenuItem::with_id("open", "Open Delight", true, Some(hotkey));
+    let shortcut = hotkey::current(cx).and_then(|keystroke| accelerator(&keystroke));
+    let open = MenuItem::with_id("open", "Open Delight", true, shortcut);
+    let settings = MenuItem::with_id("settings", "Settings…", true, None);
     let quit = MenuItem::with_id("quit", "Quit Delight", true, None);
-    let menu = Menu::with_items(&[&open, &PredefinedMenuItem::separator(), &quit])?;
-    let tray = TrayIconBuilder::new()
+    let separator = PredefinedMenuItem::separator();
+    let menu = Menu::with_items(&[&open, &separator, &settings, &PredefinedMenuItem::separator(), &quit])?;
+    let icon = TrayIconBuilder::new()
         .with_icon(icon()?)
         .with_icon_as_template(true)
         .with_tooltip("Delight")
         .with_menu(Box::new(menu))
         .build()?;
-    cx.set_global(Tray(tray));
+    cx.set_global(Tray { _icon: icon, open });
 
     let (clicks, mut clicked) = mpsc::unbounded();
     MenuEvent::set_event_handler(Some(move |event: MenuEvent| {
@@ -45,6 +52,7 @@ pub fn install(cx: &mut App) -> Result<()> {
         while let Some(item) = clicked.next().await {
             cx.update(|cx| match item.as_str() {
                 "open" => launcher::show(cx),
+                "settings" => settings_window::open(cx),
                 "quit" => cx.quit(),
                 _ => {}
             });
@@ -52,6 +60,20 @@ pub fn install(cx: &mut App) -> Result<()> {
     })
     .detach();
     Ok(())
+}
+
+/// Show the new launcher shortcut on "Open Delight".
+pub fn set_shortcut(keystroke: &Keystroke, cx: &App) {
+    if let Some(tray) = cx.try_global::<Tray>()
+        && let Err(error) = tray.open.set_accelerator(accelerator(keystroke))
+    {
+        log::warn!("showing the shortcut in the menu: {error}");
+    }
+}
+
+/// The keystroke as the menu writes it.
+fn accelerator(keystroke: &Keystroke) -> Option<Accelerator> {
+    hotkey::plus_separated(keystroke).parse().ok()
 }
 
 /// The logo, drawn at [`ICON_PIXELS`].

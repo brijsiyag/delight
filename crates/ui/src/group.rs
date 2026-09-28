@@ -6,8 +6,8 @@ use smallvec::SmallVec;
 
 use crate::ActiveTheme;
 
-/// A rounded, filled inset group; its children are rows separated by
-/// hairlines.
+/// A rounded inset group on the theme's surface (lighter than the window behind it,
+/// as in System Settings); its children are rows separated by hairlines.
 #[derive(IntoElement, Default)]
 pub struct Group {
     rows: SmallVec<[AnyElement; 4]>,
@@ -29,7 +29,7 @@ impl RenderOnce for Group {
     fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
         let t = cx.theme();
         let separator = t.separator();
-        let mut group = div().flex().flex_col().rounded(t.radius).bg(t.fill_subtle()).border_1().border_color(separator);
+        let mut group = div().flex().flex_col().rounded(t.radius).bg(t.surface).border_1().border_color(separator);
         let count = self.rows.len();
         for (i, row) in self.rows.into_iter().enumerate() {
             group = group.child(row);

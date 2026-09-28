@@ -36,7 +36,7 @@ pub use history_search::CONTEXT as HISTORY_SEARCH_CONTEXT;
 pub use window::{hide, open, plugins_loaded, show, toast, toggle};
 
 use crate::macos::{self, NativeWindow};
-use crate::{history, plugins};
+use crate::{history, plugins, settings};
 use history_search::HistorySearch;
 use tool_pane::ToolPane;
 
@@ -60,6 +60,8 @@ const PANEL_RADIUS: f32 = 24.;
 /// Typing pauses this long before the tools are asked again.
 const DETECT_DELAY: Duration = Duration::from_millis(30);
 const TOAST: Duration = Duration::from_millis(1600);
+/// Clipboard text larger than this isn't pasted on open.
+const AUTO_PASTE_MAX_BYTES: usize = 1 << 20;
 const STOPPED_TOAST: Duration = Duration::from_secs(8);
 
 /// The key context of the launcher window.
@@ -84,6 +86,7 @@ actions!(
         OlderCompletion,
         /// Complete the input with a newer remembered input.
         NewerCompletion,
+        OpenSettings,
     ]
 );
 
@@ -127,6 +130,9 @@ pub struct Launcher {
     prefer_tool: Option<ToolIds>,
     /// The history search (⌃R), while it's open.
     history: Option<HistorySearch>,
+    /// The clipboard text pasted last on open, so an unchanged clipboard doesn't
+    /// replace what was typed since.
+    last_auto_paste: Option<String>,
     /// The tools opened so far, kept with their state while the plugins run; the
     /// launcher redraws when a tool's actions change.
     panes: HashMap<ToolKey, (Entity<ToolPane>, Subscription)>,
@@ -143,8 +149,12 @@ pub struct Launcher {
 
 impl Launcher {
     fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
-        // The input as it was when the launcher last hid.
-        let restored = history::get(cx).input_to_restore().unwrap_or_default().to_string();
+        // The input as it was when the launcher last hid, if the history is on.
+        let restored = if settings::get(cx).input_history {
+            history::get(cx).input_to_restore().unwrap_or_default().to_string()
+        } else {
+            String::new()
+        };
         let input = cx.new(|cx| {
             let mut input = TextEditor::new(window, cx)
                 .multiline(px(INPUT_LINE_HEIGHT * 4.))
@@ -157,10 +167,10 @@ impl Launcher {
         let subscriptions = vec![
             cx.subscribe(&input, |this, _, event, cx| this.on_input_event(event, cx)),
             cx.observe_window_appearance(window, |_, _, cx| delight_ui::theme::appearance_changed(cx)),
-            // Losing the keyboard to another app hides the launcher (a setting
-            // later, on by default).
+            // Losing the keyboard to another app hides the launcher, if that's on.
             cx.observe_window_activation(window, |_, window, cx| {
-                if !window.is_window_active() && macos::is_window_visible(window) {
+                let lost = !window.is_window_active() && macos::is_window_visible(window);
+                if lost && settings::get(cx).hide_on_blur {
                     cx.defer(hide);
                 }
             }),
@@ -178,6 +188,7 @@ impl Launcher {
             completion_index: 0,
             prefer_tool: None,
             history: None,
+            last_auto_paste: None,
             panes: HashMap::new(),
             detecting: None,
             toast: None,
@@ -258,10 +269,12 @@ impl Launcher {
         cx.notify();
     }
 
-    /// Offer how a remembered input would complete the text (Tab takes it).
+    /// Offer how a remembered input would complete the text (Tab takes it), if the
+    /// history is on.
     fn show_completion(&mut self, cx: &mut Context<Self>) {
         let text = self.input.read(cx).text().to_string();
-        let completion = history::get(cx).completion_for(&text, self.completion_index);
+        let history_on = settings::get(cx).input_history;
+        let completion = history_on.then(|| history::get(cx).completion_for(&text, self.completion_index)).flatten();
         self.completion_tool = completion.map(|c| (c.plugin_id.to_string(), c.operation_id.to_string()));
         let remainder = completion.map(|c| SharedString::from(c.remainder.to_string()));
         self.input.update(cx, |input, cx| input.set_completion(remainder, cx));
@@ -276,6 +289,20 @@ impl Launcher {
             self.completion_index = index;
             self.show_completion(cx);
         }
+    }
+
+    /// Replace the input with the clipboard's text, if it changed since the last time
+    /// (and isn't blank or huge).
+    fn paste_clipboard(&mut self, cx: &mut Context<Self>) {
+        let Some(text) = cx.read_from_clipboard().and_then(|item| item.text()) else {
+            return;
+        };
+        let unchanged = self.last_auto_paste.as_ref() == Some(&text);
+        if text.trim().is_empty() || text.len() > AUTO_PASTE_MAX_BYTES || unchanged {
+            return;
+        }
+        self.last_auto_paste = Some(text.clone());
+        self.input.update(cx, |input, cx| input.set_text(text, cx));
     }
 
     fn clear_input(&mut self, window: &mut Window, cx: &mut Context<Self>) {

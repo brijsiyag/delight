@@ -7,12 +7,14 @@
 //! * `HistorySearch`: the launcher's history search (⌃R) is open.
 //! * `ToolList`: the launcher's tool list has focus.
 //! * `Launcher`: anywhere in the launcher window.
+//! * `Settings`: the settings window.
 //! * no context: anywhere in Delight.
 
 use delight_ui::editor::actions::{self as editor, CONTEXT as EDITOR};
 use gpui::{App, KeyBinding};
 
 use crate::Quit;
+use crate::settings_window::{self, CONTEXT as SETTINGS};
 use crate::launcher::{
     self, CONTEXT as LAUNCHER, HISTORY_SEARCH_CONTEXT, SelectTool, TOOL_LIST_CONTEXT as TOOL_LIST, history_actions as history,
 };
@@ -80,6 +82,9 @@ pub fn init(cx: &mut App) {
         KeyBinding::new("ctrl-p", launcher::SelectPrevious, tool_list),
         KeyBinding::new("ctrl-n", launcher::SelectNext, tool_list),
         KeyBinding::new("ctrl-r", history::Search, launcher),
+        KeyBinding::new("cmd-,", launcher::OpenSettings, launcher),
+        KeyBinding::new("cmd-w", settings_window::CloseSettings, Some(SETTINGS)),
+        KeyBinding::new("escape", settings_window::CloseSettings, Some(SETTINGS)),
         // While the input shows a completion: ⌃N and ⌃P complete with the next
         // (older) and previous (newer) remembered input.
         KeyBinding::new("ctrl-n", launcher::OlderCompletion, Some("Launcher > Editor && showing_completion")),

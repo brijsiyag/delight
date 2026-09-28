@@ -4,12 +4,16 @@
 //! and hidden with a global hotkey, which lists the plugins' tools that fit its
 //! input.
 
+mod files;
 mod history;
 mod hotkey;
 mod keymap;
 mod launcher;
+mod login;
 mod macos;
 mod plugins;
+mod settings;
+mod settings_window;
 mod single_instance;
 mod tray;
 
@@ -45,13 +49,20 @@ fn main() {
         }
     };
 
+    let saved = settings::load();
+    // Follow the app if it moved since the last launch.
+    login::apply(saved.open_at_login);
+
     let platform = gpui_platform::current_platform(false);
     // Plugins' text is shaped by the app's own text system.
     let text_system = platform.text_system();
     let app = Application::with_platform(platform).with_assets(delight_ui::Assets);
     app.run(move |cx: &mut App| {
         macos::set_accessory_app();
+        let appearance = saved.appearance;
+        cx.set_global(saved);
         delight_ui::init(cx, ThemeMode::System);
+        settings::apply_appearance(appearance, cx);
         keymap::init(cx);
         history::init(cx);
         cx.on_action(|_: &Quit, cx| cx.quit());

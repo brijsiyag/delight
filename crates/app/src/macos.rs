@@ -14,10 +14,11 @@ use objc2::rc::Retained;
 use objc2::runtime::AnyClass;
 use objc2::{AnyThread, MainThreadMarker, MainThreadOnly, Message, msg_send};
 use objc2_app_kit::{
-    NSAnimatablePropertyContainer, NSApplication, NSApplicationActivationOptions, NSApplicationActivationPolicy,
-    NSAutoresizingMaskOptions, NSBezierPath, NSColor, NSGlassEffectView, NSImage, NSImageResizingMode,
-    NSRunningApplication, NSView, NSVisualEffectBlendingMode, NSVisualEffectMaterial, NSVisualEffectState,
-    NSVisualEffectView, NSWindow, NSWindowOrderingMode, NSWindowStyleMask, NSWorkspace,
+    NSAnimatablePropertyContainer, NSAppearance, NSAppearanceNameAqua, NSAppearanceNameDarkAqua, NSApplication,
+    NSApplicationActivationOptions, NSApplicationActivationPolicy, NSAutoresizingMaskOptions, NSBezierPath, NSColor,
+    NSGlassEffectView, NSImage, NSImageResizingMode, NSRunningApplication, NSView, NSVisualEffectBlendingMode,
+    NSVisualEffectMaterial, NSVisualEffectState, NSVisualEffectView, NSWindow, NSWindowOrderingMode,
+    NSWindowStyleMask, NSWorkspace,
 };
 use objc2_foundation::{NSEdgeInsets, NSPoint, NSRect, NSSize, NSString};
 use raw_window_handle::{HasWindowHandle, RawWindowHandle};
@@ -41,6 +42,20 @@ fn gpui_view(window: &Window) -> Option<Retained<NSView>> {
 pub fn set_accessory_app() {
     let Some(mtm) = main_thread() else { return };
     NSApplication::sharedApplication(mtm).setActivationPolicy(NSApplicationActivationPolicy::Accessory);
+}
+
+/// Draw Delight's windows light (`Some(false)`), dark (`Some(true)`), or as macOS does
+/// (`None`), so their native parts (the blur, the glass, the title bar) match the
+/// Appearance setting. macOS redraws the windows and tells GPUI: call it outside a
+/// GPUI update.
+pub fn set_app_appearance(dark: Option<bool>) {
+    let Some(mtm) = main_thread() else { return };
+    let appearance = dark.and_then(|dark| {
+        // SAFETY: AppKit's appearance name constants, only read.
+        let name = unsafe { if dark { NSAppearanceNameDarkAqua } else { NSAppearanceNameAqua } };
+        NSAppearance::appearanceNamed(name)
+    });
+    NSApplication::sharedApplication(mtm).setAppearance(appearance.as_deref());
 }
 
 /// Whether the window is on screen.

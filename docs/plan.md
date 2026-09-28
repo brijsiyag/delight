@@ -232,13 +232,23 @@ fork's `delight` branch.
     built-in plugins folder (the build output during development);
     `delight-ui` in plugins (its wasm build, its theme from `theme(cx)`,
     its icons through `Plugin::assets`); and the SVG tool, which needs no C
-    (copying as PNG waits for `copy_file`). Then the WASI SDK xtask
-    (tree-sitter is C), an xtask building `plugins/`, syntax highlighting,
-    and the JSON and YAML tools.
-12. **Settings window and permissions**: general settings, the plugins page
-    (list, enable, permissions shown, Install… with confirmation, plugin
-    settings pages on surfaces), the gated host capabilities (commands,
-    clipboard reading), `add_font`, host facts.
+    (copying as PNG waits for `copy_file`). Then, after step 12 (settings
+    and installing plugins come first): the WASI SDK xtask (tree-sitter is
+    C), an xtask building `plugins/`, syntax highlighting, and the JSON and
+    YAML tools.
+12. **Settings window and permissions**, a new design rather than the
+    previous attempt's two tabs: an 800×580 window with a sidebar, like
+    System Settings (General, each plugin as its own entry, plugins that
+    don't load, Install Plugin…). In three parts: the settings file and the
+    General page (the shortcut, hiding, pasting on open, appearance, the
+    input history, open at login), opened from the tray, ⌘, and the
+    footer's ⚙. Then the plugin pages: their tools, each with its own switch
+    (turned-off plugins and tools are stored apart, and a tool runs only
+    while both are on), permissions, on and off, delete, show in Finder,
+    plugins that don't load, and installing with a sheet that lists the
+    permissions and the tools. Then each plugin's own settings page on a
+    surface, the gated host capabilities (commands, clipboard reading),
+    `add_font`, host facts.
 13. **Network**: sockets through `with_wasi` for plugins with `Network`;
     **embedded_gpui**: link `wasi:http` with an outgoing sender whose TLS uses the
     macOS trust store (`rustls-platform-verifier`; bundled roots fail

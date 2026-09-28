@@ -11,11 +11,13 @@
 //! It's kept apart from other settings because inputs often hold tokens.
 
 use std::collections::HashSet;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use anyhow::Context as _;
 use gpui::{App, Global};
 use serde::{Deserialize, Serialize};
+
+use crate::files::{read_json, write_json};
 
 /// Remembered inputs kept; the oldest go first.
 const MAX_REMEMBERED_INPUTS: usize = 10_000;
@@ -79,6 +81,19 @@ pub fn get(cx: &App) -> &InputHistory {
 
 pub fn get_mut(cx: &mut App) -> &mut InputHistory {
     cx.global_mut::<InputHistory>()
+}
+
+/// Forget everything: what tools remembered, and the input to restore. The file goes
+/// too.
+pub fn erase(cx: &mut App) {
+    let history = get_mut(cx);
+    history.file = HistoryFile::default();
+    match std::fs::remove_file(&history.path) {
+        Err(error) if error.kind() != std::io::ErrorKind::NotFound => {
+            log::error!("erasing the input history: {error}");
+        }
+        _ => {}
+    }
 }
 
 fn too_long(text: &str) -> bool {
@@ -182,26 +197,6 @@ impl InputHistory {
     fn save(&self) -> anyhow::Result<()> {
         write_json(&self.path, &self.file).with_context(|| format!("saving {}", self.path.display()))
     }
-}
-
-/// Write `value` as pretty JSON through a temporary file and a rename, so a crash
-/// mid-write never leaves half a file.
-fn write_json(path: &Path, value: &impl Serialize) -> anyhow::Result<()> {
-    if let Some(folder) = path.parent() {
-        std::fs::create_dir_all(folder)?;
-    }
-    let temporary = path.with_extension("json.tmp");
-    std::fs::write(&temporary, serde_json::to_vec_pretty(value)?)?;
-    std::fs::rename(temporary, path)?;
-    Ok(())
-}
-
-/// Read JSON from `path`: `None` if the file is missing, or invalid (logged).
-fn read_json<T: serde::de::DeserializeOwned>(path: &Path) -> Option<T> {
-    let raw = std::fs::read_to_string(path).ok()?;
-    serde_json::from_str(&raw)
-        .map_err(|error| log::warn!("{} is invalid, so it's ignored: {error}", path.display()))
-        .ok()
 }
 
 #[cfg(test)]

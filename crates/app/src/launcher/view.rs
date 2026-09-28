@@ -14,10 +14,10 @@ use gpui::{
 
 use super::{
     BAR_HEIGHT, BAR_ICON_GAP, BAR_ICON_SIZE, BAR_PADDING_X, CONTEXT, ClearInput, Dismiss, FocusNext, FocusPrevious,
-    FocusTools, Launcher, NewerCompletion, OlderCompletion, SelectNext, SelectPrevious, SelectTool, TOOL_LIST_CONTEXT,
-    hide, history_search,
+    FocusTools, Launcher, NewerCompletion, OlderCompletion, OpenSettings, SelectNext, SelectPrevious, SelectTool,
+    TOOL_LIST_CONTEXT, hide, history_search,
 };
-use crate::{macos, plugins};
+use crate::{macos, plugins, settings_window};
 
 const LIST_WIDTH: f32 = 200.;
 const FOOTER_HEIGHT: f32 = 44.;
@@ -65,6 +65,7 @@ impl Render for Launcher {
                     this.select(index, cx);
                 }
             }))
+            .on_action(cx.listener(|_, _: &OpenSettings, _, cx| cx.defer(settings_window::open)))
             .on_action(cx.listener(|this, _: &OlderCompletion, _, cx| this.step_completion(1, cx)))
             .on_action(cx.listener(|this, _: &NewerCompletion, _, cx| this.step_completion(-1, cx)))
             .on_action(cx.listener(|this, _: &history_search::Search, window, cx| this.open_history(window, cx)))
@@ -286,6 +287,11 @@ impl Launcher {
             }
             actions = actions.child(button);
         }
+        let actions = actions.child(
+            IconButton::new("settings", IconName::Settings)
+                .tooltip("Settings")
+                .on_click(|_, _, cx| cx.defer(settings_window::open)),
+        );
         // The footer is a handle for moving the window.
         h_flex()
             .on_mouse_down(MouseButton::Left, |_, window, _| window.start_window_move())

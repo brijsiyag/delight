@@ -12,7 +12,7 @@ use gpui::{
 
 use super::Launcher;
 use crate::history::{self, RememberedInput};
-use crate::plugins;
+use crate::{plugins, settings};
 
 /// The key context around the search input.
 pub const CONTEXT: &str = "HistorySearch";
@@ -44,6 +44,10 @@ pub struct HistorySearch {
 impl Launcher {
     /// Open the search, starting from the input if it's one line.
     pub(super) fn open_history(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if !settings::get(cx).input_history {
+            self.flash("The input history is off: turn it on in Settings → General", cx);
+            return;
+        }
         let text = self.input.read(cx).text().to_string();
         let start = if text.contains('\n') { String::new() } else { text };
         let query = cx.new(|cx| {
