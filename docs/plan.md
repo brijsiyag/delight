@@ -17,8 +17,8 @@ These were settled in the previous attempt (see its
 
 1. Plugins are embedded_gpui WASM components (`wasm32-wasip2`). A plugin runs
    its own GPUI; the app replays its display lists.
-2. Built-in tools are plugins too, built by the app and embedded in it; they
-   take exactly the same path as installed ones.
+2. Built-in tools are plugins too; they take exactly the same path as
+   installed ones.
 3. Installing a plugin means adding one prebuilt `.wasm` file (Settings →
    Install…, or dropping it in the plugins folder). No CLI, no plugin
    manager, no SDK kit, no rebuild-on-update.
@@ -54,14 +54,15 @@ These were settled in the previous attempt (see its
   gated feature is an object the app hands over only when the permission is
   granted (commands, clipboard reading), and a pasted file reaches a tool as
   a ref only with `InputFiles`. There is no call-time permission check to
-  forget. Changing a plugin's permissions restarts it (~10 ms from cache).
+  forget. Changing a plugin's permissions restarts it.
 - **Reactivity uses the object model.** The theme is a host object plugins
   observe, so a light/dark switch reaches every plugin on its own. A tool's
   footer actions are data it `cx.notify()`s about; the app observes the tool
   object, not its surface.
-- **wasmtime's own compile cache** (`cache` feature) instead of a
-  hand-written one: keyed by engine settings and bytes, with its own size
-  limit and cleanup, so the old "prune the cache" TODO disappears.
+- **Built-ins are files.** Their `.wasm` files are packaged in the app
+  (`Contents/Resources/plugins`, so in the DMG) and loaded by path, like
+  installed ones: nothing is embedded in the binary, no build script builds
+  plugins, and embedded_gpui needs no loading from bytes.
 - **A headless test crate from the start** (a fixture plugin, a fake host
   root, no window), so plugin behaviour is tested without driving the GUI.
 - **Fewer fork changes.** Network sockets and the data folder need none
@@ -83,7 +84,7 @@ delight-umbrella/
 │  │  ├─ runtime/           delight-runtime: load, check and run plugins (native, no windows)
 │  │  └─ app/               delight-app: the macOS app
 │  ├─ plugins/              built-in plugins: their own workspace, wasm32-wasip2
-│  ├─ xtask/                WASI SDK download, bundling, signing, version checks
+│  ├─ xtask/                WASI SDK download, building built-ins, bundling, signing, version checks
 │  └─ docs/
 ├─ embedded_gpui/           the fork, branch `delight`
 └─ wstd/                    only if upstream won't take the reactor change (step 13)
@@ -95,8 +96,7 @@ serves those WASI calls with wasmtime's `wasmtime-wasi` (sockets) and
 `wasmtime-wasi-http` (HTTP), inside embedded_gpui.
 
 Built-in plugins live in their own workspace because they only build for
-`wasm32-wasip2` and the app's build script runs a nested cargo on them. A
-path dependency's `workspace = true` resolves in its own workspace, so the
+`wasm32-wasip2`. A path dependency's `workspace = true` resolves in its own workspace, so the
 crates they share (`protocol`, `sdk`, `ui`) stay members of the root one.
 Every workspace (root, `plugins/`, the fork, third-party plugins) names GPUI
 exactly as the fork does, `git = "https://github.com/zed-industries/zed.git",
@@ -112,7 +112,7 @@ delight-app (native GPUI)
  ├─ settings window: general, plugins, plugin settings pages
  └─ delight-runtime, per plugin:
       manifest (read from the .wasm) → checks → PluginOptions
-        (data folder, network if granted, limits, compile cache)
+        (data folder, network if granted, limits)
       → embedded_gpui PluginHost → roots exchanged
             │  object protocol (delight-protocol schemas)
             ▼
@@ -161,10 +161,9 @@ fork's `delight` branch.
    so the commit is on no other branch). The port was tried and is small:
    Rust 1.98.1, and compile fixes only (`paint_image` bounds, atlas key by
    value, `PaddedBool32`, new `Platform`/`PlatformWindow` items).
-3. **embedded_gpui: load from bytes, compile cache, focusable surface.** Three small
-   commits: `PluginInstance::from_bytes` / `PluginHost::load_bytes`;
-   `PluginOptions::with_compile_cache(dir)` on wasmtime's `cache` feature;
-   `Surface: Focusable`.
+3. **No embedded_gpui changes to start with.** Built-ins load from files,
+   so loading from bytes isn't needed. The compile cache and keyboard focus
+   into a tool wait (see Later).
 4. **`delight-protocol`**: the schemas and data types above, the manifest
    format, `PROTOCOL_VERSION`. Unit tests for (de)serialisation.
 5. **`delight-sdk` + a fixture plugin**: the `Plugin` / tool traits authors
@@ -173,21 +172,22 @@ fork's `delight` branch.
    A minimal plugin under the headless test crate.
 6. **`delight-runtime`**: read and check a manifest from bytes (id,
    protocol version, permissions), build `PluginOptions`, start, exchange
-   roots, the compile cache location, plugin stopped/crashed reporting,
+   roots, plugin stopped/crashed reporting,
    detection across plugins and its ranking (a pure function). The headless
    test crate: fake host root, the fixture plugin, open a tool on an
    unattached surface, update it, read its actions.
 7. **App shell**: single instance, tray icon and menu, global hotkey, the
    launcher window with its input; no tools yet.
 8. **Launcher with tools**: load built-ins and the plugins folder, show
-   matches, open a tool on a surface, keyboard focus into it, footer actions
-   and their keys, Esc and reopen behaviour, pasted files.
+   matches, open a tool on a surface, footer actions and their keys, Esc
+   and reopen behaviour, pasted files.
 9. **Input history**: ⌃R, ⌃N / ⌃P completions, history per tool.
 10. **`delight-ui` + theme**: the theme on both sides (host object observed
     by plugins), the shared components the built-ins need.
 11. **Built-in JSON, YAML and SVG plugins**: the WASI SDK xtask (tree-sitter
-    is C), the app's `build.rs` building `plugins/` and embedding the
-    `.wasm` files.
+    is C), an xtask building `plugins/`, and the app loading the `.wasm`
+    files from its built-in plugins folder (the build output during
+    development).
 12. **Settings window and permissions**: general settings, the plugins page
     (list, enable, permissions shown, Install… with confirmation, plugin
     settings pages on surfaces), the gated host capabilities (commands,
@@ -205,8 +205,21 @@ fork's `delight` branch.
 14. **DNS tool**, then port the five third-party plugins in
     `~/Desktop/delight-plugins`.
 15. **Secrets, updates, release**: encrypted plugin secrets (one Keychain
-    master key), automatic updates, bundling, signing, notarisation,
-    installer, version checks.
+    master key), automatic updates, bundling (the built-in plugins go in
+    `Contents/Resources/plugins`), signing, notarisation, the DMG, version
+    checks.
+
+## Later
+
+Not needed to get the app working; each waits until it is.
+
+- **Compile cache** (**embedded_gpui**): every start compiles each plugin
+  (~250 ms, ~200 MB); wasmtime's own cache (`cache` feature,
+  `PluginOptions::with_compile_cache(dir)`) brings it to ~10 ms.
+- **Keyboard focus into a tool** (**embedded_gpui**: `Surface: Focusable`):
+  a surface takes focus only when clicked. Until then tools work through
+  the input and their footer actions.
+- **Zed's `main`**: see step 2.
 
 ## Watch out for
 
@@ -216,8 +229,6 @@ fork's `delight` branch.
 - Crates GPUI links too (`resvg`, `regex`, `image`): pin the versions GPUI
   uses.
 - tree-sitter is C: WASM builds need the WASI SDK's clang (`WASI_SDK_PATH`).
-- The nested cargo in `build.rs` needs its own target dir and must clear
-  `CARGO_ENCODED_RUSTFLAGS`, `RUSTFLAGS` and `CARGO_BUILD_TARGET`.
 - Inside a plugin GPUI can't write the clipboard, open URLs, list or load
   system fonts, or tell the appearance; `chrono::Local` is UTC and there is
   no process id. The host root covers each of these.
