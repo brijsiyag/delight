@@ -1029,13 +1029,40 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "be1e0bca6c3637f992fc1cc7cbc52a78c1ef6db076dbf1059c4323d6a2048376"
 
 [[package]]
-name = "delight-protocol"
+name = "delight-manifest"
 version = "2.0.0"
 dependencies = [
  "anyhow",
- "embedded_gpui",
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "delight-plugin-api"
+version = "2.0.0"
+dependencies = [
+ "anyhow",
+ "delight-plugin-api-macros",
+ "delight-protocol",
+ "embedded_gpui",
+]
+
+[[package]]
+name = "delight-plugin-api-macros"
+version = "2.0.0"
+dependencies = [
+ "delight-manifest",
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "delight-protocol"
+version = "2.0.0"
+dependencies = [
+ "delight-manifest",
+ "embedded_gpui",
 ]
 
 [[package]]

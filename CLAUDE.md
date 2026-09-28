@@ -27,8 +27,8 @@ forks:
   UI, algorithms), never for its folder or code structure, and don't copy
   code from it wholesale. `~/Desktop/delight/docs/wasm-rewrite-notes.md`
   lists what that attempt learned.
-- `~/Desktop/delight-plugins`: the third-party plugins, ported once the SDK
-  is ready (not a git repo; don't break it).
+- `~/Desktop/delight-plugins`: the third-party plugins, ported once the plugin
+  API is ready (not a git repo; don't break it).
 
 ## Rules
 

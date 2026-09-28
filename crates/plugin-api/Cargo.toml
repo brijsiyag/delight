@@ -1,0 +1,16 @@
+[package]
+name = "delight-plugin-api"
+description = "What a Delight plugin is written with"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+anyhow = { workspace = true }
+delight-protocol = { workspace = true }
+delight-plugin-api-macros = { workspace = true }
+embedded_gpui = { workspace = true }

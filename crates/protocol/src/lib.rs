@@ -6,53 +6,19 @@
 //! tool gives the app a [`ToolApi`] ref homed in the plugin.
 //!
 //! What a plugin is (its id, name, tools and permissions) is its [`Manifest`], which
-//! the app reads from the `.wasm` without running it.
+//! the app reads from the `.wasm` without running it, together with the
+//! [`PROTOCOL_VERSION`] the plugin was built for. Both live in `delight-manifest`,
+//! re-exported here.
 //!
 //! `#[interface]` makes one message type per method at module level, so method names
 //! are unique across the interfaces here and don't clash with type names.
 
-mod manifest;
-
-pub use manifest::{Manifest, Operation, Permission};
-
-use std::fmt;
+pub use delight_manifest::{
+    Manifest, Operation, PROTOCOL_VERSION, Permission, PluginProperties, ProtocolVersion,
+};
 
 use embedded_gpui::surface::SurfaceApi;
 use embedded_gpui::{Ref, data, interface};
-use serde::{Deserialize, Serialize};
-
-/// The version of this contract. Every plugin carries the version it was built
-/// against; see [`ProtocolVersion::supports`] for which ones the app runs.
-///
-/// Bump `minor` for changes that plugins built before them survive: a new
-/// [`HostApi`] method, a new field in data the app sends (older plugins ignore it),
-/// a new field with a default in data plugins send, a new [`PluginApi`] or
-/// [`ToolApi`] method the app copes with older plugins lacking. Bump `major` (and
-/// reset `minor`) for anything else: removing or renaming a method, changing a
-/// type, a new enum variant sent to plugins.
-pub const PROTOCOL_VERSION: ProtocolVersion = ProtocolVersion { major: 1, minor: 0 };
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ProtocolVersion {
-    pub major: u32,
-    pub minor: u32,
-}
-
-impl ProtocolVersion {
-    /// Whether an app on this version runs a plugin built for `plugin`: the same
-    /// major, and a minor no newer than the app's. A plugin built for a newer minor
-    /// may call what this app doesn't have, so it's refused rather than failing
-    /// halfway.
-    pub fn supports(self, plugin: ProtocolVersion) -> bool {
-        plugin.major == self.major && plugin.minor <= self.minor
-    }
-}
-
-impl fmt::Display for ProtocolVersion {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}.{}", self.major, self.minor)
-    }
-}
 
 /// The plugin's root object: what the app reaches in a plugin.
 #[interface]
@@ -60,8 +26,9 @@ pub trait PluginApi {
     /// Which of this plugin's operations fit `input`, and how well (0 to 1).
     fn detect(&mut self, input: Input, cx: &mut gpui::Context<Self>) -> Vec<Detection>;
 
-    /// Open the tool for `operation`, drawing on `surface`.
-    fn open_tool(
+    /// Open the tool for `operation`, drawing on `surface`. Async so that failing
+    /// to open (an operation the plugin doesn't have) reaches the app as an error.
+    async fn open_tool(
         &mut self,
         operation: String,
         surface: Ref<SurfaceApi>,
@@ -73,16 +40,16 @@ pub trait PluginApi {
 /// actions change, so the app observes the tool rather than asking after every draw.
 #[interface]
 pub trait ToolApi {
-    /// Set the tool's input to the launcher's: when the tool opens, and whenever
-    /// the input changes.
-    fn set_input(&mut self, input: Input, cx: &mut gpui::Context<Self>);
+    /// The app telling the tool what the launcher's input now is: when the tool
+    /// opens, and whenever the input changes.
+    fn on_input_changed(&mut self, input: Input, cx: &mut gpui::Context<Self>);
 
     /// The footer actions, in order.
-    fn actions(&mut self, cx: &mut gpui::Context<Self>) -> Vec<Action>;
+    fn list_actions(&mut self, cx: &mut gpui::Context<Self>) -> Vec<Action>;
 
     /// Run the action with this id. The tool does the work itself (copying,
     /// toasting) through its [`HostApi`].
-    fn perform(&mut self, action: String, cx: &mut gpui::Context<Self>);
+    fn perform_action(&mut self, action: String, cx: &mut gpui::Context<Self>);
 }
 
 /// The app's root object for one plugin: what a plugin reaches in the app.
@@ -141,7 +108,7 @@ pub enum Shortcut {
 mod tests {
     use super::*;
     use embedded_gpui::{Interface, decode, encode};
-    use serde::{Serialize, de::DeserializeOwned};
+    use embedded_gpui::serde::{Serialize, de::DeserializeOwned};
 
     /// Encode `value` as it crosses the boundary, check the JSON, and decode it back.
     fn assert_wire<T>(value: &T, json: &str)
@@ -203,24 +170,15 @@ mod tests {
     }
 
     #[test]
-    fn older_minors_are_supported_newer_ones_and_other_majors_are_not() {
-        let version = |major, minor| ProtocolVersion { major, minor };
-        let app = version(2, 3);
-        assert!(app.supports(version(2, 3)));
-        assert!(app.supports(version(2, 0)));
-        assert!(!app.supports(version(2, 4)));
-        assert!(!app.supports(version(1, 3)));
-        assert!(!app.supports(version(3, 0)));
-        assert_eq!(app.to_string(), "2.3");
-    }
-
-    #[test]
     fn interfaces_have_the_methods_of_the_contract() {
         let methods = |schema: embedded_gpui::Schema| -> Vec<&str> {
             schema.methods.iter().map(|method| method.name).collect()
         };
         assert_eq!(methods(PluginApi::schema()), ["detect", "open_tool"]);
-        assert_eq!(methods(ToolApi::schema()), ["set_input", "actions", "perform"]);
+        assert_eq!(
+            methods(ToolApi::schema()),
+            ["on_input_changed", "list_actions", "perform_action"]
+        );
         assert_eq!(methods(HostApi::schema()), ["toast", "copy_text", "hide"]);
     }
 }

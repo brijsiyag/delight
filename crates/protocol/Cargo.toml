@@ -10,9 +10,5 @@ publish = false
 workspace = true
 
 [dependencies]
-anyhow = { workspace = true }
+delight-manifest = { workspace = true }
 embedded_gpui = { workspace = true }
-serde = { workspace = true }
-
-[dev-dependencies]
-serde_json = { workspace = true }

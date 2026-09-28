@@ -34,9 +34,10 @@ These were settled in the previous attempt (see its
 
 ## What is different this time
 
-- **The manifest is read without running the plugin.** `export_plugin!`
-  puts the manifest (and the SDK's protocol version) in a custom section of
-  the `.wasm` (`#[link_section]`; checked: it survives a stripped, LTO'd
+- **The manifest is read without running the plugin.** It is written in
+  the plugin's code (`#[plugin(...)]`, `#[derive(Operations)]`), and the
+  macros put it (and the protocol version) in a custom section of the
+  `.wasm` (`#[link_section]`; checked: it survives a stripped, LTO'd
   release build). The app reads it with `wasmparser` before compiling
   anything. So:
   - Install… shows the name, icon and permissions and asks, and no code from
@@ -68,7 +69,7 @@ These were settled in the previous attempt (see its
   root, no window), so plugin behaviour is tested without driving the GUI.
 - **Fewer fork changes.** Network sockets and the data folder need none
   (upstream `PluginOptions::with_wasi` covers them); guest I/O is first
-  tried SDK-side (below).
+  tried in the plugin API (below).
 - **GPUI stays on the branch embedded_gpui uses**
   (`gpui-embedded-in-gpui`, commit `7bc1c05`) instead of Zed's `main`, so
   the fork needs no port. Porting is left for later (step 2).
@@ -79,26 +80,29 @@ These were settled in the previous attempt (see its
 delight-umbrella/
 ├─ delight/                 this repository
 │  ├─ crates/
+│  │  ├─ manifest/          delight-manifest: the manifest and protocol version a .wasm carries
 │  │  ├─ protocol/          delight-protocol: the contract (schemas + data)
-│  │  ├─ sdk/               delight-sdk: what a plugin depends on
+│  │  ├─ plugin-api/        delight-plugin-api: what a plugin depends on
+│  │  ├─ plugin-api-macros/ delight-plugin-api-macros: #[plugin] and #[derive(Operations)]
 │  │  ├─ ui/                delight-ui: theme and shared components (native + wasm)
 │  │  ├─ runtime/           delight-runtime: load, check and run plugins (native, no windows)
 │  │  └─ app/               delight-app: the macOS app
 │  ├─ plugins/              built-in plugins: their own workspace, wasm32-wasip2
+│  ├─ tests/                the headless test crate; fixture/ is its plugin (own workspace)
 │  ├─ xtask/                WASI SDK download, building built-ins, bundling, signing, version checks
 │  └─ docs/
 ├─ embedded_gpui/           the fork, branch `delight`
 └─ wstd/                    only if upstream won't take the reactor change (step 13)
 ```
 
-wstd is plugin-side only: `delight-sdk` depends on it for `wasm32` targets,
+wstd is plugin-side only: `delight-plugin-api` depends on it for `wasm32` targets,
 so plugins get async HTTP and sockets over WASI. The app never links it; it
 serves those WASI calls with wasmtime's `wasmtime-wasi` (sockets) and
 `wasmtime-wasi-http` (HTTP), inside embedded_gpui.
 
 Built-in plugins live in their own workspace because they only build for
 `wasm32-wasip2`. A path dependency's `workspace = true` resolves in its own workspace, so the
-crates they share (`protocol`, `sdk`, `ui`) stay members of the root one.
+crates they share (`manifest`, `protocol`, `plugin-api`, `ui`) stay members of the root one.
 Every workspace (root, `plugins/`, the fork, third-party plugins) names GPUI
 exactly as the fork does, `git = "https://github.com/zed-industries/zed.git",
 branch = "gpui-embedded-in-gpui"` (plus `version = "=0.2.2"`), or Cargo links
@@ -118,7 +122,7 @@ delight-app (native GPUI)
             │  object protocol (delight-protocol schemas)
             ▼
 plugin (.wasm, its own GPUI)
- └─ delight-sdk: the author's `Plugin` and tools behind the protocol,
+ └─ delight-plugin-api: the author's `Plugin` and tools behind the protocol,
     `host(cx)` facade, theme mirror, and (with `network`) wstd re-polling
 ```
 
@@ -127,7 +131,7 @@ in its step):
 
 - **Host root**, one per plugin, so no plugin id ever travels: this
   plugin's settings, secrets and encrypt/decrypt; remember an input; set the
-  launcher input (`set_launcher_input`: the tool's is `set_input`); toast;
+  launcher input (`set_launcher_input`); toast;
   hide; copy text or a file; open a URL; open its settings page; add a
   font; host facts (UTC offset, app pid); the theme object; and the gated
   objects this plugin was granted (run commands, read the clipboard).
@@ -135,15 +139,15 @@ in its step):
   `open_tool(operation, surface) -> Ref<Tool>`, `open_settings(surface)`.
   A plugin offers one or more operations (tools), listed in its manifest.
   Whether it has settings isn't declared: the app asks the running plugin,
-  and the SDK answers from whether the author wrote a settings view (step
+  and the plugin API answers from whether the author wrote a settings view (step
   12).
-- **Tool**, homed in the plugin: `set_input(input)`, `actions()` (observed),
-  `perform(action)`.
+- **Tool**, homed in the plugin: `on_input_changed(input)`,
+  `list_actions()` (observed), `perform_action(action)`.
 - **Data**: manifest (id, name, version, description, author, icon SVG,
   operations (each may have its own icon), permissions), input (text),
   detection, action (id, label, and a shortcut: a keystroke, or explicitly
   click-only), theme, command and its output.
-- `PROTOCOL_VERSION`, written into every plugin by `export_plugin!`.
+- `PROTOCOL_VERSION`, written into every plugin by `#[plugin]`.
 
 `docs/behaviour.md` has the full behaviour each step reproduces.
 
@@ -169,23 +173,35 @@ fork's `delight` branch.
    so loading from bytes isn't needed. The compile cache and keyboard focus
    into a tool wait (see Later).
 4. **`delight-protocol`**: the three interfaces with what the launcher
-   needs (detect and open a tool; set_input, actions and perform; toast,
-   copy text and hide), their data, the manifest's data and its checks,
+   needs (detect and open a tool; on_input_changed, list_actions and
+   perform_action; toast, copy text and hide), their data, the manifest's data and its checks,
    `PROTOCOL_VERSION`. Unit tests for (de)serialisation. Later steps add
    their parts of the contract (history, theme, settings, the gated
    objects with their permissions, `copy_file`); the only permission to
    start with is `Network`. Step 5 settles how the manifest is stored in
    the `.wasm`, with its source.
-5. **`delight-sdk` + a fixture plugin**: the `Plugin` / tool traits authors
-   implement, `export_plugin!` (entry point + manifest section; inert
-   natively so a tool's unit tests run on the host), the `host(cx)` facade.
-   A minimal plugin under the headless test crate.
+5. **`delight-plugin-api` + a fixture plugin**: the `Plugin` / tool traits
+   authors implement, the manifest macros (entry point + manifest section;
+   inert natively so a tool's unit tests run on the host), the `host(cx)`
+   facade. A minimal plugin under the headless test crate
+   (`tests/fixture`). The manifest is code, with no separate file:
+   `#[plugin(id, name, icon, …)]` on the plugin type holds its properties,
+   and `#[derive(Operations)]` on a fieldless enum its operations, one
+   `#[operation(id, title, …)]` per variant with an explicit id (stored by
+   the app, so a rename in code changes nothing). The plugin's `type
+   Operation` links the two. The proc macros (`delight-plugin-api-macros`)
+   read the icon files at compile time, check everything (a mistake is a
+   compile error; the version is the crate's), and join it into one
+   `delight-plugin` custom section: three JSON lines, the protocol
+   version, the properties and the operations. The manifest and protocol
+   version live in `delight-manifest`, which has no embedded_gpui, since
+   what a proc macro depends on is built natively for every plugin.
 6. **`delight-runtime`**: read and check a manifest from bytes (id,
    protocol version, permissions), build `PluginOptions`, start, exchange
    roots, plugin stopped/crashed reporting,
    detection across plugins and its ranking (a pure function). The headless
    test crate: fake host root, the fixture plugin, open a tool on an
-   unattached surface, set its input, read its actions.
+   unattached surface, send it an input, read its actions.
 7. **App shell**: single instance, tray icon and menu, global hotkey, the
    launcher window with its input; no tools yet.
 8. **Launcher with tools**: load built-ins and the plugins folder, show
@@ -205,9 +221,9 @@ fork's `delight` branch.
 13. **Network**: sockets through `with_wasi` for plugins with `Network`;
     **embedded_gpui**: link `wasi:http` with an outgoing sender whose TLS uses the
     macOS trust store (`rustls-platform-verifier`; bundled roots fail
-    behind a company TLS proxy). In the SDK (behind a `network` feature),
+    behind a company TLS proxy). In the plugin API (behind a `network` feature),
     wstd driven by GPUI: a wstd future checks its own pollable every time
-    it is polled, so the SDK re-polls pending network futures from a GPUI
+    it is polled, so the plugin API re-polls pending network futures from a GPUI
     timer, and embedded_gpui needs no I/O driver. The one thing released
     wstd lacks is a public way to make its reactor current without
     `block_on` (about ten lines): propose it upstream first; fork wstd only
@@ -255,18 +271,12 @@ Not needed to get the app working; each waits until it is.
 
 ## Open questions
 
-- Manifest source for authors: a `delight.toml` next to `Cargo.toml` that
-  `export_plugin!` includes, or a proc macro that checks it at compile time.
-  Decided in step 5, together with what the custom section holds (the TOML
-  as written, or JSON the macro produces). A proc macro must not depend on
-  `delight-protocol` as it is: that would build embedded_gpui's native
-  runtime (wasmtime, GPUI) for every plugin.
 - Whether stopping and reporting a crashed plugin needs a fork change (an
   event from `PluginHost`) or can be seen from failed calls. Decided in
   step 6.
 - Network, step 13: WASI network (above) or a host HTTP API. The latter
   needs no wstd change but adds a Delight method per kind of network use.
-  Also: wstd behind an SDK `network` feature, or kept out of the SDK. And
+  Also: wstd behind a plugin API `network` feature, or kept out of it. And
   the re-poll interval (short while a request is in flight, backing off for
   long waits such as a sign-in redirect).
 - WASI 0.3: wstd's `main` is adding it, and there the host drives async and

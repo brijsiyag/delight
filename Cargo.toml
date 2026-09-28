@@ -1,9 +1,14 @@
 [workspace]
 resolver = "3"
-# The app's crates and the ones plugins share (protocol, sdk, ui). Each crate
-# is added in the step that introduces it; see docs/plan.md. Plugins (built-in
+# The app's crates and the ones plugins share (manifest, protocol, plugin-api,
+# ui). Each crate is added in the step that introduces it; see docs/plan.md. Plugins (built-in
 # or not) are wasm32-wasip2 crates in their own workspaces.
-members = ["crates/protocol"]
+members = [
+    "crates/manifest",
+    "crates/protocol",
+    "crates/plugin-api",
+    "crates/plugin-api-macros",
+]
 
 [workspace.package]
 # 2.x: plugins changed from dylibs to WASM components, so nothing built for
@@ -19,12 +24,18 @@ todo = "deny"
 # Every dependency is declared once here, pinned exactly (`=x.y.z`, or a git
 # `rev`), and crates use `{ workspace = true }`.
 [workspace.dependencies]
+delight-manifest = { path = "crates/manifest" }
+delight-protocol = { path = "crates/protocol" }
+delight-plugin-api-macros = { path = "crates/plugin-api-macros" }
 # The fork (github.com/brijsiyag/embedded_gpui, branch `delight`), checked out
 # next to this repository. It brings GPUI (see docs/plan.md, Layout).
 embedded_gpui = { path = "../embedded_gpui/embedded_gpui" }
 anyhow = "=1.0.103"
+proc-macro2 = "=1.0.106"
+quote = "=1.0.46"
 serde = { version = "=1.0.228", features = ["derive"] }
 serde_json = "=1.0.150"
+syn = "=2.0.118"
 
 [profile.release]
 codegen-units = 1
