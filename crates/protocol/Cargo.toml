@@ -1,0 +1,18 @@
+[package]
+name = "delight-protocol"
+description = "The contract between Delight and its plugins: object interfaces, the data they carry, and the plugin manifest"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+anyhow = { workspace = true }
+embedded_gpui = { workspace = true }
+serde = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }

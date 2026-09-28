@@ -23,8 +23,8 @@ These were settled in the previous attempt (see its
    Install…, or dropping it in the plugins folder). No CLI, no plugin
    manager, no SDK kit, no rebuild-on-update.
 4. Permissions declared by the plugin gate everything outside its sandbox:
-   `Network`, `Commands`, `InputFiles`, `Clipboard` (reading; copying needs
-   none). Settings shows them; installing asks to confirm them.
+   `Network`, `Commands`, `Clipboard` (reading; copying needs none).
+   Settings shows them; installing asks to confirm them.
 5. No Delight HTTP API: the network is WASI's `wasi:http` and
    `wasi:sockets`, and plugins use `wstd`.
 6. GPUI is not forked: it is used directly from Zed's repository by the
@@ -41,8 +41,10 @@ These were settled in the previous attempt (see its
   anything. So:
   - Install… shows the name, icon and permissions and asks, and no code from
     the file has run yet;
-  - a plugin built for another protocol version is refused at load, with a
-    clear message, instead of failing at its first call;
+  - the protocol version is major.minor: additive changes bump the minor,
+    and plugins built for an older minor keep working. A plugin built for
+    another major, or a newer minor than the app's, is refused at load with
+    a clear message instead of failing at its first call;
   - the WASI sandbox is configured once, at instantiation, from the granted
     permissions: no network switch flipped after start, and name lookups are
     allowed only for plugins with `Network`;
@@ -52,9 +54,8 @@ These were settled in the previous attempt (see its
 - **Permissions are capabilities.** embedded_gpui's authority model is
   reachability: a plugin can use only the objects it holds refs to. So a
   gated feature is an object the app hands over only when the permission is
-  granted (commands, clipboard reading), and a pasted file reaches a tool as
-  a ref only with `InputFiles`. There is no call-time permission check to
-  forget. Changing a plugin's permissions restarts it.
+  granted (commands, clipboard reading). There is no call-time permission
+  check to forget. Changing a plugin's permissions restarts it.
 - **Reactivity uses the object model.** The theme is a host object plugins
   observe, so a light/dark switch reaches every plugin on its own. A tool's
   footer actions are data it `cx.notify()`s about; the app observes the tool
@@ -126,19 +127,22 @@ in its step):
 
 - **Host root**, one per plugin, so no plugin id ever travels: this
   plugin's settings, secrets and encrypt/decrypt; remember an input; set the
-  launcher input; toast; hide; copy text or a file; open a URL; open its
-  settings page; add a font; host facts (UTC offset, app pid); the theme
-  object; and the gated objects this plugin was granted (run commands, read
-  the clipboard).
+  launcher input (`set_launcher_input`: the tool's is `set_input`); toast;
+  hide; copy text or a file; open a URL; open its settings page; add a
+  font; host facts (UTC offset, app pid); the theme object; and the gated
+  objects this plugin was granted (run commands, read the clipboard).
 - **Plugin root**: `detect(input) -> [(operation, confidence)]`,
   `open_tool(operation, surface) -> Ref<Tool>`, `open_settings(surface)`.
   A plugin offers one or more operations (tools), listed in its manifest.
-- **Tool**, homed in the plugin: `update(input)`, `actions()` (observed),
+  Whether it has settings isn't declared: the app asks the running plugin,
+  and the SDK answers from whether the author wrote a settings view (step
+  12).
+- **Tool**, homed in the plugin: `set_input(input)`, `actions()` (observed),
   `perform(action)`.
 - **Data**: manifest (id, name, version, description, author, icon SVG,
-  operations, permissions, has settings), input (text + pasted files; a
-  file's contents are a ref only with `InputFiles`), detection, action
-  (id, label, shortcut), theme, command and its output.
+  operations (each may have its own icon), permissions), input (text),
+  detection, action (id, label, and a shortcut: a keystroke, or explicitly
+  click-only), theme, command and its output.
 - `PROTOCOL_VERSION`, written into every plugin by `export_plugin!`.
 
 `docs/behaviour.md` has the full behaviour each step reproduces.
@@ -164,8 +168,14 @@ fork's `delight` branch.
 3. **No embedded_gpui changes to start with.** Built-ins load from files,
    so loading from bytes isn't needed. The compile cache and keyboard focus
    into a tool wait (see Later).
-4. **`delight-protocol`**: the schemas and data types above, the manifest
-   format, `PROTOCOL_VERSION`. Unit tests for (de)serialisation.
+4. **`delight-protocol`**: the three interfaces with what the launcher
+   needs (detect and open a tool; set_input, actions and perform; toast,
+   copy text and hide), their data, the manifest's data and its checks,
+   `PROTOCOL_VERSION`. Unit tests for (de)serialisation. Later steps add
+   their parts of the contract (history, theme, settings, the gated
+   objects with their permissions, `copy_file`); the only permission to
+   start with is `Network`. Step 5 settles how the manifest is stored in
+   the `.wasm`, with its source.
 5. **`delight-sdk` + a fixture plugin**: the `Plugin` / tool traits authors
    implement, `export_plugin!` (entry point + manifest section; inert
    natively so a tool's unit tests run on the host), the `host(cx)` facade.
@@ -175,12 +185,12 @@ fork's `delight` branch.
    roots, plugin stopped/crashed reporting,
    detection across plugins and its ranking (a pure function). The headless
    test crate: fake host root, the fixture plugin, open a tool on an
-   unattached surface, update it, read its actions.
+   unattached surface, set its input, read its actions.
 7. **App shell**: single instance, tray icon and menu, global hotkey, the
    launcher window with its input; no tools yet.
 8. **Launcher with tools**: load built-ins and the plugins folder, show
    matches, open a tool on a surface, footer actions and their keys, Esc
-   and reopen behaviour, pasted files.
+   and reopen behaviour.
 9. **Input history**: ⌃R, ⌃N / ⌃P completions, history per tool.
 10. **`delight-ui` + theme**: the theme on both sides (host object observed
     by plugins), the shared components the built-ins need.
@@ -191,7 +201,7 @@ fork's `delight` branch.
 12. **Settings window and permissions**: general settings, the plugins page
     (list, enable, permissions shown, Install… with confirmation, plugin
     settings pages on surfaces), the gated host capabilities (commands,
-    clipboard reading, input files), `add_font`, host facts.
+    clipboard reading), `add_font`, host facts.
 13. **Network**: sockets through `with_wasi` for plugins with `Network`;
     **embedded_gpui**: link `wasi:http` with an outgoing sender whose TLS uses the
     macOS trust store (`rustls-platform-verifier`; bundled roots fail
@@ -202,8 +212,9 @@ fork's `delight` branch.
     wstd lacks is a public way to make its reactor current without
     `block_on` (about ten lines): propose it upstream first; fork wstd only
     if that is refused or slow.
-14. **DNS tool**, then port the five third-party plugins in
-    `~/Desktop/delight-plugins`.
+14. **DNS tool**, then port the third-party plugins in
+    `~/Desktop/delight-plugins` (the image plugin waits for pasted files,
+    see Later).
 15. **Secrets, updates, release**: encrypted plugin secrets (one Keychain
     master key), automatic updates, bundling (the built-in plugins go in
     `Contents/Resources/plugins`), signing, notarisation, the DMG, version
@@ -219,6 +230,10 @@ Not needed to get the app working; each waits until it is.
 - **Keyboard focus into a tool** (**embedded_gpui**: `Surface: Focusable`):
   a surface takes focus only when clicked. Until then tools work through
   the input and their footer actions.
+- **Pasted files**: Finder files pasted into the input, shown as tags and
+  passed to tools with the text, their contents only with an `InputFiles`
+  permission. `Input` is a struct so they can join it as a minor protocol
+  change. The third-party image plugin waits for this.
 - **Zed's `main`**: see step 2.
 
 ## Watch out for
@@ -242,7 +257,10 @@ Not needed to get the app working; each waits until it is.
 
 - Manifest source for authors: a `delight.toml` next to `Cargo.toml` that
   `export_plugin!` includes, or a proc macro that checks it at compile time.
-  Decided in step 5.
+  Decided in step 5, together with what the custom section holds (the TOML
+  as written, or JSON the macro produces). A proc macro must not depend on
+  `delight-protocol` as it is: that would build embedded_gpui's native
+  runtime (wasmtime, GPUI) for every plugin.
 - Whether stopping and reporting a crashed plugin needs a fork change (an
   event from `PluginHost`) or can be seen from failed calls. Decided in
   step 6.

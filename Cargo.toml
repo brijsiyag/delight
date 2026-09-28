@@ -1,9 +1,9 @@
 [workspace]
 resolver = "3"
-# Native crates only. Each crate is added in the step that introduces it; see
-# docs/plan.md. Plugins (built-in or not) are wasm32-wasip2 crates in their
-# own workspaces.
-members = []
+# The app's crates and the ones plugins share (protocol, sdk, ui). Each crate
+# is added in the step that introduces it; see docs/plan.md. Plugins (built-in
+# or not) are wasm32-wasip2 crates in their own workspaces.
+members = ["crates/protocol"]
 
 [workspace.package]
 # 2.x: plugins changed from dylibs to WASM components, so nothing built for
@@ -19,7 +19,18 @@ todo = "deny"
 # Every dependency is declared once here, pinned exactly (`=x.y.z`, or a git
 # `rev`), and crates use `{ workspace = true }`.
 [workspace.dependencies]
+# The fork (github.com/brijsiyag/embedded_gpui, branch `delight`), checked out
+# next to this repository. It brings GPUI (see docs/plan.md, Layout).
+embedded_gpui = { path = "../embedded_gpui/embedded_gpui" }
+anyhow = "=1.0.103"
+serde = { version = "=1.0.228", features = ["derive"] }
+serde_json = "=1.0.150"
 
 [profile.release]
 codegen-units = 1
 strip = true
+
+# GPUI's patches, as embedded_gpui has them: patches don't propagate through
+# git dependencies.
+[patch.crates-io]
+async-task = { git = "https://github.com/smol-rs/async-task.git", rev = "b4486cd71e4e94fbda54ce6302444de14f4d190e" }
