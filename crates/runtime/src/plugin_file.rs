@@ -46,6 +46,7 @@ mod tests {
             icon: "<svg/>".into(),
             tags: Vec::new(),
             permissions: Vec::new(),
+            tips: Vec::new(),
         };
         let operations = [Operation {
             id: "echo".into(),

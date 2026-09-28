@@ -85,7 +85,12 @@ that code was organised. Where the rewrite changes something on purpose,
 ## Input
 
 - A multiline text editor, up to 4 lines (84px) then scrolls; bundled Lilex
-  13px, line height 21; placeholder "What you got this time?".
+  13px, line height 21. The placeholder is a tip, a different one at random
+  each time the launcher shows: Delight's own about its keys (⌃R, Tab
+  completions, ⌘K, ⌘,, ⌘1–⌘9, the launcher shortcut; the history's only while
+  it's on), and the plugins' own, up to 5 each in their manifests
+  (`#[plugin(tips = […])]`, at most 80 characters each), while the plugin has a
+  tool on. (The previous attempt said "What you got this time?".)
 - Layout: padding 20, 22px bolt icon centred on the first line, gap 16; when
   expanded a ⓧ clear button on the first line; ⌃R replaces bolt and input
   with the History icon and a search field.

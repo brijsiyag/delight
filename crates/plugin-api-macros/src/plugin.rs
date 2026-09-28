@@ -6,7 +6,7 @@
 
 use darling::FromMeta;
 use darling::ast::NestedMeta;
-use delight_manifest::{Permission, PluginProperties, SECTION, encode_properties, validate_id};
+use delight_manifest::{MAX_TIPS, Permission, PluginProperties, SECTION, encode_properties, validate_id, validate_tip};
 use proc_macro2::{Literal, TokenStream};
 use quote::quote;
 use syn::{DeriveInput, Expr, Ident, LitStr};
@@ -40,6 +40,8 @@ struct PluginArgs {
     tags: Vec<LitStr>,
     #[darling(default)]
     permissions: Permissions,
+    #[darling(default)]
+    tips: Vec<LitStr>,
 }
 
 impl PluginArgs {
@@ -51,6 +53,7 @@ impl PluginArgs {
     /// version, and `delight-manifest`'s checks passed.
     fn to_properties(&self, icons: &mut Icons) -> darling::Result<PluginProperties> {
         validate_id(&self.id.value()).map_err(|error| invalid(error).with_span(&self.id))?;
+        self.check_tips()?;
         let properties = PluginProperties {
             id: self.id.value(),
             name: self.name.clone(),
@@ -60,9 +63,22 @@ impl PluginArgs {
             icon: icons.read(&self.icon)?,
             tags: values(&self.tags),
             permissions: self.permissions.0.clone(),
+            tips: values(&self.tips),
         };
         properties.validate().map_err(invalid)?;
         Ok(properties)
+    }
+
+    /// Each tip's check, at that tip; one too many, at the first extra.
+    fn check_tips(&self) -> darling::Result<()> {
+        let mut errors = darling::Error::accumulator();
+        for tip in &self.tips {
+            errors.handle(validate_tip(&tip.value()).map_err(|error| invalid(error).with_span(tip)));
+        }
+        if let Some(extra) = self.tips.get(MAX_TIPS) {
+            errors.push(darling::Error::custom(format!("at most {MAX_TIPS} tips")).with_span(extra));
+        }
+        errors.finish()
     }
 }
 

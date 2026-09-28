@@ -20,8 +20,8 @@ mod section;
 mod version;
 
 pub use manifest::{
-    Manifest, Operation, Permission, PluginProperties, first_duplicate, validate_id,
-    validate_operations,
+    MAX_TIP_CHARS, MAX_TIPS, Manifest, Operation, Permission, PluginProperties, first_duplicate, validate_id,
+    validate_operations, validate_tip,
 };
 pub use section::{SECTION, decode_section, encode_operations, encode_properties};
 pub use version::{PLUGIN_API_VERSION, PROTOCOL_VERSION, ProtocolVersion};

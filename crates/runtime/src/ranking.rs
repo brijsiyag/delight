@@ -92,6 +92,7 @@ mod tests {
                 icon: "<svg/>".into(),
                 tags: Vec::new(),
                 permissions: Vec::new(),
+                tips: Vec::new(),
             },
             operations: operations
                 .iter()

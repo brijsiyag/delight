@@ -96,6 +96,18 @@ pub fn erase(cx: &mut App) {
     }
 }
 
+/// Forget what a deleted plugin remembered.
+pub fn forget_plugin(plugin_id: &str, cx: &mut App) {
+    let history = get_mut(cx);
+    let before = history.file.remembered.len();
+    history.file.remembered.retain(|input| input.plugin_id != plugin_id);
+    if history.file.remembered.len() != before
+        && let Err(error) = history.save()
+    {
+        log::error!("forgetting {plugin_id}'s inputs: {error:#}");
+    }
+}
+
 fn too_long(text: &str) -> bool {
     text.chars().count() > MAX_INPUT_CHARS
 }

@@ -2,12 +2,14 @@
 //! page changes. Missing fields take their defaults and unknown ones are ignored, so
 //! the previous attempt's file reads as it is. Plugins' own settings live elsewhere.
 
+use std::collections::{BTreeMap, BTreeSet};
+
 use delight_ui::ThemeMode;
 use gpui::{App, Global};
 use serde::{Deserialize, Serialize};
 
 use crate::files::{read_json, write_json};
-use crate::{history, login, macos};
+use crate::{history, launcher, login, macos};
 
 /// Light, dark, or following macOS.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
@@ -38,6 +40,53 @@ pub struct Settings {
     pub paste_clipboard_on_open: bool,
     /// Start Delight when the user logs in. On unless turned off.
     pub open_at_login: bool,
+    /// Plugins turned off, by id.
+    pub disabled_plugins: BTreeSet<String>,
+    /// Tools turned off: by plugin id, the tools' (operations') ids. Kept apart from
+    /// the plugins, so a plugin turned back on has its tools as they were.
+    pub disabled_tools: BTreeMap<String, BTreeSet<String>>,
+}
+
+impl Settings {
+    pub fn plugin_on(&self, plugin: &str) -> bool {
+        !self.disabled_plugins.contains(plugin)
+    }
+
+    /// Whether the tool itself is on (its plugin may still be off).
+    pub fn tool_on(&self, plugin: &str, tool: &str) -> bool {
+        !self.disabled_tools.get(plugin).is_some_and(|tools| tools.contains(tool))
+    }
+
+    /// Whether the tool runs: it and its plugin are both on.
+    pub fn tool_runs(&self, plugin: &str, tool: &str) -> bool {
+        self.plugin_on(plugin) && self.tool_on(plugin, tool)
+    }
+
+    pub fn set_plugin_on(&mut self, plugin: &str, on: bool) {
+        if on {
+            self.disabled_plugins.remove(plugin);
+        } else {
+            self.disabled_plugins.insert(plugin.to_string());
+        }
+    }
+
+    pub fn set_tool_on(&mut self, plugin: &str, tool: &str, on: bool) {
+        let tools = self.disabled_tools.entry(plugin.to_string()).or_default();
+        if on {
+            tools.remove(tool);
+        } else {
+            tools.insert(tool.to_string());
+        }
+        if tools.is_empty() {
+            self.disabled_tools.remove(plugin);
+        }
+    }
+
+    /// Forget a deleted plugin's switches.
+    pub fn forget_plugin(&mut self, plugin: &str) {
+        self.disabled_plugins.remove(plugin);
+        self.disabled_tools.remove(plugin);
+    }
 }
 
 impl Default for Settings {
@@ -49,6 +98,8 @@ impl Default for Settings {
             input_history: true,
             paste_clipboard_on_open: false,
             open_at_login: true,
+            disabled_plugins: BTreeSet::new(),
+            disabled_tools: BTreeMap::new(),
         }
     }
 }
@@ -89,6 +140,9 @@ pub fn update(cx: &mut App, change: impl FnOnce(&mut Settings)) {
     if before.input_history && !after.input_history {
         history::erase(cx);
     }
+    if after.disabled_plugins != before.disabled_plugins || after.disabled_tools != before.disabled_tools {
+        launcher::refresh(cx);
+    }
     cx.refresh_windows();
 }
 
@@ -126,5 +180,21 @@ mod tests {
         );
         let saved: Settings = serde_json::from_str(&serde_json::to_string(&settings).unwrap()).unwrap();
         assert_eq!(saved, settings);
+    }
+
+    #[test]
+    fn a_tool_runs_while_it_and_its_plugin_are_on() {
+        let mut settings = Settings::default();
+        settings.set_tool_on("acme.logs", "search", false);
+        assert!(!settings.tool_runs("acme.logs", "search"));
+        assert!(settings.tool_runs("acme.logs", "tail"));
+
+        // Turning the plugin off and on again keeps its tools' switches.
+        settings.set_tool_on("acme.logs", "search", true);
+        settings.set_plugin_on("acme.logs", false);
+        assert!(!settings.tool_runs("acme.logs", "search") && settings.tool_on("acme.logs", "search"));
+        settings.set_plugin_on("acme.logs", true);
+        assert!(settings.tool_runs("acme.logs", "search"));
+        assert!(settings.disabled_tools.is_empty(), "nothing left to remember");
     }
 }

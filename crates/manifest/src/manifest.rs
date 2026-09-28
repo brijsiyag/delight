@@ -34,7 +34,17 @@ pub struct PluginProperties {
     pub tags: Vec<String>,
     #[serde(default)]
     pub permissions: Vec<Permission>,
+    /// Up to [`MAX_TIPS`] short tips on using the plugin, written by its author, such
+    /// as "cal <email> shows someone's meetings". The launcher's empty input shows
+    /// them now and then, while the plugin has a tool on.
+    #[serde(default)]
+    pub tips: Vec<String>,
 }
+
+/// Most tips a plugin has.
+pub const MAX_TIPS: usize = 5;
+/// The longest a tip is, in characters: it fits the launcher's input on one line.
+pub const MAX_TIP_CHARS: usize = 80;
 
 /// One tool a plugin offers.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -85,7 +95,7 @@ impl Manifest {
 }
 
 impl PluginProperties {
-    /// Check what the types can't: the id's form, a name and a version.
+    /// Check what the types can't: the id's form, a name, a version, and its tips.
     pub fn validate(&self) -> Result<()> {
         validate_id(&self.id)?;
         if self.name.trim().is_empty() {
@@ -94,7 +104,10 @@ impl PluginProperties {
         if self.version.trim().is_empty() {
             bail!("the plugin has no version");
         }
-        Ok(())
+        if self.tips.len() > MAX_TIPS {
+            bail!("the plugin has {} tips: at most {MAX_TIPS}", self.tips.len());
+        }
+        self.tips.iter().try_for_each(|tip| validate_tip(tip))
     }
 }
 
@@ -122,6 +135,18 @@ impl Operation {
         }
         Ok(())
     }
+}
+
+/// Check one tip: not blank, and at most [`MAX_TIP_CHARS`] characters.
+pub fn validate_tip(tip: &str) -> Result<()> {
+    if tip.trim().is_empty() {
+        bail!("a tip is blank");
+    }
+    let chars = tip.chars().count();
+    if chars > MAX_TIP_CHARS {
+        bail!("a tip is {chars} characters: at most {MAX_TIP_CHARS}, so it fits on the launcher's line");
+    }
+    Ok(())
 }
 
 /// Check a plugin's operations: at least one, each valid, and no id used twice.
@@ -159,6 +184,7 @@ pub(crate) fn sample() -> Manifest {
             icon: "<svg/>".into(),
             tags: vec!["json".into()],
             permissions: vec![Permission::Network],
+            tips: vec!["Paste JSON to format it".into()],
         },
         operations: vec![Operation {
             id: "format".into(),
@@ -249,6 +275,21 @@ mod tests {
         let mut untitled = sample();
         untitled.operations[0].title = String::new();
         assert!(untitled.validate().is_err());
+    }
+
+    #[test]
+    fn validate_checks_the_tips() {
+        let with_tips = |tips: Vec<String>| {
+            let mut manifest = sample();
+            manifest.plugin.tips = tips;
+            manifest.validate()
+        };
+        assert!(with_tips(Vec::new()).is_ok(), "tips are optional");
+        assert!(with_tips(vec!["cal <email> shows someone's meetings".into(); MAX_TIPS]).is_ok());
+        assert!(with_tips(vec!["a tip".into(); MAX_TIPS + 1]).is_err(), "too many");
+        assert!(with_tips(vec!["  ".into()]).is_err(), "blank");
+        assert!(with_tips(vec!["é".repeat(MAX_TIP_CHARS)]).is_ok(), "the limit counts characters");
+        assert!(with_tips(vec!["é".repeat(MAX_TIP_CHARS + 1)]).is_err(), "too long");
     }
 
     #[test]

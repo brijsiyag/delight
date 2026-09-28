@@ -9,6 +9,7 @@
 //! * `tool_pane`: one tool, on the surface its plugin draws on.
 //! * `footer`: which key runs which footer action.
 //! * `history_search`: ⌃R, searching the input history.
+//! * `tips`: the input's placeholder, a tip about Delight's keys.
 //!
 //! Keys come from the keymap (`crate::keymap`) by focus: the input
 //! (`Launcher > Editor`) edits text, the tool list (`Launcher > ToolList`) moves
@@ -16,6 +17,7 @@
 
 mod footer;
 mod history_search;
+mod tips;
 mod tool_pane;
 mod view;
 mod window;
@@ -33,7 +35,7 @@ use gpui::{
 };
 
 pub use history_search::CONTEXT as HISTORY_SEARCH_CONTEXT;
-pub use window::{hide, open, plugins_loaded, show, toast, toggle};
+pub use window::{hide, open, plugins_loaded, refresh, show, toast, toggle};
 
 use crate::macos::{self, NativeWindow};
 use crate::{history, plugins, settings};
@@ -130,6 +132,8 @@ pub struct Launcher {
     prefer_tool: Option<ToolIds>,
     /// The history search (⌃R), while it's open.
     history: Option<HistorySearch>,
+    /// The tip the input shows while it's empty.
+    tip: String,
     /// The clipboard text pasted last on open, so an unchanged clipboard doesn't
     /// replace what was typed since.
     last_auto_paste: Option<String>,
@@ -155,12 +159,13 @@ impl Launcher {
         } else {
             String::new()
         };
+        let tip = tips::next("", cx);
         let input = cx.new(|cx| {
             let mut input = TextEditor::new(window, cx)
                 .multiline(px(INPUT_LINE_HEIGHT * 4.))
                 .font(EditorFont::Input)
                 .text_size(px(INPUT_FONT_SIZE), px(INPUT_LINE_HEIGHT))
-                .placeholder("What you got this time?");
+                .placeholder(tip.clone());
             input.set_text(restored, cx);
             input
         });
@@ -188,6 +193,7 @@ impl Launcher {
             completion_index: 0,
             prefer_tool: None,
             history: None,
+            tip,
             last_auto_paste: None,
             panes: HashMap::new(),
             detecting: None,
@@ -291,6 +297,13 @@ impl Launcher {
         }
     }
 
+    /// Show another tip in the empty input.
+    fn show_next_tip(&mut self, cx: &mut Context<Self>) {
+        self.tip = tips::next(&self.tip, cx);
+        let tip = self.tip.clone();
+        self.input.update(cx, |input, cx| input.set_placeholder(tip, cx));
+    }
+
     /// Replace the input with the clipboard's text, if it changed since the last time
     /// (and isn't blank or huge).
     fn paste_clipboard(&mut self, cx: &mut Context<Self>) {
@@ -314,14 +327,42 @@ impl Launcher {
     // Tools
     // -------------------------------------------------------------------------
 
-    /// Ask every plugin about the input once typing pauses.
+    /// Ask the plugins about the input once typing pauses: those that are on and have
+    /// a tool that's on. Tools that are off aren't listed.
     fn detect(&mut self, cx: &mut Context<Self>) {
         let input = self.input(cx);
         self.detecting = Some(cx.spawn(async move |this, cx| {
             cx.background_executor().timer(DETECT_DELAY).await;
-            let detected = cx.update(|cx| detect_all(&plugins::all(cx), &input, cx));
+            let (asked, detected) = cx.update(|cx| {
+                let plugins = plugins::all(cx);
+                let settings = settings::get(cx);
+                let asked: Vec<usize> = (0..plugins.len())
+                    .filter(|&index| {
+                        let manifest = plugins[index].manifest();
+                        let id = &manifest.plugin.id;
+                        manifest.operations.iter().any(|operation| settings.tool_runs(id, &operation.id))
+                    })
+                    .collect();
+                let asked_plugins: Vec<_> = asked.iter().map(|&index| plugins[index].clone()).collect();
+                (asked, detect_all(&asked_plugins, &input, cx))
+            });
             let candidates = detected.await;
-            this.update(cx, |this, cx| this.show_candidates(candidates, cx)).ok();
+            this.update(cx, |this, cx| {
+                let plugins = plugins::all(cx);
+                let settings = settings::get(cx);
+                // Back to indexes into all the plugins, without the tools that are off.
+                let candidates = candidates
+                    .into_iter()
+                    .map(|candidate| Candidate { plugin: asked[candidate.plugin], ..candidate })
+                    .filter(|candidate| {
+                        let manifest = plugins[candidate.plugin].manifest();
+                        let tool = &manifest.operations[candidate.operation].id;
+                        settings.tool_runs(&manifest.plugin.id, tool)
+                    })
+                    .collect();
+                this.show_candidates(candidates, cx);
+            })
+            .ok();
         }));
     }
 

@@ -25,11 +25,14 @@ use syn::LitStr;
 ///     icon = "assets/icon.svg",        // a square, full-colour SVG
 ///     tags = ["json"],
 ///     permissions = [Network],         // leave out for none
+///     tips = ["Paste JSON to format it"], // up to 5, each one line
 /// )]
 /// struct Json;
 /// ```
 ///
-/// `id`, `name` and `icon` are required; the version is the crate's own. Icon paths
+/// `id`, `name` and `icon` are required; the version is the crate's own. `tips` are
+/// hints on using the plugin, which the launcher's empty input shows now and then:
+/// at most 5, each at most 80 characters. Icon paths
 /// are relative to the crate's `Cargo.toml`. The type must implement `Plugin`, whose
 /// `Operation` derives `Operations`: the two are joined into the plugin's custom
 /// section at compile time. A mistake is a compile error.

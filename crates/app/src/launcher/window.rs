@@ -91,6 +91,7 @@ pub fn show(cx: &mut App) {
     let Some(handle) = handle(cx) else { return };
     let native = handle.update(cx, |launcher, _, cx| {
         launcher.sync_window_size(cx);
+        launcher.show_next_tip(cx);
         launcher.native.clone()
     });
     let Ok(Some(native)) = native else { return };
@@ -145,6 +146,13 @@ fn save_input(cx: &mut App) {
 pub fn toast(message: SharedString, cx: &mut App) {
     if let Some(handle) = handle(cx) {
         handle.update(cx, |launcher, _, cx| launcher.flash(message, cx)).ok();
+    }
+}
+
+/// Ask the plugins again: which are on changed.
+pub fn refresh(cx: &mut App) {
+    if let Some(handle) = handle(cx) {
+        handle.update(cx, |launcher, _, cx| launcher.detect(cx)).ok();
     }
 }
 
