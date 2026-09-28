@@ -134,6 +134,10 @@ fn generate(item: &TokenStream, plugin: &Ident, properties: &PluginProperties, i
                 fn new(cx: &mut #api::gpui::App) -> Self {
                     Entry(#api::__private::start::<#plugin>(cx))
                 }
+
+                fn assets() -> Option<Box<dyn #api::gpui::AssetSource>> {
+                    <#plugin as #api::Plugin>::assets()
+                }
             }
 
             #api::__private::embedded_gpui::register_plugin!(Entry);

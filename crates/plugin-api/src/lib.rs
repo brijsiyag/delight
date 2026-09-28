@@ -49,7 +49,7 @@ pub use embedded_gpui::gpui;
 pub use host::{Host, host, theme};
 pub use tool::AnyTool;
 
-use gpui::{App, Context, Render, Window};
+use gpui::{App, AssetSource, Context, Render, Window};
 
 /// A plugin. Its type also carries [`#[plugin(...)]`](plugin), which makes it the
 /// component's entry point.
@@ -69,6 +69,12 @@ pub trait Plugin: Sized + 'static {
     /// it.
     fn open_tool(&mut self, operation: Self::Operation, window: &mut Window, cx: &mut App)
     -> AnyTool;
+
+    /// Files the plugin's views load by path, such as the SVG icons GPUI's `svg()`
+    /// draws. None by default.
+    fn assets() -> Option<Box<dyn AssetSource>> {
+        None
+    }
 }
 
 /// A plugin's operations (its tools). Derive it for a fieldless enum, one variant per

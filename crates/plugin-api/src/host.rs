@@ -1,4 +1,5 @@
-//! [`host`]: the app, as a plugin reaches it, and [`theme`]: its theme, kept current.
+//! [`host`]: the app, as a plugin reaches it, and [`theme`]: a copy of its theme,
+//! updated whenever the app's theme changes.
 
 use delight_protocol::{HostApi, HostApiCaller as _, Theme};
 use embedded_gpui::Remote;
@@ -52,18 +53,18 @@ impl Host {
     }
 }
 
-/// The app's theme, as the plugin last heard it: `None` until the app has answered,
-/// and natively (in a plugin's unit tests). When it changes, the plugin's views are
-/// drawn again.
+/// A copy of the app's theme, updated whenever the app's theme changes: `None` until
+/// the app has answered, and natively (in a plugin's unit tests). It's a GPUI global,
+/// so `cx.observe_global::<Theme>()` follows it; the plugin's views are drawn again
+/// when it changes.
 pub fn theme(cx: &App) -> Option<&Theme> {
-    cx.try_global::<HostRoot>()?.theme.as_ref()
+    cx.try_global::<Theme>()
 }
 
-/// The app's root object, and the app's theme, kept current. Set by the glue when
-/// the plugin starts.
+/// The app's root object, and what follows the app's theme. Set by the glue when the
+/// plugin starts.
 pub(crate) struct HostRoot {
     remote: Remote<HostApi>,
-    theme: Option<Theme>,
     _observing: Subscription,
 }
 
@@ -75,7 +76,7 @@ impl HostRoot {
     /// when its theme changes, and once when observing starts.
     pub(crate) fn connect(remote: Remote<HostApi>, cx: &mut App) {
         let observing = remote.observe(cx, ask_for_theme);
-        cx.set_global(HostRoot { remote, theme: None, _observing: observing });
+        cx.set_global(HostRoot { remote, _observing: observing });
     }
 }
 
@@ -89,7 +90,7 @@ fn ask_for_theme(cx: &mut App) {
     cx.spawn(async move |cx| {
         let Ok(theme) = asked.await else { return };
         cx.update(|cx| {
-            cx.global_mut::<HostRoot>().theme = Some(theme);
+            cx.set_global(theme);
             cx.refresh_windows();
         });
     })

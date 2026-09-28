@@ -1,3 +1,5 @@
 /target
 # The fixture plugin is its own workspace.
 /tests/fixture/target
+# The built-ins are their own workspace.
+/plugins/target

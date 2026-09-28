@@ -1,6 +1,6 @@
 [package]
 name = "delight-ui"
-description = "Delight's UI kit: the theme, icons and font, components and the text editor"
+description = "Delight's UI kit, for the app and its built-in tools: the theme, icons and font, components and the text editor"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -10,6 +10,7 @@ publish = false
 workspace = true
 
 [dependencies]
+delight-protocol = { workspace = true }
 gpui = { workspace = true }
 image = { workspace = true }
 log = { workspace = true }

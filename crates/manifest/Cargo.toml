@@ -5,7 +5,7 @@ description = "What a Delight plugin's .wasm says about itself: its protocol ver
 # (delight-manifest, delight-protocol, delight-plugin-api and its macros), which
 # are released together; its major.minor is the protocol version (see
 # src/version.rs). Not the app's version.
-version = "1.2.0"
+version = "1.2.1"
 edition.workspace = true
 license.workspace = true
 publish = false

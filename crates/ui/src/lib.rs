@@ -35,7 +35,14 @@ pub use switch::Switch;
 pub use theme::{ActiveTheme, Theme, ThemeMode};
 pub use tooltip::Tooltip;
 
-/// Load the bundled font and resolve the theme.
+/// In the app: load the bundled font and resolve the theme.
+#[cfg(not(target_arch = "wasm32"))]
 pub fn init(cx: &mut gpui::App, mode: ThemeMode) {
     theme::init(cx, mode);
+}
+
+/// In a plugin (a built-in tool): the theme is the app's, and follows it. Call it
+/// once, before drawing, and install [`Assets`] as the plugin's assets.
+pub fn init_plugin(cx: &mut gpui::App) {
+    theme::init_plugin(cx);
 }

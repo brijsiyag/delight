@@ -1,0 +1,39 @@
+# Delight's own tools, the built-ins: plugins like any other, in their own
+# workspace because they only build for wasm32-wasip2 (see docs/plan.md, Layout).
+# Build them here with `cargo build --release --target wasm32-wasip2`; during
+# development the app loads them from target/wasm32-wasip2/release.
+[workspace]
+resolver = "3"
+members = ["svg"]
+
+[workspace.package]
+# The built-ins ship with the app: its version.
+version = "2.0.0"
+edition = "2024"
+license = "MIT"
+
+[workspace.lints.clippy]
+dbg_macro = "deny"
+todo = "deny"
+
+# Pinned exactly, as in the root workspace, and at the same versions.
+[workspace.dependencies]
+delight-plugin-api = { path = "../crates/plugin-api" }
+delight-ui = { path = "../crates/ui" }
+# Named exactly as embedded_gpui (and the root workspace) names it, so it's the
+# same GPUI the plugin API is built on; any other spelling brings in a second one.
+# Cargo.lock pins the commit.
+gpui = { git = "https://github.com/zed-industries/zed.git", branch = "gpui-embedded-in-gpui", version = "=0.2.2", default-features = false }
+# The version GPUI links.
+base64 = "=0.22.1"
+# The version GPUI links, with no features of its own.
+resvg = { version = "=0.46.0", default-features = false }
+
+[profile.release]
+lto = true
+opt-level = "s"
+strip = true
+
+# GPUI's patches, as the root workspace has them: patches don't propagate.
+[patch.crates-io]
+async-task = { git = "https://github.com/smol-rs/async-task.git", rev = "b4486cd71e4e94fbda54ce6302444de14f4d190e" }

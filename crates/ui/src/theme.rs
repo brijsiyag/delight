@@ -8,6 +8,8 @@
 
 use gpui::{App, Global, Hsla, Pixels, SharedString, WindowAppearance, hsla, px, rgb};
 
+use delight_protocol::Color;
+
 /// Light, dark, or following macOS.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ThemeMode {
@@ -164,7 +166,9 @@ impl ActiveTheme for App {
 pub const INPUT_FONT_SIZE: f32 = 13.;
 pub const INPUT_LINE_HEIGHT: f32 = 21.;
 
-/// Lilex 2.700 (SIL Open Font License 1.1, `assets/fonts/lilex/OFL.txt`).
+/// Lilex 2.700 (SIL Open Font License 1.1, `assets/fonts/lilex/OFL.txt`). Only the
+/// app's launcher input uses it, so plugins don't carry it.
+#[cfg(not(target_arch = "wasm32"))]
 const LILEX: &[u8] = include_bytes!("../assets/fonts/lilex/Lilex-Regular.ttf");
 
 /// What the theme is resolved from.
@@ -177,6 +181,7 @@ struct Preference {
 impl Global for Preference {}
 
 /// Load the bundled font, pick the installed fonts, and resolve the theme.
+#[cfg(not(target_arch = "wasm32"))]
 pub(crate) fn init(cx: &mut App, mode: ThemeMode) {
     if let Err(error) = cx.text_system().add_fonts(vec![std::borrow::Cow::Borrowed(LILEX)]) {
         log::warn!("loading the Lilex font failed: {error:#}");
@@ -198,6 +203,76 @@ pub(crate) fn init(cx: &mut App, mode: ThemeMode) {
         input_font,
     });
     resolve(cx);
+}
+
+/// In a plugin: the theme is the app's (the plugin API's copy of it), and follows it;
+/// the dark one until the app has answered. Once is enough.
+pub(crate) fn init_plugin(cx: &mut App) {
+    if cx.has_global::<Theme>() {
+        return;
+    }
+    let theme = cx.try_global::<delight_protocol::Theme>().map_or_else(|| Theme::dark("Menlo".into()), Theme::from);
+    // The launcher's input font is the app's; a plugin's inputs use its mono font.
+    cx.set_global(Preference {
+        mode: ThemeMode::System,
+        mono_font: theme.mono_font.clone(),
+        input_font: theme.mono_font.clone(),
+    });
+    cx.set_global(theme);
+    cx.observe_global::<delight_protocol::Theme>(|cx| {
+        let theme = Theme::from(cx.global::<delight_protocol::Theme>());
+        cx.set_global(theme);
+        cx.refresh_windows();
+    })
+    .detach();
+}
+
+/// The theme as it crosses to plugins, and back.
+impl From<&Theme> for delight_protocol::Theme {
+    fn from(theme: &Theme) -> Self {
+        delight_protocol::Theme {
+            dark: theme.dark,
+            text: theme.text.into(),
+            text_muted: theme.text_muted.into(),
+            text_faint: theme.text_faint.into(),
+            surface: theme.surface.into(),
+            fill: theme.fill.into(),
+            border: theme.border.into(),
+            accent: theme.accent.into(),
+            accent_text: theme.accent_text.into(),
+            success: theme.success.into(),
+            warning: theme.warning.into(),
+            error: theme.error.into(),
+            font: theme.font.to_string(),
+            mono_font: theme.mono_font.to_string(),
+            text_size: theme.text_size.into(),
+            radius: theme.radius.into(),
+        }
+    }
+}
+
+impl From<&delight_protocol::Theme> for Theme {
+    fn from(theme: &delight_protocol::Theme) -> Self {
+        let color = |color: Color| Hsla::from(color);
+        Theme {
+            dark: theme.dark,
+            text: color(theme.text),
+            text_muted: color(theme.text_muted),
+            text_faint: color(theme.text_faint),
+            surface: color(theme.surface),
+            fill: color(theme.fill),
+            border: color(theme.border),
+            accent: color(theme.accent),
+            accent_text: color(theme.accent_text),
+            success: color(theme.success),
+            warning: color(theme.warning),
+            error: color(theme.error),
+            font: theme.font.clone().into(),
+            mono_font: theme.mono_font.clone().into(),
+            text_size: px(theme.text_size),
+            radius: px(theme.radius),
+        }
+    }
 }
 
 /// The launcher input's font: Lilex, or a monospace fallback if it didn't load.
@@ -242,6 +317,13 @@ fn resolve(cx: &mut App) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn crosses_to_plugins_and_back_unchanged() {
+        for theme in [Theme::light("Menlo".into()), Theme::dark("SF Mono".into())] {
+            assert_eq!(Theme::from(&delight_protocol::Theme::from(&theme)), theme);
+        }
+    }
 
     /// Every colour has a real value in both appearances: an unset one would be
     /// transparent.

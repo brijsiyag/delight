@@ -4,6 +4,15 @@ A macOS launcher whose tools are plugins: WASM components that run their own
 GPUI through embedded_gpui. `docs/plan.md` is the plan, `docs/behaviour.md`
 what the app does.
 
+## Development
+
+- `cargo run -p delight-app` runs the app.
+- The built-in tools are their own workspace, `plugins/`. Build them with
+  `cargo build --release --target wasm32-wasip2` there; the app loads them from
+  `plugins/target/wasm32-wasip2/release` when it runs outside Delight.app.
+- Installed plugins are the `.wasm` files in
+  `~/Library/Application Support/Delight/plugins`.
+
 ## Workarounds to remove
 
 `crates/app/src/macos.rs` calls AppKit directly for what GPUI can't do

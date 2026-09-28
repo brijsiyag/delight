@@ -138,6 +138,10 @@ pub struct Color {
     pub a: f32,
 }
 
+/// In a plugin, the plugin API keeps the app's theme as a GPUI global, so what draws
+/// with it can follow it (`cx.observe_global::<Theme>()`).
+impl embedded_gpui::gpui::Global for Theme {}
+
 impl From<Color> for embedded_gpui::gpui::Hsla {
     fn from(color: Color) -> Self {
         embedded_gpui::gpui::hsla(color.h, color.s, color.l, color.a)

@@ -227,11 +227,14 @@ fork's `delight` branch.
 10. **Theme for plugins**: `HostApi::current_theme` (protocol 1.2), the
     app's theme as data; each plugin's host object notifies when it
     changes, so the plugin API keeps a copy (`theme(cx)`) and redraws.
-11. **Built-in JSON, YAML and SVG plugins**: the WASI SDK xtask (tree-sitter
-    is C), an xtask building `plugins/`, and the app loading the `.wasm`
-    files from its built-in plugins folder (the build output during
-    development). `delight-ui` in them: its wasm build, its theme from
-    `theme(cx)`, and its icons through embedded_gpui's asset hook.
+11. **Built-in JSON, YAML and SVG plugins**, in two parts. First the
+    `plugins/` workspace and the app loading the `.wasm` files from its
+    built-in plugins folder (the build output during development);
+    `delight-ui` in plugins (its wasm build, its theme from `theme(cx)`,
+    its icons through `Plugin::assets`); and the SVG tool, which needs no C
+    (copying as PNG waits for `copy_file`). Then the WASI SDK xtask
+    (tree-sitter is C), an xtask building `plugins/`, syntax highlighting,
+    and the JSON and YAML tools.
 12. **Settings window and permissions**: general settings, the plugins page
     (list, enable, permissions shown, Install… with confirmation, plugin
     settings pages on surfaces), the gated host capabilities (commands,
