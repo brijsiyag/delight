@@ -10,8 +10,8 @@ use std::time::Duration;
 
 use anyhow::{Context as _, Result, anyhow};
 use delight_manifest::{Manifest, NetworkPermission};
-use delight_protocol::{Detection, HostApi, Input, PluginApi, PluginApiCaller as _, ToolApi};
-use embedded_gpui::gpui::{App, Entity, PlatformTextSystem, Task};
+use delight_protocol::{Detection, HostApi, Input, PluginApi, PluginApiCaller as _, SettingsSection, ToolApi};
+use embedded_gpui::gpui::{App, Entity, PlatformTextSystem, Subscription, Task};
 use embedded_gpui::{PluginHost, PluginHostHandle as _, PluginOptions, Remote, Shared, Surface};
 use futures::future::{Either, join_all, select};
 use wasmtime_wasi::{DirPerms, FilePerms};
@@ -131,20 +131,33 @@ impl Plugin {
         )
     }
 
-    /// Ask the plugin to draw its settings page on `surface`, shared with it like a
-    /// tool's: whether it has one. A plugin that can't answer (built before settings
-    /// pages, or stopped) has none.
-    pub fn open_settings(&self, surface: &Entity<Surface>, cx: &mut App) -> Task<bool> {
+    /// The sections of the plugin's settings (see [`SettingsSection`]): none for a plugin
+    /// without settings.
+    pub fn settings_sections(&self, cx: &mut App) -> Task<Result<Vec<SettingsSection>>> {
+        self.call(|root, cx| root.settings_sections(cx), cx)
+    }
+
+    /// Ask the plugin to draw the content of its settings section `id` on `surface`,
+    /// shared with it like a tool's: whether it did. A plugin that can't answer (built
+    /// before sections, or stopped) draws nothing.
+    pub fn open_settings_section(&self, id: &str, surface: &Entity<Surface>, cx: &mut App) -> Task<bool> {
         let host = self.host.clone();
         let surface = surface.clone();
+        let id = id.to_string();
         let asked = self.call(
             move |root, cx| {
                 let surface = host.share(&surface, cx);
-                root.open_settings(surface, cx)
+                root.open_settings_section(id, surface, cx)
             },
             cx,
         );
         cx.spawn(async move |_| asked.await.unwrap_or(false))
+    }
+
+    /// Call `changed` whenever the plugin says its settings sections changed
+    /// (`settings_changed` in the plugin API): the app asks for them again.
+    pub fn observe_settings(&self, cx: &mut App, changed: impl Fn(&mut App) + 'static) -> Subscription {
+        self.root.observe(cx, changed)
     }
 
     /// Make a call on the plugin's root, unless it stopped, and wait for the answer

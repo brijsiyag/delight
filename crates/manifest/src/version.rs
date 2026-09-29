@@ -31,7 +31,9 @@ pub const PLUGIN_API_VERSION: &str = env!("CARGO_PKG_VERSION");
 /// window, and a tool's actions are an enum (`Tool::Action`, `#[derive(Actions)]`);
 /// with `HostApi::http` (the app's network, for now), `HostApi::open_url`, `HostApi::dns`,
 /// `HostApi::commands` (the `Commands` permission), secrets, the UTC offset and
-/// `HostApi::show_settings`.
+/// `HostApi::show_settings`; a plugin's settings are sections
+/// (`PluginApi::settings_sections`, `open_settings_section`) instead of one page
+/// (`open_settings`).
 pub const PROTOCOL_VERSION: ProtocolVersion = ProtocolVersion {
     major: number(env!("CARGO_PKG_VERSION_MAJOR")),
     minor: number(env!("CARGO_PKG_VERSION_MINOR")),

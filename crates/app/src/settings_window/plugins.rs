@@ -3,65 +3,130 @@
 
 use std::path::Path;
 
-use delight_protocol::PermissionRequest;
+use delight_protocol::{PermissionRequest, SettingsSection};
 use delight_runtime::Plugin;
 use embedded_gpui::Surface;
-use delight_ui::{Button, Disableable as _, Icon, IconName, LogoBadge, Switch, Theme, h_flex, v_flex};
+use delight_ui::{Button, Disableable as _, Icon, IconName, LogoBadge, Switch, Theme, h_flex, section, v_flex};
 use gpui::{
     AnyElement, App, AppContext as _, ClipboardItem, Context, Entity, FontWeight, IntoElement, ParentElement,
     PromptLevel, SharedString, Styled, Task, div, prelude::*, px,
 };
 
-use super::{Page, SettingsWindow, item, item_with, section};
+use super::{Page, SettingsWindow, item, item_with};
 use crate::plugins::{self, Broken, Source};
 use crate::settings;
 
-/// How tall a plugin's settings page is: its surface can't say.
-const SETTINGS_PAGE_HEIGHT: f32 = 320.;
-
-/// The shown plugin's own settings page, on a surface it draws on.
+/// The shown plugin's own settings: the sections it says it has, each with a surface it
+/// draws its content on. Made when its page first shows, and kept while it shows.
 pub(super) struct SettingsPage {
     plugin_id: String,
     /// Which start of the plugins it was asked of.
     generation: u64,
+    /// In the plugin's order. Empty until it has answered, and for a plugin without
+    /// settings.
+    sections: Vec<SectionSurface>,
+    /// Asking for the sections, and for a new one's content.
+    _asking: Vec<Task<()>>,
+    /// The plugin saying its sections changed.
+    _observing: gpui::Subscription,
+}
+
+/// One section: what the plugin said about it, and where its content is drawn.
+struct SectionSurface {
+    section: SettingsSection,
     surface: Entity<Surface>,
-    /// Whether the plugin drew a page: `None` until it has answered.
-    has_page: Option<bool>,
-    _asking: Task<()>,
+    /// Whether the plugin drew it: `None` until it has answered.
+    drawn: Option<bool>,
 }
 
 impl SettingsWindow {
-    /// The plugin's settings page, asked for when its page first shows (and again when
-    /// the plugins have started again); `None` if it has none.
-    fn settings_page(&mut self, plugin: &Plugin, cx: &mut Context<Self>) -> Option<Entity<Surface>> {
+    /// The plugin's settings sections, asked for when its page first shows (and again
+    /// when the plugins have started again, or the plugin says they changed): what the
+    /// page draws now, each as (title, height, footer, content).
+    fn settings_sections(&mut self, plugin: &Plugin, cx: &mut Context<Self>) -> Vec<(String, f32, String, Entity<Surface>)> {
         let id = plugin.manifest().plugin.id.clone();
         let generation = plugins::generation(cx);
         let asked = self.settings_page.as_ref().is_some_and(|page| page.plugin_id == id && page.generation == generation);
         if !asked {
             if plugin.stopped().is_some() {
                 self.settings_page = None;
-                return None;
+                return Vec::new();
             }
-            let surface = cx.new(Surface::new);
-            let answer = plugin.open_settings(&surface, cx);
-            let for_plugin = id.clone();
-            let asking = cx.spawn(async move |this, cx| {
-                let has_page = answer.await;
-                this.update(cx, |this, cx| {
-                    if let Some(page) = &mut this.settings_page
-                        && page.plugin_id == for_plugin
-                        && page.generation == generation
-                    {
-                        page.has_page = Some(has_page);
-                        cx.notify();
-                    }
-                })
-                .ok();
+            let this = cx.weak_entity();
+            let observing = plugin.observe_settings(cx, move |cx| {
+                this.update(cx, |this, cx| this.ask_sections(cx)).ok();
             });
-            self.settings_page = Some(SettingsPage { plugin_id: id, generation, surface, has_page: None, _asking: asking });
+            self.settings_page =
+                Some(SettingsPage { plugin_id: id, generation, sections: Vec::new(), _asking: Vec::new(), _observing: observing });
+            self.ask_sections_of(plugin.clone(), cx);
         }
-        let page = self.settings_page.as_ref()?;
-        (page.has_page == Some(true)).then(|| page.surface.clone())
+        let Some(page) = self.settings_page.as_ref() else { return Vec::new() };
+        page.sections
+            .iter()
+            .filter(|drawn| drawn.drawn == Some(true))
+            .map(|drawn| (drawn.section.title.clone(), drawn.section.height, drawn.section.footer.clone(), drawn.surface.clone()))
+            .collect()
+    }
+
+    /// The plugin said its sections changed: ask again.
+    fn ask_sections(&mut self, cx: &mut Context<Self>) {
+        let Some(page) = &self.settings_page else { return };
+        let id = page.plugin_id.clone();
+        if let Some(plugin) = plugins::all(cx).iter().find(|plugin| plugin.manifest().plugin.id == id).cloned() {
+            self.ask_sections_of(plugin, cx);
+        }
+    }
+
+    fn ask_sections_of(&mut self, plugin: Plugin, cx: &mut Context<Self>) {
+        let asked = plugin.settings_sections(cx);
+        let (plugin_id, generation) = (plugin.manifest().plugin.id.clone(), plugins::generation(cx));
+        let task = cx.spawn(async move |this, cx| {
+            let sections = asked.await.unwrap_or_default();
+            this.update(cx, |this, cx| this.apply_sections(&plugin, &plugin_id, generation, sections, cx)).ok();
+        });
+        if let Some(page) = &mut self.settings_page {
+            page._asking.push(task);
+        }
+    }
+
+    /// The plugin's sections are these: keep the ones it still has (with what it now says),
+    /// drop the others, and have it draw the new ones.
+    fn apply_sections(&mut self, plugin: &Plugin, plugin_id: &str, generation: u64, sections: Vec<SettingsSection>, cx: &mut Context<Self>) {
+        let Some(page) = &mut self.settings_page else { return };
+        if page.plugin_id != plugin_id || page.generation != generation {
+            return;
+        }
+        let mut old = std::mem::take(&mut page.sections);
+        let mut drawing = Vec::new();
+        for section in sections {
+            match old.iter().position(|kept| kept.section.id == section.id) {
+                Some(index) => {
+                    let mut kept = old.remove(index);
+                    kept.section = section;
+                    page.sections.push(kept);
+                }
+                None => {
+                    let surface = cx.new(Surface::new);
+                    let opened = plugin.open_settings_section(&section.id, &surface, cx);
+                    let id = section.id.clone();
+                    drawing.push(cx.spawn(async move |this, cx| {
+                        let drawn = opened.await;
+                        this.update(cx, |this, cx| {
+                            if let Some(page) = &mut this.settings_page
+                                && let Some(section) = page.sections.iter_mut().find(|s| s.section.id == id)
+                            {
+                                section.drawn = Some(drawn);
+                                cx.notify();
+                            }
+                        })
+                        .ok();
+                    }));
+                    page.sections.push(SectionSurface { section, surface, drawn: None });
+                }
+            }
+        }
+        page._asking.extend(drawing);
+        cx.notify();
     }
 
     /// The plugin's page: what it is, its tools, its permissions, its own settings,
@@ -151,9 +216,16 @@ impl SettingsWindow {
                 page.child(section("Tips", tip_rows(&manifest.plugin.tips, t)))
             })
             .child(section("Permissions", permission_rows(&manifest.plugin.permissions, t)))
-            .children(self.settings_page(plugin, cx).map(|surface| {
-                let page = div().h(px(SETTINGS_PAGE_HEIGHT)).overflow_hidden().child(surface).into_any_element();
-                section("Settings", vec![page])
+            // The plugin's own sections, as cards like the ones above: the app draws each
+            // title and card, the plugin the rows inside.
+            .children(self.settings_sections(plugin, cx).into_iter().map(|(title, height, footer, surface)| {
+                let content = div().h(px(height)).overflow_hidden().child(surface).into_any_element();
+                v_flex()
+                    .gap(px(6.))
+                    .child(section(title, vec![content]))
+                    .when(!footer.is_empty(), |column| {
+                        column.child(div().px(px(4.)).text_size(t.text_size_small()).text_color(t.text_muted).child(footer))
+                    })
             }))
             .child(footer)
             .into_any_element()
@@ -172,9 +244,7 @@ impl SettingsWindow {
             .px(px(14.))
             .py(px(12.))
             .rounded(t.radius)
-            .bg(t.surface)
-            .border_1()
-            .border_color(t.separator())
+            .bg(t.card())
             .child(div().font_weight(FontWeight::SEMIBOLD).child(broken.problem.summary()))
             .child(div().text_size(t.text_size_small()).text_color(t.text_muted).child(broken.problem.hint()))
             .child(

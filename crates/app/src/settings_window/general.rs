@@ -1,11 +1,11 @@
 //! The General page: Delight's own settings.
 
 use delight_protocol::PLUGIN_API_VERSION;
-use delight_ui::{Button, SegmentedControl, Switch, Theme, h_flex, v_flex};
+use delight_ui::{Button, SegmentedControl, Switch, Theme, h_flex, row, section, v_flex};
 use gpui::{AnyElement, Context, IntoElement, Keystroke, ParentElement, PromptLevel, Styled, div, px};
 
 use super::shortcut_recorder::Recorded;
-use super::{SettingsWindow, row, section};
+use super::SettingsWindow;
 use crate::settings::{self, Appearance, DEFAULT_LAUNCHER_SHORTCUT, Settings};
 use crate::history;
 

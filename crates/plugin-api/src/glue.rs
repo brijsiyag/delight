@@ -4,7 +4,7 @@
 use std::rc::Rc;
 
 use anyhow::{Result, anyhow};
-use delight_protocol::{Action, Detection, HostApi, Input, PluginApi, ToolApi};
+use delight_protocol::{Action, Detection, HostApi, Input, PluginApi, SettingsSection, ToolApi};
 use embedded_gpui::surface::SurfaceApi;
 use embedded_gpui::{Ref, open_view, root, share, share_root, shared};
 
@@ -23,6 +23,7 @@ pub fn start<P: Plugin>(cx: &mut App) -> AnyEntity {
     HostRoot::connect(root::<HostApi>(), cx);
     let plugin = P::new(cx);
     let plugin_root = cx.new(|_| PluginRoot { plugin });
+    cx.set_global(crate::host::RootId(plugin_root.entity_id()));
     share_root(&plugin_root, cx);
     plugin_root.into_any()
 }
@@ -65,20 +66,35 @@ impl<P: Plugin> PluginApi for PluginRoot<P> {
         Task::ready(result)
     }
 
-    fn open_settings(&mut self, surface: Ref<SurfaceApi>, cx: &mut Context<Self>) -> bool {
-        let page = self.plugin.settings_page(cx);
-        let has_page = page.is_some();
-        // Without a page the view is empty, and the app drops the surface.
-        let filling = cx.new(|_| Filling { view: page });
-        let opened = open_view(surface, filling, cx);
-        if let Err(error) = &opened {
-            log::error!("opening the settings page: {error:#}");
+    fn settings_sections(&mut self, cx: &mut Context<Self>) -> Vec<SettingsSection> {
+        self.plugin
+            .settings_sections(cx)
+            .into_iter()
+            .map(|section| SettingsSection {
+                id: section.id.to_string(),
+                title: section.title,
+                height: section.height,
+                footer: section.footer,
+            })
+            .collect()
+    }
+
+    fn open_settings_section(&mut self, id: String, surface: Ref<SurfaceApi>, cx: &mut Context<Self>) -> bool {
+        let Some(section) = self.plugin.settings_sections(cx).into_iter().find(|section| section.id == id) else {
+            return false;
+        };
+        let filling = cx.new(|_| Filling { view: Some(section.view) });
+        match open_view(surface, filling, cx) {
+            Ok(()) => true,
+            Err(error) => {
+                log::error!("opening the settings section {id:?}: {error:#}");
+                false
+            }
         }
-        opened.is_ok() && has_page
     }
 }
 
-/// The view on a surface: a tool, or the settings page, filling the space it's given.
+/// The view on a surface: a tool, or a settings section, filling the space it's given.
 struct Filling {
     view: Option<AnyView>,
 }

@@ -6,10 +6,11 @@ mod host_facts;
 // TEMPORARY(network)
 mod network;
 
-use delight_plugin_api::gpui::{AnyView, App, AppContext as _, ClipboardItem, Context, IntoElement, Render, Window, div};
+use delight_plugin_api::gpui::{App, AppContext as _, ClipboardItem, Context, IntoElement, Render, Window, div};
 use delight_plugin_api::gpui::{Hsla, ParentElement as _, Styled as _, prelude::FluentBuilder as _};
 use delight_plugin_api::{
-    Action, Actions, AnyTool, Detection, Input, Operations, Plugin, Shortcut, Tool, host, plugin, theme,
+    Action, Actions, AnyTool, Detection, Input, Operations, Plugin, SettingsSection, Shortcut, Tool, host, plugin, settings_changed,
+    theme,
 };
 
 #[plugin(
@@ -60,12 +61,15 @@ impl Plugin for Fixture {
         }
     }
 
-    fn settings_page(&mut self, cx: &mut App) -> Option<AnyView> {
-        Some(cx.new(|_| FixtureSettings).into())
+    fn settings_sections(&mut self, cx: &mut App) -> Vec<SettingsSection> {
+        vec![
+            SettingsSection::new("main", "Fixture", 41., cx.new(|_| FixtureSettings)).footer("Only for the tests"),
+            SettingsSection::new("second", "Second", 82., cx.new(|_| FixtureSettings)),
+        ]
     }
 }
 
-/// The fixture's settings page: only there to be shown.
+/// The fixture's settings sections' content: only there to be shown.
 struct FixtureSettings;
 
 impl Render for FixtureSettings {
@@ -97,6 +101,8 @@ enum EchoAction {
     Secrets,
     Facts,
     ShowSettings,
+    /// Says its settings sections changed.
+    SectionsChanged,
     // TEMPORARY(open_url): opens the input as a URL, toasting "opened" or why not.
     OpenUrl,
 }
@@ -148,6 +154,7 @@ impl Tool for Echo {
             EchoAction::Secrets => host_facts::secrets(&self.text.clone(), cx),
             EchoAction::Facts => host_facts::facts(cx),
             EchoAction::ShowSettings => host(cx).open_settings(cx),
+            EchoAction::SectionsChanged => settings_changed(cx),
             // TEMPORARY(open_url)
             EchoAction::OpenUrl => {
                 let opened = host(cx).open_url(self.text.clone(), cx);

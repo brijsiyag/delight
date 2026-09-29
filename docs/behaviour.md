@@ -286,8 +286,13 @@ startup falls back to the default.
   id", …), "Copy details" ("The Delight plugin {name} doesn't load:
   {summary}.\n\n{detail}\n"), 🗑 → confirm → remove → reload.
 - Plugin page: "‹ All Plugins" (accent, 12px); badge 36, name (15px
-  semibold), description (11.5px); a surface in a fixed 420px box. "This
-  plugin has no settings." / "This plugin is no longer loaded."
+  semibold), description (11.5px); then Tools, Tips, Permissions, and the
+  plugin's own settings: a titled card per section it names
+  (`settings_sections`: id, title, height, footer note), which the app draws
+  like its own cards (a tint of the text colour over the page, no border,
+  hairlines between rows), with the plugin's rows on a surface inside (the
+  plugin says how tall: a surface can't). A plugin without settings shows
+  no cards. "This plugin is no longer loaded."
 
 ## Settings storage
 
@@ -384,7 +389,9 @@ height / text / icon / padding).
   (full colour, square, own background for both modes), tags, operations
   (id, title, description, tags), permissions, has_settings.
 - Permissions and their labels: Network "Network", Commands "Runs commands",
-  InputFiles "Reads pasted files", Clipboard "Reads the clipboard".
+  InputFiles "Reads pasted files", Clipboard "Reads the clipboard" (the previous
+  attempt's; the rewrite has no Clipboard permission: every plugin reads and writes the
+  clipboard, from any view, through GPUI's own calls).
 - Host, no permission (done so far in the rewrite: `secret` / `set_secret`, UTC
   offset, `open_settings` as `show_settings`): settings / set_settings
   (JSON; null removes); data
@@ -396,7 +403,8 @@ height / text / icon / padding).
   page); add_font (before first use); theme (+ observe); UTC offset. No app pid: passing the right PID to a
   process tool is the user's business.
 - Host, gated: read_input_file (InputFiles; the path must be one of the
-  *current* input files); read_clipboard (Clipboard); run (Commands: a program
+  *current* input files); read_clipboard (the previous attempt's Clipboard; the
+  rewrite: none, see above); run (Commands: a program
   the manifest lists, an absolute path directly in /bin, /sbin, /usr/bin or
   /usr/sbin; any args, stdin written then closed, no shell, empty environment,
   the plugin's data folder as working folder, killed after 60 s, waited off the

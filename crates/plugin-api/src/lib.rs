@@ -64,7 +64,7 @@ pub use http;
 // TEMPORARY(network)
 #[cfg(feature = "grpc")]
 pub use tonic;
-pub use host::{Host, host, theme};
+pub use host::{Host, host, settings_changed, theme};
 pub use tool::AnyTool;
 
 use gpui::{AnyView, App, AssetSource, Context, Render};
@@ -86,18 +86,50 @@ pub trait Plugin: Sized + 'static {
     /// opens each tool once and keeps it.
     fn open_tool(&mut self, operation: Self::Operation, cx: &mut App) -> AnyTool;
 
-    /// The plugin's settings page, shown in its page of Delight's settings window.
-    /// `None` by default, for a plugin without settings. It keeps what it saves
-    /// itself, such as in its data folder (`/data`).
-    fn settings_page(&mut self, cx: &mut App) -> Option<AnyView> {
+    /// The sections of the plugin's settings, in order. Each is shown in Delight's
+    /// settings window as a titled card, like the app's own (`Permissions`, `Tips`), with
+    /// the section's view inside. Empty by default, for a plugin without settings.
+    ///
+    /// The app asks whenever the plugin says its sections changed
+    /// ([`settings_changed`]), and opens a section's view each time its page is shown, so
+    /// keep what a section shows in an entity the plugin holds (or a global) rather than
+    /// in a view made here. The plugin keeps what it saves itself, such as in its data
+    /// folder (`/data`) or as secrets.
+    fn settings_sections(&mut self, cx: &mut App) -> Vec<SettingsSection> {
         let _ = cx;
-        None
+        Vec::new()
     }
 
     /// Files the plugin's views load by path, such as the SVG icons GPUI's `svg()`
     /// draws. None by default.
     fn assets() -> Option<Box<dyn AssetSource>> {
         None
+    }
+}
+
+/// One section of a plugin's settings: a titled card, with a view inside.
+pub struct SettingsSection {
+    pub id: &'static str,
+    /// Above the card.
+    pub title: String,
+    /// What is inside the card: draw rows with `delight_ui::rows` and `delight_ui::row`.
+    pub view: AnyView,
+    /// How tall the view is, in pixels: the app can't measure a plugin's view. With
+    /// `delight_ui`'s rows it is their count times `ROW_HEIGHT` (or `ROW_DETAIL_HEIGHT`).
+    pub height: f32,
+    /// A note in small text under the card; empty for none.
+    pub footer: String,
+}
+
+impl SettingsSection {
+    pub fn new(id: &'static str, title: impl Into<String>, height: f32, view: impl Into<AnyView>) -> Self {
+        SettingsSection { id, title: title.into(), view: view.into(), height, footer: String::new() }
+    }
+
+    /// A note in small text under the card.
+    pub fn footer(mut self, footer: impl Into<String>) -> Self {
+        self.footer = footer.into();
+        self
     }
 }
 

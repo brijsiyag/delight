@@ -29,7 +29,7 @@ pub use assets::{Assets, IconName, LOGO_SVG};
 pub use badge::LogoBadge;
 pub use button::{Button, ButtonVariant, IconButton};
 pub use editor::{EditorEvent, EditorFont, TextEditor};
-pub use group::{Caption, Divider, Group};
+pub use group::{Caption, Divider, Group, ROW_DETAIL_HEIGHT, ROW_HEIGHT, Rows, row, row_with, rows_height, section};
 pub use icon::Icon;
 pub use keycap::{Keycap, KeycapStyle, keystroke_for, keystroke_keys, keystroke_label, modifier_keys};
 pub use raster::render_image;

@@ -2,7 +2,8 @@
 
 A macOS launcher whose tools are plugins: WASM components that run their own
 GPUI through embedded_gpui. `docs/plan.md` is the plan, `docs/behaviour.md`
-what the app does.
+what the app does, and `docs/plugin-settings.md` how to design a plugin's
+settings.
 
 ## Development
 

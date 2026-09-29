@@ -255,8 +255,10 @@ fork's `delight` branch.
     (turned-off plugins and tools are stored apart, and a tool runs only
     while both are on), permissions, on and off, delete, show in Finder,
     plugins that don't load, and installing with a sheet that lists the
-    permissions and the tools. Then each plugin's own settings page on a
-    surface; each permission with the plugin's reason for it, shown under
+    permissions and the tools. Then each plugin's own settings, as sections:
+    the plugin names them (id, title, height, footer) and draws the rows in
+    each on a surface, while the app draws the title and the card, so they look
+    like the app's own; a plugin says when they changed (`settings_changed`); each permission with the plugin's reason for it, shown under
     what the permission allows; and `Granted`, the objects the manifest's
     permissions grant, which the app's root object for the plugin hands out
     when asked (so a plugin without the permission gets none). It has none
@@ -359,6 +361,10 @@ Not needed to get the app working; each waits until it is.
 ## Watch out for
 
 (Each cost time in the previous attempt; details in its notes.)
+
+- A `TextEditor` on a page that scrolls inside a plugin, next to text rows, panics GPUI
+  ("prepaint has not been performed on …", text.rs) when scrolled; not found in GPUI
+  yet. Plugin settings avoid it (the app scrolls the page; a section's surface doesn't).
 
 - Zed's repo has two packages named `gpui`: depend with `version = "=0.2.2"`.
 - Crates GPUI links too (`resvg`, `regex`, `image`): pin the versions GPUI

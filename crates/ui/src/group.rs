@@ -1,13 +1,16 @@
 //! Grouping and separators, System Settings style: [`Group`], [`Caption`],
-//! [`Divider`].
+//! [`Divider`], and the settings page's [`section`] and [`row`].
 
-use gpui::{AnyElement, App, FontWeight, IntoElement, ParentElement, RenderOnce, SharedString, Styled, Window, div, px};
+use gpui::{
+    AnyElement, App, FontWeight, IntoElement, ParentElement, RenderOnce, SharedString, Styled, Window, div, prelude::FluentBuilder as _,
+    px,
+};
 use smallvec::SmallVec;
 
-use crate::ActiveTheme;
+use crate::{ActiveTheme, Theme, h_flex, v_flex};
 
-/// A rounded inset group on the theme's surface (lighter than the window behind it,
-/// as in System Settings); its children are rows separated by hairlines.
+/// A rounded card of rows, tinted a step off the page behind it ([`Theme::card`]), as in
+/// System Settings; its children are rows separated by hairlines.
 #[derive(IntoElement, Default)]
 pub struct Group {
     rows: SmallVec<[AnyElement; 4]>,
@@ -28,17 +31,58 @@ impl ParentElement for Group {
 impl RenderOnce for Group {
     fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
         let t = cx.theme();
-        let separator = t.separator();
-        let mut group = div().flex().flex_col().rounded(t.radius).bg(t.surface).border_1().border_color(separator);
-        let count = self.rows.len();
-        for (i, row) in self.rows.into_iter().enumerate() {
-            group = group.child(row);
-            if i + 1 < count {
-                group = group.child(div().h(px(1.)).mx(px(10.)).bg(separator));
-            }
-        }
-        group
+        div()
+            .flex()
+            .flex_col()
+            .rounded(t.radius)
+            .bg(t.card())
+            .children(self.rows.into_iter().enumerate().flat_map(|(i, row)| {
+                let separator = (i > 0).then(|| div().h(px(1.)).mx(px(10.)).bg(t.separator()).into_any_element());
+                separator.into_iter().chain(std::iter::once(row))
+            }))
     }
+}
+
+/// Rows separated by hairlines, with no card around them: what goes inside a card the
+/// app draws (a section of a plugin's settings), where a [`Group`] would draw a second.
+#[derive(IntoElement, Default)]
+pub struct Rows {
+    rows: SmallVec<[AnyElement; 4]>,
+}
+
+impl Rows {
+    pub fn new() -> Self {
+        Self::default()
+    }
+}
+
+impl ParentElement for Rows {
+    fn extend(&mut self, elements: impl IntoIterator<Item = AnyElement>) {
+        self.rows.extend(elements);
+    }
+}
+
+impl RenderOnce for Rows {
+    fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
+        let t = cx.theme();
+        let separator = t.separator();
+        // A plugin's view starts with GPUI's own text colour and size: the app's here.
+        div().flex().flex_col().size_full().text_size(t.text_size).text_color(t.text).children(self.rows.into_iter().enumerate().flat_map(|(i, row)| {
+            let line = (i > 0).then(|| div().h(px(1.)).mx(px(10.)).bg(separator).into_any_element());
+            line.into_iter().chain(std::iter::once(row))
+        }))
+    }
+}
+
+/// How tall a [`row`] is, and one with a detail line: fixed, so a plugin can say how tall
+/// its section of settings is (its rows' heights and the hairlines between them, see
+/// [`rows_height`]).
+pub const ROW_HEIGHT: f32 = 41.;
+pub const ROW_DETAIL_HEIGHT: f32 = 61.;
+
+/// The height of rows of these `heights`, one after another with a hairline between.
+pub fn rows_height(heights: &[f32]) -> f32 {
+    heights.iter().sum::<f32>() + heights.len().saturating_sub(1) as f32
 }
 
 /// A small section caption above a group.
@@ -85,4 +129,50 @@ impl RenderOnce for Divider {
         let line = div().flex_shrink_0().bg(cx.theme().separator());
         if self.vertical { line.w(px(1.)).h(px(14.)) } else { line.h(px(1.)).w_full() }
     }
+}
+
+/// A captioned group of rows: a page of settings is a column of these, in the app's
+/// settings window and in a plugin's own settings page alike.
+pub fn section(caption: impl Into<SharedString>, rows: Vec<AnyElement>) -> impl IntoElement {
+    v_flex().gap(px(6.)).child(div().px(px(4.)).child(Caption::new(caption))).child(Group::new().children(rows))
+}
+
+/// A `title (detail) … control` row in a group.
+pub fn row(title: impl Into<SharedString>, detail: Option<&'static str>, control: impl IntoElement, t: &Theme) -> AnyElement {
+    h_flex()
+        .h(px(if detail.is_some() { ROW_DETAIL_HEIGHT } else { ROW_HEIGHT }))
+        .items_center()
+        .gap(px(12.))
+        .px(px(14.))
+        .child(v_flex().flex_1().min_w(px(0.)).child(title.into()).when_some(detail, |column, detail| {
+            column.child(div().mt(px(2.)).text_size(px(11.)).text_color(t.text_muted).child(detail))
+        }))
+        .child(control)
+        .into_any_element()
+}
+
+/// A [`row`] whose detail line is text made when it draws (a status, an error), in `color`.
+/// It wraps to a second line; a longer one is cut off.
+pub fn row_with(
+    title: impl Into<SharedString>,
+    detail: impl Into<SharedString>,
+    control: impl IntoElement,
+    color: gpui::Hsla,
+) -> AnyElement {
+    h_flex()
+        .h(px(ROW_DETAIL_HEIGHT))
+        .items_center()
+        .gap(px(12.))
+        .px(px(14.))
+        .child(
+            v_flex()
+                .flex_1()
+                .min_w(px(0.))
+                .max_h(px(ROW_DETAIL_HEIGHT - 8.))
+                .overflow_hidden()
+                .child(title.into())
+                .child(div().mt(px(2.)).text_size(px(11.)).text_color(color).child(detail.into())),
+        )
+        .child(control)
+        .into_any_element()
 }

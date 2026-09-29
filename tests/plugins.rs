@@ -379,16 +379,42 @@ async fn the_plugin_follows_the_apps_theme(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
-async fn its_settings_page_opens_on_a_surface(cx: &mut TestAppContext) {
+async fn its_settings_are_sections_drawn_on_surfaces(cx: &mut TestAppContext) {
     let (plugin, _app) = start("settings", cx).await;
-    let surface = cx.new(Surface::new);
-    let opened = cx.update(|cx| plugin.open_settings(&surface, cx));
+    let asked = cx.update(|cx| plugin.settings_sections(cx));
     settle(cx);
-    assert!(opened.await, "the fixture has a settings page");
-    assert!(
-        surface.read_with(cx, |surface, _| surface.view().is_some()),
-        "it's drawn on the surface"
+    let sections = asked.await.expect("the sections");
+    assert_eq!(
+        sections.iter().map(|s| (s.id.as_str(), s.title.as_str(), s.height, s.footer.as_str())).collect::<Vec<_>>(),
+        [("main", "Fixture", 41., "Only for the tests"), ("second", "Second", 82., "")]
     );
+
+    let surface = cx.new(Surface::new);
+    let opened = cx.update(|cx| plugin.open_settings_section("second", &surface, cx));
+    settle(cx);
+    assert!(opened.await, "the section is drawn");
+    assert!(surface.read_with(cx, |surface, _| surface.view().is_some()), "on the surface");
+
+    let other = cx.new(Surface::new);
+    let missing = cx.update(|cx| plugin.open_settings_section("nope", &other, cx));
+    settle(cx);
+    assert!(!missing.await, "a section it hasn't");
+    assert!(other.read_with(cx, |surface, _| surface.view().is_none()));
+}
+
+#[gpui::test]
+async fn the_app_hears_when_the_sections_change(cx: &mut TestAppContext) {
+    let (plugin, _app) = start("sections-changed", cx).await;
+    let heard = Rc::new(Cell::new(0));
+    let counted = heard.clone();
+    let _observing = cx.update(|cx| plugin.observe_settings(cx, move |_| counted.set(counted.get() + 1)));
+    settle(cx);
+    let before = heard.get();
+
+    let tool = tool_with(&plugin, "", cx).await;
+    cx.update(|cx| drop(tool.perform_action("SectionsChanged".into(), cx)));
+    settle(cx);
+    assert!(heard.get() > before, "the plugin said its sections changed");
 }
 
 #[gpui::test]

@@ -92,6 +92,13 @@ impl Theme {
         }
     }
 
+    /// A card of rows on a page (System Settings' groups): a slight tint of the text
+    /// colour over the page, so it is a step darker than a light page and lighter than a
+    /// dark one, with no border.
+    pub fn card(&self) -> Hsla {
+        if self.dark { gray(1., 0.07) } else { gray(0., 0.04) }
+    }
+
     /// Half the control fill: hovers, and the background of a group of rows.
     pub fn fill_subtle(&self) -> Hsla {
         self.fill.opacity(0.5)

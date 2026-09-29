@@ -83,6 +83,21 @@ impl Host {
     }
 }
 
+/// The plugin's root object, which the app observes to know when its settings sections
+/// changed: set by the glue when the plugin starts.
+pub(crate) struct RootId(pub(crate) crate::gpui::EntityId);
+
+impl Global for RootId {}
+
+/// Tell the app that the plugin's settings sections changed (one added, removed or
+/// resized, a title changed): it asks for them again. Content that changes inside a
+/// section's own view needs no call: the view redraws itself. Natively it does nothing.
+pub fn settings_changed(cx: &mut App) {
+    if let Some(root) = cx.try_global::<RootId>().map(|root| root.0) {
+        cx.notify(root);
+    }
+}
+
 /// A copy of the app's theme, updated whenever the app's theme changes: `None` until
 /// the app has answered, and natively (in a plugin's unit tests). It's a GPUI global,
 /// so `cx.observe_global::<Theme>()` follows it; the plugin's views are drawn again

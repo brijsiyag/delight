@@ -16,7 +16,7 @@ use std::path::PathBuf;
 
 use delight_runtime::Plugin;
 use delight_ui::{
-    ActiveTheme, Button, Caption, EditorEvent, Group, Icon, IconName, LogoBadge, TextEditor, Theme, h_flex, v_flex,
+    ActiveTheme, Button, Caption, EditorEvent, Icon, IconName, LogoBadge, TextEditor, Theme, h_flex, v_flex,
 };
 use gpui::{
     AnyElement, App, AppContext as _, Bounds, Context, ElementId, Entity, FocusHandle, Focusable, FontWeight, Global,
@@ -344,19 +344,14 @@ impl Render for SettingsWindow {
     }
 }
 
-/// The page's background, under its groups: a step darker than the groups (which are
-/// the theme's surface), as in System Settings.
+/// The page's background, under its cards ([`Theme::card`]): white in light mode, as in
+/// System Settings, where the cards are a step darker.
 pub(super) fn content_color(t: &Theme) -> Hsla {
-    if t.dark { hsla(0., 0., 0.12, 1.) } else { hsla(0., 0., 0.96, 1.) }
+    if t.dark { hsla(0., 0., 0.12, 1.) } else { hsla(0., 0., 1., 1.) }
 }
 
 fn sidebar_color(t: &Theme) -> Hsla {
     if t.dark { hsla(0., 0., 0.16, 1.) } else { hsla(0., 0., 0.92, 1.) }
-}
-
-/// A captioned group of rows.
-fn section(caption: &'static str, rows: Vec<AnyElement>) -> impl IntoElement {
-    v_flex().gap(px(6.)).child(div().px(px(4.)).child(Caption::new(caption))).child(Group::new().children(rows))
 }
 
 /// A row with an icon, a bold title and its detail, and maybe a control: a tool or a
@@ -386,21 +381,3 @@ fn item_with(icon: AnyElement, title: SharedString, lines: Vec<AnyElement>, cont
         .into_any_element()
 }
 
-/// A `title (detail) … control` row in a group.
-fn row(title: &'static str, detail: Option<&'static str>, control: impl IntoElement, t: &Theme) -> AnyElement {
-    h_flex()
-        .gap(px(12.))
-        .px(px(14.))
-        .py(px(10.))
-        .child(
-            v_flex()
-                .flex_1()
-                .min_w(px(0.))
-                .child(SharedString::from(title))
-                .when_some(detail, |column, detail| {
-                    column.child(div().mt(px(2.)).text_size(px(11.)).text_color(t.text_muted).child(detail))
-                }),
-        )
-        .child(control)
-        .into_any_element()
-}

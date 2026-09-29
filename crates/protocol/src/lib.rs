@@ -53,9 +53,16 @@ pub trait PluginApi {
         cx: &mut gpui::Context<Self>,
     ) -> Ref<ToolApi>;
 
-    /// Draw this plugin's settings page on `surface`, in its page of the settings
-    /// window: `false` if it has none.
-    fn open_settings(&mut self, surface: Ref<SurfaceApi>, cx: &mut gpui::Context<Self>) -> bool;
+    /// The sections of this plugin's settings, in order: each is drawn by the app as a
+    /// titled card on the plugin's page in the settings window, as its permissions and
+    /// tips are, with the plugin's own content inside. None for a plugin without
+    /// settings. This object notifies (`cx.notify`) when they change (a section added
+    /// or resized), so the app, observing it, asks again.
+    fn settings_sections(&mut self, cx: &mut gpui::Context<Self>) -> Vec<SettingsSection>;
+
+    /// Draw the content of the section with this id on `surface`, inside its card:
+    /// `false` if there is no such section.
+    fn open_settings_section(&mut self, id: String, surface: Ref<SurfaceApi>, cx: &mut gpui::Context<Self>) -> bool;
 }
 
 /// One open tool, homed in the plugin. Its home notifies (`cx.notify`) when its
@@ -135,6 +142,22 @@ pub trait HostApi {
     /// Open the settings window on this plugin's own page (its settings, if it has
     /// them). Deferred: the launcher may be mid-update.
     fn show_settings(&mut self, cx: &mut gpui::Context<Self>);
+}
+
+/// One section of a plugin's settings: a titled card in the settings window. The plugin
+/// draws what is inside it; the app draws the title, the card and the note under it, so
+/// a plugin's settings look like the app's own.
+#[data]
+#[derive(PartialEq)]
+pub struct SettingsSection {
+    /// Names the section for the plugin (which content is drawn where).
+    pub id: String,
+    /// Above the card.
+    pub title: String,
+    /// How tall the content is, in pixels: a surface can't say, so the plugin does.
+    pub height: f32,
+    /// A note in small text under the card; empty for none.
+    pub footer: String,
 }
 
 /// What is in the launcher: the typed or pasted text. A struct, so more (such as
@@ -313,7 +336,10 @@ mod tests {
         let methods = |schema: embedded_gpui::Schema| -> Vec<&str> {
             schema.methods.iter().map(|method| method.name).collect()
         };
-        assert_eq!(methods(PluginApi::schema()), ["detect", "open_tool", "open_settings"]);
+        assert_eq!(
+            methods(PluginApi::schema()),
+            ["detect", "open_tool", "settings_sections", "open_settings_section"]
+        );
         assert_eq!(
             methods(ToolApi::schema()),
             ["on_input_changed", "list_actions", "perform_action"]
