@@ -31,7 +31,7 @@ use exchange::Exchange;
 use listener::Listener;
 
 /// Most requests a plugin has open at once.
-const MAX_EXCHANGES: usize = 8;
+const MAX_EXCHANGES: usize = 17;
 /// Most listeners a plugin has at once.
 const MAX_LISTENERS: usize = 2;
 /// Longest a plugin gets to take a piece of a response, or to answer a listener's
