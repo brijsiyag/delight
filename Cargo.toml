@@ -16,10 +16,9 @@ members = [
 ]
 
 [workspace.package]
-# The app's version. 2.x: plugins changed from dylibs to WASM components, so
-# nothing built for 1.x loads. The crates plugins build against have their own
-# version, which is the protocol version (see crates/manifest/Cargo.toml).
-version = "2.0.0"
+# The app's version: 0.1.0 is the first release. The crates plugins build against have their own
+# version, which is the protocol version (see crates/manifest/Cargo.toml); it is 0.1.0 too.
+version = "0.1.0"
 edition = "2024"
 license = "MIT"
 

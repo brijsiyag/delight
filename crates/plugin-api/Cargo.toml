@@ -2,7 +2,7 @@
 name = "delight-plugin-api"
 description = "What a Delight plugin is written with"
 # The plugin API's version: always the same as delight-manifest's.
-version = "2.0.0"
+version = "0.1.0"
 edition.workspace = true
 license.workspace = true
 publish = false

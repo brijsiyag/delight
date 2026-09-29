@@ -21,19 +21,12 @@ pub const PLUGIN_API_VERSION: &str = env!("CARGO_PKG_VERSION");
 /// method, changing a type, a new enum variant sent to plugins, a change to the Rust
 /// API that plugins can't build against unchanged. Bump the patch for the rest.
 ///
-/// 1.1 added `HostApi::remember_input`; 1.2 `HostApi::current_theme`; 1.3 the
-/// plugin's tips, in its manifest; 1.4 `PluginApi::open_settings` (the app treats a
-/// plugin without it as having no settings page); 1.5 each permission with the
-/// plugin's reason for it (the app shows a permission from an older plugin without one).
-/// 2.0 moved to embedded_gpui's `surfaces-as-roots`, whose wire protocol changed:
-/// plugins use GPUI's own clipboard (`HostApi::clipboard`: reading and writing)
-/// instead of `HostApi::copy_text`, `Plugin::open_tool` and `settings_page` have no
-/// window, and a tool's actions are an enum (`Tool::Action`, `#[derive(Actions)]`);
-/// with `HostApi::http` (the app's network, for now), `HostApi::open_url`, `HostApi::dns`,
-/// `HostApi::commands` (the `Commands` permission), secrets, the UTC offset and
-/// `HostApi::show_settings`; a plugin's settings are sections
-/// (`PluginApi::settings_sections`, `open_settings_section`) instead of one page
-/// (`open_settings`).
+/// 0.1 is the first release, and the protocol it shipped with: the host API (toast, hide,
+/// `remember_input`, the theme, the clipboard, `http`, `open_url`, `dns`, `commands`,
+/// secrets, settings, `set_launcher_input`, the UTC offset and `show_settings`), the plugin's
+/// tools with their actions, and its settings as sections (`settings_sections`,
+/// `open_settings_section`). Before 1.0 a minor bump may also break what it changes; keep the
+/// rules above from 1.0 on.
 pub const PROTOCOL_VERSION: ProtocolVersion = ProtocolVersion {
     major: number(env!("CARGO_PKG_VERSION_MAJOR")),
     minor: number(env!("CARGO_PKG_VERSION_MINOR")),

@@ -1686,7 +1686,7 @@ dependencies = [
 
 [[package]]
 name = "delight-app"
-version = "2.0.0"
+version = "0.1.0"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -1717,7 +1717,7 @@ dependencies = [
 
 [[package]]
 name = "delight-manifest"
-version = "2.0.0"
+version = "0.1.0"
 dependencies = [
  "anyhow",
  "serde",
@@ -1726,7 +1726,7 @@ dependencies = [
 
 [[package]]
 name = "delight-plugin-api"
-version = "2.0.0"
+version = "0.1.0"
 dependencies = [
  "anyhow",
  "bytes",
@@ -1746,7 +1746,7 @@ dependencies = [
 
 [[package]]
 name = "delight-plugin-api-macros"
-version = "2.0.0"
+version = "0.1.0"
 dependencies = [
  "anyhow",
  "darling",
@@ -1759,7 +1759,7 @@ dependencies = [
 
 [[package]]
 name = "delight-protocol"
-version = "2.0.0"
+version = "0.1.0"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -1770,7 +1770,7 @@ dependencies = [
 
 [[package]]
 name = "delight-runtime"
-version = "2.0.0"
+version = "0.1.0"
 dependencies = [
  "anyhow",
  "bytes",
@@ -1796,7 +1796,7 @@ dependencies = [
 
 [[package]]
 name = "delight-tests"
-version = "2.0.0"
+version = "0.1.0"
 dependencies = [
  "anyhow",
  "bytes",
@@ -1814,7 +1814,7 @@ dependencies = [
 
 [[package]]
 name = "delight-ui"
-version = "2.0.0"
+version = "0.1.0"
 dependencies = [
  "delight-protocol",
  "gpui",
@@ -1831,7 +1831,7 @@ dependencies = [
 
 [[package]]
 name = "delight-xtask"
-version = "2.0.0"
+version = "0.1.0"
 dependencies = [
  "anyhow",
  "flate2",
