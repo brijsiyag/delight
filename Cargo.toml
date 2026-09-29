@@ -12,6 +12,7 @@ members = [
     "crates/runtime",
     "crates/ui",
     "tests",
+    "xtask",
 ]
 
 [workspace.package]
@@ -62,9 +63,15 @@ rustls = { version = "=0.23.45", default-features = false, features = ["ring", "
 # gRPC in plugins (the plugin API's `grpc` feature): tonic's client over the app's HTTP.
 tonic = { version = "=0.14.6", default-features = false, features = ["codegen"] }
 tower-service = "=0.3.3"
+sha2 = "=0.10.9"
+tar = "=0.4.46"
+# Certificates are checked by macOS (as the app's HTTP does), so a company proxy's CA works.
+ureq = { version = "=3.4.2", features = ["platform-verifier"] }
 # Attribute parsing for the plugin API's proc macros.
 darling = "=0.23.0"
 dirs = "=6.0.0"
+# `cargo xtask wasi-sdk`: fetch the pinned SDK, check it and unpack it.
+flate2 = "=1.1.9"
 env_logger = { version = "=0.11.8", default-features = false, features = ["auto-color", "humantime"] }
 futures = "=0.3.32"
 global-hotkey = "=0.8.0"

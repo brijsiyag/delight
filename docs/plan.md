@@ -24,7 +24,9 @@ These were settled in the previous attempt (see its
    manager, no SDK kit, no rebuild-on-update.
 4. Permissions declared by the plugin gate everything outside its sandbox:
    `Network`, `Commands`, each with the plugin's reason for it. Settings
-   shows them; installing asks to confirm them. The clipboard needs none:
+   shows them; installing asks to confirm them. The clipboard needs none (on
+   2026-09-29 kept as it is, reading included, over paste-only reading: that
+   would change embedded_gpui, or a best-effort wrapper in Delight):
    every plugin reads and writes it (⌘V pastes in its text fields).
 5. The network, for now, is the app's (step 13): HTTP, HTTP callbacks and
    gRPC done natively and handed to plugins with `Network`, besides WASI's
@@ -243,7 +245,7 @@ fork's `delight` branch.
     and installing plugins come first): the WASI SDK (tree-sitter is C:
     its clang and wasi-libc build it for wasm32-wasip2; developers unpack
     the pinned SDK into `target/wasi-sdk`, where `plugins/.cargo/config.toml`
-    points `WASI_SDK_PATH`, and the release xtask fetches it, step 15),
+    points `WASI_SDK_PATH`, and `cargo xtask wasi-sdk` fetches it and checks its SHA-256),
     syntax highlighting, and the JSON and YAML tools.
 12. **Settings window and permissions**, a new design rather than the
     previous attempt's two tabs: an 800×580 window with a sidebar, like
@@ -305,9 +307,25 @@ fork's `delight` branch.
     (`delight_ui::key_bindings`). Logs and Google Calendar use the Network
     permission's HTTP; Valmo's self-signed cluster is a decision still open.
 15. **Secrets, updates, release**: encrypted plugin secrets (one Keychain
-    master key), automatic updates, bundling (the built-in plugins go in
+    master key; done), automatic updates, bundling (the built-in plugins go in
     `Contents/Resources/plugins`), signing, notarisation, the DMG, version
     checks.
+    - Done: `cargo xtask wasi-sdk` (the pinned SDK, SHA-256 checked); and the app's
+      side of Sparkle (`updater.rs`): loaded from `Contents/Frameworks/Sparkle.framework`
+      when the app is a `.app` that has it, daily checks, "Check for Updates…" in the
+      menu bar menu and a Check Now row in General, the feed
+      (`github.com/brijsiyag/delight/releases/latest/download/appcast.xml`) given by the
+      delegate. Its Objective-C glue is tested; Sparkle itself is not yet run, as that
+      needs the pieces below.
+    - Left, all `xtask` tasks: fetch Sparkle 2.9.6 (SHA-256 pinned); the `.app` with an
+      `Info.plist` (version, build, `SUPublicEDKey`) and the built-ins in
+      `Contents/Resources/plugins`; the universal build; signing, notarising and
+      stapling; the zip, the DMG and `appcast.xml`; version checks. The `Info.plist`
+      (`SUFeedURL`, `SUEnableAutomaticChecks`, `SUScheduledCheckInterval`, `SUPublicEDKey`) is
+      the previous attempt's (`~/Desktop/delight/packaging/macos/Info.plist`): the EdDSA key pair
+      already exists (the public key is in that plist, the private half in the login Keychain
+      under the account `delight`), and must be reused: a new key would stop existing
+      installs from updating.
 
 ## Later
 

@@ -89,6 +89,18 @@ impl SettingsWindow {
             t,
         )];
 
+        // Only a `.app` with Sparkle can update itself.
+        let updates = crate::updater::available(cx).then(|| {
+            let (detail, color) = match crate::updater::status(cx) {
+                crate::updater::Status::Idle => ("Checked once a day".to_string(), t.text_muted),
+                crate::updater::Status::Checking => ("Checking…".to_string(), t.text_muted),
+                crate::updater::Status::Found(version) => (format!("Delight {version} is available"), t.accent),
+                crate::updater::Status::UpToDate => ("Delight is up to date".to_string(), t.success),
+                crate::updater::Status::Failed(why) => (why, t.error),
+            };
+            let check = Button::new("check-updates", "Check Now").on_click(|_, _, cx| crate::updater::check(cx));
+            section("Updates", vec![delight_ui::row_with("Check for updates", detail, check, color)])
+        });
         let versions = format!("Delight {} · Plugin API {PLUGIN_API_VERSION}", env!("CARGO_PKG_VERSION"));
         v_flex()
             .gap(px(18.))
@@ -96,6 +108,7 @@ impl SettingsWindow {
             .child(section("Appearance", vec![row("Theme", None, theme, t)]))
             .child(section("Input history", history))
             .child(section("System", system))
+            .children(updates)
             .child(div().flex().justify_center().text_size(px(11.)).text_color(t.text_muted).child(versions))
             .into_any_element()
     }

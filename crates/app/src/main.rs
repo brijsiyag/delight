@@ -18,6 +18,7 @@ mod settings;
 mod settings_window;
 mod single_instance;
 mod tray;
+mod updater;
 
 use delight_ui::ThemeMode;
 use std::path::PathBuf;
@@ -78,6 +79,7 @@ fn main() {
         if let Err(error) = hotkey::listen(cx) {
             log::error!("registering the hotkey: {error:#}");
         }
+        updater::init(cx);
         if let Err(error) = tray::install(cx) {
             log::error!("adding the menu bar icon: {error:#}");
         }

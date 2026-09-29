@@ -12,20 +12,14 @@ settings.
   `cargo build --release --target wasm32-wasip2` there; the app loads them from
   `plugins/target/wasm32-wasip2/release` when it runs outside Delight.app.
 - Their C (tree-sitter, for syntax highlighting) needs the WASI SDK: its clang
-  and C library for WebAssembly. Only building plugins needs it; the app and
-  its users never do. Unpack the pinned SDK into `target/wasi-sdk`, where
-  `plugins/.cargo/config.toml` points (or set `WASI_SDK_PATH` to your own), once:
-
-  ```sh
-  sdk=wasi-sdk-34.0-arm64-macos   # Intel Macs: wasi-sdk-34.0-x86_64-macos
-  curl -fLO "https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-34/$sdk.tar.gz"
-  # arm64: 9c59398106b417f8f14913380fdf0097a8cc0ff4af9eb3ce0065a859e88d49e9
-  # x86_64: 87d27fa8adc68dee59bfbf2e22a6d34ef717c34d6bf1d8af2a56fc929d9ce0eb
-  shasum -a 256 "$sdk.tar.gz"
-  mkdir -p target/wasi-sdk && tar -xzf "$sdk.tar.gz" -C target/wasi-sdk --strip-components 1 && rm "$sdk.tar.gz"
-  ```
-
-  It's about 600 MB; `cargo clean` deletes it with the rest of `target/`.
+  and C library for WebAssembly. Only building plugins that contain C needs it (the
+  JSON and YAML built-ins do; a plugin in pure Rust never does), and the app and its
+  users never do. Fetch the pinned SDK once with `cargo xtask wasi-sdk`: it downloads
+  it (about 170 MB, 600 MB unpacked), checks its SHA-256 against the pin and unpacks it
+  into `target/wasi-sdk`, where `plugins/.cargo/config.toml` points (or set
+  `WASI_SDK_PATH` to your own). It does nothing if that version is already there;
+  `--force` fetches it again, and `--to <folder>` unpacks it elsewhere. `cargo clean`
+  deletes it with the rest of `target/`.
 - Installed plugins are the `.wasm` files in
   `~/Library/Application Support/Delight/plugins`.
 

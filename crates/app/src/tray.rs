@@ -1,5 +1,4 @@
-//! The menu bar icon and its menu. Updates and restarting join the menu in their own
-//! steps.
+//! The menu bar icon and its menu. Restarting joins the menu in its own step.
 
 use anyhow::{Context as _, Result};
 use futures::StreamExt as _;
@@ -10,7 +9,8 @@ use tray_icon::menu::accelerator::Accelerator;
 use tray_icon::menu::{Menu, MenuEvent, MenuItem, PredefinedMenuItem};
 use tray_icon::{Icon, TrayIcon, TrayIconBuilder};
 
-use crate::{hotkey, launcher, settings_window};
+use crate::updater::Status;
+use crate::{hotkey, launcher, settings_window, updater};
 
 /// Black on transparent, so macOS can tint it for light and dark menu bars.
 const LOGO: &[u8] = delight_ui::LOGO_SVG;
@@ -22,12 +22,15 @@ struct Tray {
     _icon: TrayIcon,
     /// "Open Delight", which shows the launcher shortcut.
     open: MenuItem,
+    /// "Check for Updates…": dimmed in a build that can't update itself.
+    updates: MenuItem,
 }
 
 impl Global for Tray {}
 
 /// Put Delight's icon in the menu bar, with "Open Delight" (and the launcher
-/// shortcut), "Settings…" and "Quit Delight". The menu's clicks arrive on the system's
+/// shortcut), "Check for Updates…" (dimmed if this build can't update itself), "Settings…" and
+/// "Quit Delight". The menu's clicks arrive on the system's
 /// thread and reach GPUI through a channel.
 pub fn install(cx: &mut App) -> Result<()> {
     let shortcut = hotkey::current(cx).and_then(|keystroke| accelerator(&keystroke));
@@ -35,14 +38,21 @@ pub fn install(cx: &mut App) -> Result<()> {
     let settings = MenuItem::with_id("settings", "Settings", true, None);
     let quit = MenuItem::with_id("quit", "Quit Delight", true, None);
     let separator = PredefinedMenuItem::separator();
-    let menu = Menu::with_items(&[&open, &separator, &settings, &PredefinedMenuItem::separator(), &quit])?;
+    let updates = MenuItem::with_id("updates", UPDATES, updater::available(cx), None);
+    let menu = Menu::new();
+    menu.append(&open)?;
+    menu.append(&separator)?;
+    menu.append(&updates)?;
+    menu.append(&settings)?;
+    menu.append(&PredefinedMenuItem::separator())?;
+    menu.append(&quit)?;
     let icon = TrayIconBuilder::new()
         .with_icon(icon()?)
         .with_icon_as_template(true)
         .with_tooltip("Delight")
         .with_menu(Box::new(menu))
         .build()?;
-    cx.set_global(Tray { _icon: icon, open });
+    cx.set_global(Tray { _icon: icon, open, updates });
 
     let (clicks, mut clicked) = mpsc::unbounded();
     MenuEvent::set_event_handler(Some(move |event: MenuEvent| {
@@ -52,6 +62,7 @@ pub fn install(cx: &mut App) -> Result<()> {
         while let Some(item) = clicked.next().await {
             cx.update(|cx| match item.as_str() {
                 "open" => launcher::show(cx),
+                "updates" => updater::check(cx),
                 "settings" => settings_window::open(cx),
                 "quit" => cx.quit(),
                 _ => {}
@@ -70,6 +81,17 @@ pub fn set_shortcut(keystroke: &Keystroke, cx: &App) {
         log::warn!("showing the shortcut in the menu: {error}");
     }
 }
+
+/// The menu item's words for what the updater found: it offers the new version once there is one.
+pub fn set_update_status(status: &Status, cx: &App) {
+    let Some(item) = cx.try_global::<Tray>().map(|tray| &tray.updates) else { return };
+    item.set_text(match status {
+        Status::Found(version) => format!("Update Available — {version}…"),
+        _ => UPDATES.to_string(),
+    });
+}
+
+const UPDATES: &str = "Check for Updates…";
 
 /// The keystroke as the menu writes it.
 fn accelerator(keystroke: &Keystroke) -> Option<Accelerator> {
