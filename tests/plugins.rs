@@ -11,7 +11,7 @@ use std::sync::{Arc, Once};
 use std::time::Duration;
 
 use delight_protocol::{
-    Action, Color, HostApi, HttpApi, Input, Permission, PermissionRequest, Shortcut, Theme, ToolApi, ToolApiCaller as _,
+    Action, Color, DnsApi, HostApi, HttpApi, Input, Permission, PermissionRequest, Shortcut, Theme, ToolApi, ToolApiCaller as _,
 };
 use delight_runtime::{Candidate, Granted, Plugin, detect_all, plugin_options, read_manifest};
 use embedded_gpui::{ClipboardApi, Ref, Remote, Surface, shared};
@@ -96,9 +96,13 @@ impl HostApi for FakeApp {
         self.granted.as_ref().expect("given as the plugin starts").http(cx)
     }
 
+    fn dns(&mut self, cx: &mut Context<Self>) -> Option<Ref<DnsApi>> {
+        self.granted.as_ref().expect("given as the plugin starts").dns(cx)
+    }
+
     // TEMPORARY(open_url): as the app, with its check, but without a browser.
     fn open_url(&mut self, url: String, _cx: &mut Context<Self>) -> gpui::Task<anyhow::Result<()>> {
-        let checked = delight_runtime::open_url::web_page(&url).map(|url| self.opened.push(url.to_string()));
+        let checked = delight_runtime::open_url::openable(&url).map(|url| self.opened.push(url.to_string()));
         gpui::Task::ready(checked)
     }
 }
@@ -348,5 +352,5 @@ async fn the_plugin_reads_the_clipboard(cx: &mut TestAppContext) {
 // TEMPORARY(network): the app's HTTP for plugins.
 mod network;
 
-// @M@: opening a web page.
+// TEMPORARY(open_url): opening a URL.
 mod open_url;

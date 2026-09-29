@@ -18,6 +18,11 @@ pub use delight_manifest::{
     PluginProperties, ProtocolVersion, validate_tip,
 };
 
+/// The Mac's DNS setup, for plugins with `Network`.
+mod dns;
+
+pub use dns::*;
+
 // TEMPORARY(network): the app's HTTP for plugins, until embedded_gpui links `wasi:http`. It's all
 // in `network/`; README, "Temporary host APIs".
 mod network;
@@ -94,10 +99,15 @@ pub trait HostApi {
     // TEMPORARY(network)
     fn http(&mut self, cx: &mut gpui::Context<Self>) -> Option<Ref<HttpApi>>;
 
-    /// Open `url` in the browser: an `http` or `https` page (a sign-in's, say); the
-    /// app refuses anything else, with why. Needs no permission.
+    /// Open `url` with the app macOS has for it: a web page in the browser (a
+    /// sign-in's, say), `mailto:` in the mail app, another app's own link. Not
+    /// `file:`, which the app refuses, with why. Needs no permission.
     // TEMPORARY(open_url): until embedded_gpui forwards GPUI's own `cx.open_url` from plugins.
     async fn open_url(&mut self, url: String, cx: &mut gpui::Context<Self>);
+
+    /// The Mac's DNS setup (`dns/`): `None` unless the plugin has the `Network`
+    /// permission.
+    fn dns(&mut self, cx: &mut gpui::Context<Self>) -> Option<Ref<DnsApi>>;
 }
 
 /// What is in the launcher: the typed or pasted text. A struct, so more (such as
@@ -283,7 +293,7 @@ mod tests {
         );
         assert_eq!(
             methods(HostApi::schema()),
-            ["toast", "hide", "remember_input", "current_theme", "clipboard", "http", "open_url"]
+            ["toast", "hide", "remember_input", "current_theme", "clipboard", "http", "open_url", "dns"]
         );
     }
 }

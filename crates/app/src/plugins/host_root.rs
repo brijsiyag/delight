@@ -1,6 +1,6 @@
 //! What one plugin may ask of the app: its host object.
 
-use delight_protocol::{HostApi, HttpApi, Theme};
+use delight_protocol::{DnsApi, HostApi, HttpApi, Theme};
 use delight_runtime::Granted;
 use delight_ui::ActiveTheme as _;
 use embedded_gpui::{ClipboardApi, Ref, shared};
@@ -60,9 +60,13 @@ impl HostApi for HostRoot {
         self.granted.http(cx)
     }
 
+    fn dns(&mut self, cx: &mut Context<Self>) -> Option<Ref<DnsApi>> {
+        self.granted.dns(cx)
+    }
+
     // TEMPORARY(open_url)
     fn open_url(&mut self, url: String, cx: &mut Context<Self>) -> Task<Result<()>> {
-        if let Err(error) = delight_runtime::open_url::web_page(&url) {
+        if let Err(error) = delight_runtime::open_url::openable(&url) {
             return Task::ready(Err(error));
         }
         // Deferred: the browser taking focus hides the launcher, mid-update otherwise.

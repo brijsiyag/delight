@@ -48,8 +48,9 @@ APIs of this kind follow the same rule.
   and gRPC clients. Folders: `crates/protocol/src/network/`,
   `crates/runtime/src/network/`, `crates/plugin-api/src/network/`,
   `tests/network.rs`, `tests/fixture/src/network.rs`.
-- **Opening a web page**, `TEMPORARY(open_url)`. `host(cx).open_url(…)` opens an
-  `http` or `https` page in the browser (a sign-in's); nothing else. It goes once
+- **Opening a URL**, `TEMPORARY(open_url)`. `host(cx).open_url(…)` opens a URL
+  with the app macOS has for it: a web page in the browser (a sign-in's),
+  `mailto:` in the mail app, another app's own link; not `file:`. It goes once
   embedded_gpui forwards GPUI's own `cx.open_url` from plugins (its plugin
   platform drops it today). Folders: `crates/runtime/src/open_url/`,
   `crates/plugin-api/src/open_url/`, `tests/open_url.rs`.

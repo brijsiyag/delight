@@ -83,7 +83,7 @@ enum EchoAction {
     Fetch,
     Listen,
     Grpc,
-    // TEMPORARY(open_url): opens the input as a web page, toasting "opened" or why not.
+    // TEMPORARY(open_url): opens the input as a URL, toasting "opened" or why not.
     OpenUrl,
 }
 

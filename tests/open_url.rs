@@ -1,4 +1,4 @@
-//! TEMPORARY(open_url): a plugin opening a web page, headless: the fake app checks it
+//! TEMPORARY(open_url): a plugin opening a URL, headless: the fake app checks it
 //! as the app does and records it instead of opening a browser.
 
 use super::*;
@@ -30,11 +30,11 @@ async fn a_plugin_opens_a_web_page(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
-async fn a_plugin_opens_only_web_pages(cx: &mut TestAppContext) {
+async fn a_plugin_opens_no_files(cx: &mut TestAppContext) {
     let app = open("file:///etc/passwd", "open-file", cx).await;
     app.read_with(cx, |app, _| {
         assert!(app.opened.is_empty());
         assert_eq!(app.toasts.len(), 1);
-        assert!(app.toasts[0].contains("isn't a web page"), "{:?}", app.toasts);
+        assert!(app.toasts[0].contains("a plugin can't open files"), "{:?}", app.toasts);
     });
 }

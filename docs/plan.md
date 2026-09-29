@@ -277,11 +277,14 @@ fork's `delight` branch.
 14. **DNS tool**, then port the third-party plugins in
     `~/Desktop/delight-plugins` (the image plugin waits for pasted files,
     see Later). Each brings the host capabilities it needs; `open_url`, for
-    a sign-in, is in already (temporarily: README, "Temporary host APIs"). DNS runs no
-    programs: it asks the Mac's resolvers itself over WASI sockets
-    (`hickory-proto` for the messages; `Network`), and the app tells it
-    which they are, as a host fact (which server answers which domain, VPNs'
-    included). Google Calendar and Logs bring the UTC offset as a host fact,
+    a sign-in, is in already (temporarily: README, "Temporary host APIs"). The
+    DNS built-in (`plugins/dns`) runs no programs: it asks the Mac's resolvers
+    itself over WASI's UDP sockets (`hickory-proto` for the messages;
+    `Network`), and the app tells it which they are (`DnsApi`, in `dns/`
+    folders: which server answers which domain, VPNs' included, read from
+    macOS's configuration store with `system-configuration` and from
+    `/etc/resolver/` with `resolv-conf`, no program run); not temporary, as
+    WASI has nothing for a host's DNS setup. Google Calendar and Logs bring the UTC offset as a host fact,
     and Lucide `add_font` (its icon font: the app shapes plugins' text, so a
     font a plugin loads itself isn't seen). Process
     brings the `Commands` permission, as an object in `Granted` that runs

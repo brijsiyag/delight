@@ -4,10 +4,11 @@
 //! [`plugin_options`](crate::plugin_options).
 
 use delight_manifest::{Manifest, Permission};
-use delight_protocol::HttpApi;
+use delight_protocol::{DnsApi, HttpApi};
 use embedded_gpui::gpui::{App, AppContext as _, Entity};
 use embedded_gpui::{Clipboard, ClipboardApi, Ref, Registry};
 
+use crate::dns::Dns;
 // TEMPORARY(network)
 use crate::network::Http;
 
@@ -27,13 +28,16 @@ pub struct Granted {
     /// With [`Permission::Network`].
     // TEMPORARY(network)
     http: Option<Entity<Http>>,
+    /// With [`Permission::Network`]: the Mac's DNS setup.
+    dns: Option<Entity<Dns>>,
 }
 
 impl Granted {
     pub(crate) fn new(manifest: &Manifest, registry: Registry, clipboard: Entity<Clipboard>, cx: &mut App) -> Self {
         // TEMPORARY(network)
         let http = manifest.plugin.asks_for(Permission::Network).then(|| cx.new(|_| Http::new(registry.clone())));
-        Granted { registry, clipboard, http }
+        let dns = manifest.plugin.asks_for(Permission::Network).then(|| cx.new(|_| Dns));
+        Granted { registry, clipboard, http, dns }
     }
 
     /// The clipboard, for GPUI's own clipboard calls in the plugin.
@@ -46,5 +50,11 @@ impl Granted {
     pub fn http(&self, cx: &mut App) -> Option<Ref<HttpApi>> {
         let http = self.http.as_ref()?;
         Some(self.registry.share(http, cx))
+    }
+
+    /// The Mac's DNS setup, if the plugin has [`Permission::Network`].
+    pub fn dns(&self, cx: &mut App) -> Option<Ref<DnsApi>> {
+        let dns = self.dns.as_ref()?;
+        Some(self.registry.share(dns, cx))
     }
 }

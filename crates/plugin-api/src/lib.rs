@@ -42,6 +42,8 @@
 #[cfg(target_arch = "wasm32")]
 mod glue;
 mod host;
+/// `Host::dns_resolvers`: the Mac's DNS setup.
+mod dns;
 // TEMPORARY(open_url): `Host::open_url`, until embedded_gpui forwards GPUI's own; README,
 // "Temporary host APIs".
 mod open_url;
@@ -51,7 +53,7 @@ pub mod network;
 mod tool;
 
 pub use delight_plugin_api_macros::{Actions, Operations, plugin};
-pub use delight_protocol::{Color, Input, Shortcut, Theme};
+pub use delight_protocol::{Color, DnsResolver, Input, Shortcut, Theme};
 pub use embedded_gpui::gpui;
 /// The `http` crate the network's requests and responses are made of.
 // TEMPORARY(network)

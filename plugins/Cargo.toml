@@ -4,7 +4,7 @@
 # development the app loads them from target/wasm32-wasip2/release.
 [workspace]
 resolver = "3"
-members = ["json", "svg", "yaml"]
+members = ["dns", "json", "svg", "yaml"]
 
 [workspace.package]
 # The built-ins ship with the app: its version.
@@ -33,6 +33,11 @@ serde = { version = "=1.0.228", features = ["derive"] }
 serde_json = { version = "=1.0.150", features = ["preserve_order"] }
 # YAML 1.2, pure Rust.
 yaml-rust2 = { version = "=0.13.0", default-features = false }
+# DNS messages, built and read (the DNS tool sends them itself, over UDP).
+hickory-proto = { version = "=0.26.3", default-features = false, features = ["std"] }
+futures = "=0.3.32"
+# WASI's own bindings, for its name lookup (what apps get): the version in the lock.
+wasip2 = "=1.0.4"
 
 [profile.release]
 lto = true

@@ -436,13 +436,17 @@ State (modes, options) is in memory only.
   own rounded corners), white, #1C1C1E; "W × H px". Errors "Can't show this
   SVG: …", "This SVG has nothing to draw". Actions "Copy PNG" on ↵, "Copy
   data URI" on ⌘↵ (↵ if there's no PNG).
-- **DNS** (`tools/dns`), "DNS lookup", needs Commands + Network. Target:
+- **DNS** (`plugins/dns`), "DNS lookup", needs Network (it runs no programs).
+  Target:
   strip scheme, path, query, fragment, userinfo; `[v6]:port`, `host:port`;
   IP, or a hostname with ≥ 2 valid labels and an alphabetic TLD ≥ 2,
   lowercased. Detect: IP 0.8, host 0.75, URL host 0.45 (so URL tools win).
-  400 ms debounce; "Looking up X…". Resolver from `scutil --dns` (longest
-  matching scoped domain — VPN split DNS — else the first unscoped); `dig` for
-  A, AAAA, CNAME, MX, NS, TXT, SOA concurrently; the system resolver (WASI
+  400 ms debounce; "Looking up X…". The Mac's resolvers from the app
+  (`host(cx).dns_resolvers`: macOS's configuration store and `/etc/resolver/`,
+  what `scutil --dns` shows): the longest matching
+  scoped domain (VPN split DNS), else the first unscoped. Queries sent by the
+  plugin itself over UDP (hickory-proto's messages; non-blocking, 2 s each) for
+  A, AAAA, CNAME, MX, NS, TXT, SOA concurrently; the system resolver (WASI's
   name lookup) at the same time; PTR for up to 4 addresses. Report: status
   line; a warning when the system resolver disagrees ("check /etc/hosts, VPN
   or proxy settings"); sections Addresses, CNAME chain, Mail, Name servers,
