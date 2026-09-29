@@ -139,6 +139,12 @@ impl SettingsWindow {
                 }
             }),
             cx.observe_window_appearance(window, |_, _, cx| delight_ui::theme::appearance_changed(cx)),
+            // TEMPORARY(clipboard): something may have been copied elsewhere; plugins see it before a paste.
+            cx.observe_window_activation(window, |_, window, cx| {
+                if window.is_window_active() {
+                    loaded::refresh_clipboards(cx);
+                }
+            }),
         ];
         Self {
             focus_handle: cx.focus_handle(),
@@ -307,6 +313,8 @@ impl Render for SettingsWindow {
         h_flex()
             .key_context(CONTEXT)
             .track_focus(&self.focus_handle)
+            // TEMPORARY(clipboard): a click anywhere; something may have been copied since.
+            .capture_any_mouse_down(|_, _, cx| loaded::refresh_clipboards(cx))
             // Esc closes the install sheet first.
             .on_action(cx.listener(|this, _: &CloseSettings, window, cx| {
                 if this.installing.is_some() {

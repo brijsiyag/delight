@@ -186,6 +186,8 @@ pub fn close_all(cx: &mut App) {
 
 /// Bring `window` in front of the other windows at its level (the launcher's and the plugins').
 pub fn raise(window: &Window, cx: &mut App) {
+    // TEMPORARY(clipboard): a click here; something may have been copied since.
+    crate::plugins::refresh_clipboards(cx);
     if let Some(native) = crate::macos::NativeWindow::of(window) {
         // Outside this update: AppKit calls back into GPUI.
         cx.spawn(async move |_| native.raise()).detach();

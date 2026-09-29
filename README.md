@@ -149,6 +149,16 @@ APIs of this kind follow the same rule.
   platform drops it today). Folders: `crates/runtime/src/open_url/`,
   `crates/plugin-api/src/open_url/`, `tests/open_url.rs`.
 
+- **Refreshing the clipboard early**, `TEMPORARY(clipboard)`. A paste in a plugin
+  reads the plugin's own copy of the clipboard, which embedded_gpui refreshes when
+  a ⌘ key reaches the plugin's surface (`host/surface.rs`, `key_down`). It only
+  queues the change, and the key goes out first, so the first paste after copying
+  something elsewhere read the old copy. Delight refreshes the copies ahead of that: when
+  one of its windows gets the keyboard, and on clicks in its windows
+  (`Plugin::refresh_clipboard`, `plugins::refresh_clipboards`). It goes once
+  embedded_gpui delivers the change before the key; remove those and their calls and the
+  test in `tests/plugins.rs`.
+
 ## Workarounds to remove
 
 `crates/app/src/macos.rs` calls AppKit directly for what GPUI can't do

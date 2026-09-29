@@ -180,6 +180,20 @@ impl Plugin {
         cx.spawn(async move |_| asked.await.unwrap_or(false))
     }
 
+    /// Let the plugin's copy of the Mac's clipboard catch up with the clipboard now: a change is
+    /// sent to the plugin as an event, for a paste there to read.
+    ///
+    /// TEMPORARY(clipboard): a workaround, to be removed when embedded_gpui is fixed. Its surface
+    /// does this at a ⌘ key press (`host/surface.rs`, `key_down`), but only queues the event,
+    /// which is sent after the key's query has gone out, so the first paste after something was
+    /// copied elsewhere read the old copy. Doing it ahead (when a window of the app gets the
+    /// keyboard, or is clicked) puts the change before the key. Remove this and its calls
+    /// (`grep -rn "TEMPORARY(clipboard)"`) once embedded_gpui delivers the change before the key.
+    pub fn refresh_clipboard(&self, cx: &mut App) {
+        let clipboard = self.host.read(cx).clipboard();
+        clipboard.update(cx, |clipboard, cx| clipboard.refresh(cx));
+    }
+
     /// Call `changed` whenever the plugin says its settings sections changed
     /// (`settings_changed` in the plugin API): the app asks for them again.
     pub fn observe_settings(&self, cx: &mut App, changed: impl Fn(&mut App) + 'static) -> Subscription {

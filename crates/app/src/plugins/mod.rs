@@ -97,6 +97,17 @@ pub fn all(cx: &App) -> Rc<[Plugin]> {
     cx.try_global::<Plugins>().map(|plugins| plugins.started.clone()).unwrap_or_default()
 }
 
+/// Let every plugin's copy of the clipboard catch up with the Mac's (see
+/// [`Plugin::refresh_clipboard`]): a paste in a plugin's field then reads what was copied last.
+///
+/// TEMPORARY(clipboard): a workaround for embedded_gpui sending a clipboard change after the ⌘ key
+/// that pastes it; remove it and its calls when embedded_gpui is fixed (see the README).
+pub fn refresh_clipboards(cx: &mut App) {
+    for plugin in all(cx).iter() {
+        plugin.refresh_clipboard(cx);
+    }
+}
+
 /// Where each of [`all`] comes from, in the same order.
 pub fn sources(cx: &App) -> Rc<[Source]> {
     cx.try_global::<Plugins>().map(|plugins| plugins.sources.clone()).unwrap_or_default()

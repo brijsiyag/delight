@@ -154,6 +154,8 @@ impl Global for FocusMoves {}
 /// elsewhere applies now.
 pub fn focus_gained(cx: &mut App) {
     cx.default_global::<FocusMoves>().0 += 1;
+    // TEMPORARY(clipboard): something may have been copied elsewhere; plugins see it before a paste.
+    crate::plugins::refresh_clipboards(cx);
 }
 
 /// A window of the launcher or of a plugin lost the keyboard. If it went to something else (another

@@ -291,7 +291,7 @@ async fn actions(tool: &Remote<ToolApi>, cx: &mut TestAppContext) -> Vec<Action>
 fn the_manifest_is_read_from_the_wasm() {
     let manifest = read_manifest(&std::fs::read(fixture()).unwrap()).unwrap();
     assert_eq!(manifest.plugin.id, "dev.delight.fixture");
-    assert_eq!(manifest.plugin.version, "0.0.1");
+    assert_eq!(manifest.plugin.version, "0.0.2");
     assert_eq!(manifest.operations.len(), 1);
     assert_eq!(manifest.operations[0].id, "echo");
     assert!(manifest.plugin.icon.starts_with("<svg"));
@@ -507,6 +507,29 @@ async fn the_plugin_reads_the_clipboard(cx: &mut TestAppContext) {
     settle(cx);
     performed.await.expect("perform_action");
     app.read_with(cx, |app, _| assert_eq!(app.toasts, ["copied elsewhere"]));
+}
+
+// TEMPORARY(clipboard): with the workaround it tests, removed with it.
+#[gpui::test]
+async fn a_plugin_reads_what_was_copied_after_the_app_refreshed_its_clipboard(cx: &mut TestAppContext) {
+    cx.write_to_clipboard(ClipboardItem::new_string("first".into()));
+    let (plugin, app) = start("clipboard-refresh", cx).await;
+    let surface = cx.new(Surface::new);
+    let tool = cx.update(|cx| plugin.open_tool("echo", &surface, cx));
+    settle(cx);
+    let tool = tool.await.expect("open_tool");
+
+    // Copied elsewhere since. Until the app looks, the plugin still reads what it had.
+    cx.write_to_clipboard(ClipboardItem::new_string("second".into()));
+    cx.update(|cx| drop(tool.perform_action("ReadClipboard".into(), cx)));
+    settle(cx);
+    // The app looks when one of its windows gets the keyboard or is clicked: the plugin's next
+    // paste reads what was copied last.
+    cx.update(|cx| plugin.refresh_clipboard(cx));
+    settle(cx);
+    cx.update(|cx| drop(tool.perform_action("ReadClipboard".into(), cx)));
+    settle(cx);
+    app.read_with(cx, |app, _| assert_eq!(app.toasts, ["first", "second"]));
 }
 
 mod commands;

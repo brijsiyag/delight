@@ -2,7 +2,7 @@
 name = "delight-plugin-api-macros"
 description = "The proc macros behind delight_plugin_api's #[plugin] and #[derive(Operations)]"
 # The plugin API's version: always the same as delight-manifest's.
-version = "0.0.1"
+version = "0.0.2"
 edition.workspace = true
 license.workspace = true
 publish = false
