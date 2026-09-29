@@ -49,6 +49,10 @@ struct FakeApp {
     theme_requests: usize,
     /// TEMPORARY(open_url): the pages the plugin opened.
     opened: Vec<String>,
+    /// What the plugin set the launcher's input to.
+    inputs: Vec<String>,
+    /// The plugin's saved settings, as JSON.
+    settings: Option<String>,
     /// What the plugin saved as secrets.
     secrets: std::collections::HashMap<String, String>,
     /// How many times the plugin asked for its settings page.
@@ -114,6 +118,19 @@ impl HostApi for FakeApp {
         } else {
             self.secrets.insert(key, value);
         }
+        gpui::Task::ready(Ok(()))
+    }
+
+    fn set_launcher_input(&mut self, text: String, _cx: &mut Context<Self>) {
+        self.inputs.push(text);
+    }
+
+    fn settings(&mut self, _cx: &mut Context<Self>) -> gpui::Task<anyhow::Result<String>> {
+        gpui::Task::ready(Ok(self.settings.clone().unwrap_or_else(|| "null".into())))
+    }
+
+    fn set_settings(&mut self, json: String, _cx: &mut Context<Self>) -> gpui::Task<anyhow::Result<()>> {
+        self.settings = (json != "null").then_some(json);
         gpui::Task::ready(Ok(()))
     }
 

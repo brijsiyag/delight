@@ -18,6 +18,10 @@ pub use delight_manifest::{
     PROTOCOL_VERSION, Permission, PermissionRequest, PermissionSpec, PluginProperties, ProtocolVersion, validate_id, validate_tip,
 };
 
+/// The most a plugin's settings ([`HostApi::set_settings`]) are, as JSON: they are a small
+/// value the app loads at start with every plugin's, not a place for data (`/data` is).
+pub const MAX_SETTINGS_BYTES: usize = 256 * 1024;
+
 /// Running programs, for plugins with `Commands`.
 mod commands;
 
@@ -134,6 +138,23 @@ pub trait HostApi {
     /// Save a secret under `key` (1 to 256 bytes), encrypted. An empty `value` deletes
     /// it.
     async fn set_secret(&mut self, key: String, value: String, cx: &mut gpui::Context<Self>);
+
+    /// Make the launcher's input this text, for chaining tools: a JSON tool offering "open
+    /// the inner value" puts it here and the launcher finds the tool for it. An undoable
+    /// edit (⌘Z brings the old text back) that detects again. Applied only while one of
+    /// this plugin's own tools is the selected one, and deferred (the launcher may be mid-
+    /// update). Needs no permission.
+    fn set_launcher_input(&mut self, text: String, cx: &mut gpui::Context<Self>);
+
+    /// This plugin's settings: the JSON it saved with [`HostApi::set_settings`], or `null`
+    /// if it saved none. A small value the app keeps for the plugin apart from its data
+    /// folder, in a file of the app's; the plugin chooses its shape (the plugin API reads it
+    /// into a type of the plugin's). Needs no permission.
+    async fn settings(&mut self, cx: &mut gpui::Context<Self>) -> String;
+
+    /// Save this plugin's settings: `json` is a JSON value of at most [`MAX_SETTINGS_BYTES`],
+    /// and `null` removes them. An error if it isn't JSON, is too big, or can't be saved.
+    async fn set_settings(&mut self, json: String, cx: &mut gpui::Context<Self>);
 
     /// This Mac's time zone, as its offset from UTC now, in seconds: a plugin's sandbox
     /// has no time zone of its own (its clock is UTC).
@@ -346,7 +367,7 @@ mod tests {
         );
         assert_eq!(
             methods(HostApi::schema()),
-            ["toast", "hide", "remember_input", "current_theme", "clipboard", "http", "open_url", "dns", "commands", "secret", "set_secret", "utc_offset_seconds", "show_settings"]
+            ["toast", "hide", "remember_input", "current_theme", "clipboard", "http", "open_url", "dns", "commands", "secret", "set_secret", "set_launcher_input", "settings", "set_settings", "utc_offset_seconds", "show_settings"]
         );
     }
 }

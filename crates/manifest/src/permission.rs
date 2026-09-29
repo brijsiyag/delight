@@ -34,6 +34,12 @@ pub trait PermissionSpec {
     /// reason for asking.
     fn describe(&self) -> String;
 
+    /// What its data lists, shown under [`describe`](Self::describe) as separate items
+    /// (the programs `Commands` may run). None by default.
+    fn items(&self) -> Vec<String> {
+        Vec::new()
+    }
+
     /// A [Lucide](https://lucide.dev) icon's file name, without `.svg`.
     fn icon(&self) -> &'static str;
 }
@@ -92,7 +98,7 @@ impl PermissionSpec for NetworkPermission {
     }
 
     fn describe(&self) -> String {
-        "Can reach the internet and your local network, and take callbacks on this Mac".into()
+        "Can reach the internet and your local network, and listen on this Mac".into()
     }
 
     fn icon(&self) -> &'static str {
@@ -147,7 +153,11 @@ impl PermissionSpec for CommandsPermission {
     }
 
     fn describe(&self) -> String {
-        format!("Can run these programs, with any arguments: {}", self.programs.join(", "))
+        "Can run these programs, with any arguments".into()
+    }
+
+    fn items(&self) -> Vec<String> {
+        self.programs.clone()
     }
 
     fn icon(&self) -> &'static str {
@@ -285,7 +295,9 @@ mod tests {
     fn people_are_told_what_each_allows() {
         let commands = Permission::commands(["/bin/ps", "/bin/kill"]);
         assert_eq!(commands.spec().title(), "Runs commands");
-        assert_eq!(commands.spec().describe(), "Can run these programs, with any arguments: /bin/ps, /bin/kill");
+        assert_eq!(commands.spec().describe(), "Can run these programs, with any arguments");
+        assert_eq!(commands.spec().items(), ["/bin/ps", "/bin/kill"]);
+        assert!(Permission::network().spec().items().is_empty());
         assert_eq!(commands.spec().icon(), "terminal");
         assert_eq!(Permission::network().spec().icon(), "globe");
     }

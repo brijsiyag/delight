@@ -1,7 +1,7 @@
 //! [`host`]: the app, as a plugin reaches it, and [`theme`]: a copy of its theme,
 //! updated whenever the app's theme changes.
 
-use anyhow::{Result, anyhow};
+use anyhow::{Context as _, Result, anyhow};
 use delight_protocol::{HostApi, HostApiCaller as _, Theme};
 use embedded_gpui::Remote;
 
@@ -39,6 +39,16 @@ impl Host {
         }
     }
 
+    /// Make the launcher's input `text`, so another tool can take over: a tool offering
+    /// "open the inner value" of what it shows puts it here. An undoable edit (⌘Z brings the
+    /// old text back) after which the launcher detects again. The app applies it only while
+    /// one of this plugin's own tools is the selected one, and a moment later.
+    pub fn set_input(&self, text: impl Into<String>, cx: &mut App) {
+        if let Some(remote) = &self.remote {
+            drop(remote.set_launcher_input(text.into(), cx));
+        }
+    }
+
     /// A secret this plugin saved with [`Host::set_secret`] (an API key, a sign-in's
     /// tokens): `None` if there is none by this name. Kept encrypted by the app.
     pub fn secret(&self, key: impl Into<String>, cx: &mut App) -> Task<Result<Option<String>>> {
@@ -56,6 +66,47 @@ impl Host {
             return Task::ready(Err(anyhow!("secrets are Delight's: a plugin has them only in Delight")));
         };
         let saved = remote.set_secret(key.into(), value.into(), cx);
+        cx.spawn(async move |_| saved.await)
+    }
+
+    /// This plugin's settings, as the type `T` the plugin defines (`#[derive(Serialize,
+    /// Deserialize)]`): what it last saved with [`Host::set_settings`], or `None` if it
+    /// saved none. The app keeps them, a small value apart from the data folder. An error if
+    /// what is saved doesn't fit `T` (the type changed): `unwrap_or_default()` starts over.
+    pub fn settings<T: serde::de::DeserializeOwned + 'static>(&self, cx: &mut App) -> Task<Result<Option<T>>> {
+        let Some(remote) = &self.remote else {
+            return Task::ready(Err(anyhow!("settings are Delight's: a plugin has them only in Delight")));
+        };
+        let asked = remote.settings(cx);
+        cx.spawn(async move |_| {
+            let json = asked.await?;
+            let value: serde_json::Value = serde_json::from_str(&json).context("the saved settings aren't JSON")?;
+            if value.is_null() {
+                return Ok(None);
+            }
+            serde_json::from_value(value).map(Some).context("the saved settings don't fit the type the plugin reads them as")
+        })
+    }
+
+    /// Save this plugin's settings, replacing what was saved: `T` as JSON, at most
+    /// [`delight_protocol::MAX_SETTINGS_BYTES`]. Keep more in the data folder.
+    pub fn set_settings<T: serde::Serialize>(&self, settings: &T, cx: &mut App) -> Task<Result<()>> {
+        match serde_json::to_string(settings) {
+            Ok(json) => self.save_settings(json, cx),
+            Err(error) => Task::ready(Err(anyhow!("the settings can't be saved as JSON: {error}"))),
+        }
+    }
+
+    /// Remove this plugin's saved settings.
+    pub fn clear_settings(&self, cx: &mut App) -> Task<Result<()>> {
+        self.save_settings("null".to_string(), cx)
+    }
+
+    fn save_settings(&self, json: String, cx: &mut App) -> Task<Result<()>> {
+        let Some(remote) = &self.remote else {
+            return Task::ready(Err(anyhow!("settings are Delight's: a plugin has them only in Delight")));
+        };
+        let saved = remote.set_settings(json, cx);
         cx.spawn(async move |_| saved.await)
     }
 

@@ -103,6 +103,11 @@ enum EchoAction {
     ShowSettings,
     /// Says its settings sections changed.
     SectionsChanged,
+    /// Settings: save, read back, clear; and read only.
+    Settings,
+    ReadSettings,
+    /// Sets the launcher's input to the tool's text and an exclamation mark.
+    SetInput,
     // TEMPORARY(open_url): opens the input as a URL, toasting "opened" or why not.
     OpenUrl,
 }
@@ -155,6 +160,9 @@ impl Tool for Echo {
             EchoAction::Facts => host_facts::facts(cx),
             EchoAction::ShowSettings => host(cx).open_settings(cx),
             EchoAction::SectionsChanged => settings_changed(cx),
+            EchoAction::Settings => host_facts::settings(&self.text.clone(), cx),
+            EchoAction::ReadSettings => host_facts::read_settings(cx),
+            EchoAction::SetInput => host(cx).set_input(format!("{}!", self.text), cx),
             // TEMPORARY(open_url)
             EchoAction::OpenUrl => {
                 let opened = host(cx).open_url(self.text.clone(), cx);

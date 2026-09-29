@@ -35,7 +35,7 @@ use gpui::{
 };
 
 pub use history_search::CONTEXT as HISTORY_SEARCH_CONTEXT;
-pub use window::{hide, open, plugins_loaded, refresh, show, toast, toggle};
+pub use window::{hide, open, plugins_loaded, refresh, set_input, show, toast, toggle};
 
 use crate::macos::{self, NativeWindow};
 use crate::{history, plugins, settings};
@@ -334,6 +334,19 @@ impl Launcher {
             return;
         }
         self.last_auto_paste = Some(text.clone());
+        self.input.update(cx, |input, cx| input.set_text(text, cx));
+    }
+
+    /// Chaining tools: a plugin makes the input `text`, as an undoable edit that detects
+    /// again. Only the plugin whose tool is selected may, so one working in the background
+    /// can't rewrite what is being typed.
+    fn set_input_from(&mut self, plugin_id: &str, text: String, cx: &mut Context<Self>) {
+        let selected = self.selected_candidate().map(|candidate| candidate.plugin);
+        let plugins = plugins::all(cx);
+        if !selected.and_then(|index| plugins.get(index)).is_some_and(|plugin| plugin.manifest().plugin.id == plugin_id) {
+            log::warn!("{plugin_id} set the launcher's input without its tool selected: ignored");
+            return;
+        }
         self.input.update(cx, |input, cx| input.set_text(text, cx));
     }
 

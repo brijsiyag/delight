@@ -149,6 +149,14 @@ pub fn toast(message: SharedString, cx: &mut App) {
     }
 }
 
+/// A plugin's `set_input`: make the input `text`, if a tool of that plugin is the selected
+/// one.
+pub fn set_input(plugin_id: &str, text: String, cx: &mut App) {
+    if let Some(handle) = handle(cx) {
+        handle.update(cx, |launcher, _, cx| launcher.set_input_from(plugin_id, text, cx)).ok();
+    }
+}
+
 /// Ask the plugins again: which are on changed.
 pub fn refresh(cx: &mut App) {
     if let Some(handle) = handle(cx) {

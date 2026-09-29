@@ -393,8 +393,11 @@ height / text / icon / padding).
   attempt's; the rewrite has no Clipboard permission: every plugin reads and writes the
   clipboard, from any view, through GPUI's own calls).
 - Host, no permission (done so far in the rewrite: `secret` / `set_secret`, UTC
-  offset, `open_settings` as `show_settings`): settings / set_settings
-  (JSON; null removes); data
+  offset, `open_settings` as `show_settings`, `settings` / `set_settings` as a
+  JSON value the app keeps per plugin in `plugin-settings.json`, read and written
+  by the plugin as a type of its own, at most 256 KiB, `null` removes, and
+  `set_input` as `set_launcher_input`, applied only while the plugin's own tool is
+  selected): data
   folder `/data`; secret / set_secret (empty deletes); encrypt / decrypt
   (bound to this plugin); remember_input; set_input (undoable, drops files,
   re-detects: for chaining tools); toast; hide; copy_text; copy_file (name +

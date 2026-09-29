@@ -6,6 +6,7 @@
 
 mod files;
 mod history;
+mod plugin_settings;
 mod secrets;
 mod hotkey;
 mod keymap;
@@ -66,6 +67,7 @@ fn main() {
         settings::apply_appearance(appearance, cx);
         keymap::init(cx);
         history::init(cx);
+        plugin_settings::init(cx);
         secrets::init(cx);
         cx.on_action(|_: &Quit, cx| cx.quit());
         if let Err(error) = launcher::open(cx) {

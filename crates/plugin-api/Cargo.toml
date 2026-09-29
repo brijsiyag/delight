@@ -23,6 +23,8 @@ embedded_gpui = { workspace = true }
 futures = { workspace = true }
 http = { workspace = true }
 log = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
 bytes = { workspace = true, optional = true }
 http-body = { workspace = true, optional = true }
 http-body-util = { workspace = true, optional = true }

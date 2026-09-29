@@ -7,7 +7,7 @@ use embedded_gpui::{ClipboardApi, Ref, shared};
 use anyhow::Result;
 use gpui::{Context, Subscription, Task};
 
-use crate::{history, launcher, secrets, settings, settings_window};
+use crate::{history, launcher, plugin_settings, secrets, settings, settings_window};
 
 /// What one plugin may ask of the app. Each plugin has its own, so every call is
 /// that plugin's.
@@ -74,6 +74,20 @@ impl HostApi for HostRoot {
 
     fn set_secret(&mut self, key: String, value: String, cx: &mut Context<Self>) -> Task<Result<()>> {
         Task::ready(secrets::get_mut(cx).set(&self.plugin_id, &key, &value))
+    }
+
+    // Deferred: the launcher may be in the middle of an update.
+    fn set_launcher_input(&mut self, text: String, cx: &mut Context<Self>) {
+        let plugin_id = self.plugin_id.clone();
+        cx.defer(move |cx| launcher::set_input(&plugin_id, text, cx));
+    }
+
+    fn settings(&mut self, cx: &mut Context<Self>) -> Task<Result<String>> {
+        Task::ready(Ok(plugin_settings::get_mut(cx).get(&self.plugin_id)))
+    }
+
+    fn set_settings(&mut self, json: String, cx: &mut Context<Self>) -> Task<Result<()>> {
+        Task::ready(plugin_settings::get_mut(cx).set_json(&self.plugin_id, &json))
     }
 
     fn utc_offset_seconds(&mut self, _cx: &mut Context<Self>) -> i32 {

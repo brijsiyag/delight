@@ -151,8 +151,14 @@ The settings window has no store for your settings; a plugin keeps its own:
   `host(cx).set_secret(key, value, cx)` (an empty value deletes). Kept encrypted, with the key in
   the login Keychain, per plugin. Each is a task: read once at start, hold the result in your
   shared entity.
-- **Files**: your data folder, mounted at `/data`.
-- Deleting the plugin removes both.
+- **Settings**: a small JSON value the app keeps for the plugin, read and written as a type of
+  your own (`#[derive(Serialize, Deserialize)]`): `host(cx).settings::<Saved>(cx)` gives
+  `Ok(None)` if nothing was saved, `host(cx).set_settings(&saved, cx)` replaces it, and
+  `host(cx).clear_settings(cx)` removes it (at most 256 KiB). A saved value that no longer fits the
+  type is an error, not a default: `unwrap_or_default()` starts over when your type changed.
+  Calendar keeps the signed-in account this way.
+- **Files**: your data folder, mounted at `/data`, for anything bigger.
+- Deleting the plugin removes all three.
 
 ## Checklist
 

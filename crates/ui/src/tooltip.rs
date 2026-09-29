@@ -20,6 +20,8 @@ impl Render for Tooltip {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let t = cx.theme();
         div()
+            // A long text wraps instead of running across the screen.
+            .max_w(px(320.))
             .px(px(8.))
             .py(px(4.))
             .rounded(px(6.))

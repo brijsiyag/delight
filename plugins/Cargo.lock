@@ -1097,6 +1097,8 @@ dependencies = [
  "futures",
  "http",
  "log",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

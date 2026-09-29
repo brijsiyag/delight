@@ -12,7 +12,7 @@ use gpui::{
     PromptLevel, SharedString, Styled, Task, div, prelude::*, px,
 };
 
-use super::{Page, SettingsWindow, item, item_with};
+use super::{Page, SettingsWindow, item};
 use crate::plugins::{self, Broken, Source};
 use crate::settings;
 
@@ -212,9 +212,6 @@ impl SettingsWindow {
             })
             .children(stopped)
             .child(section("Tools", tools))
-            .when(!manifest.plugin.tips.is_empty(), |page| {
-                page.child(section("Tips", tip_rows(&manifest.plugin.tips, t)))
-            })
             .child(section("Permissions", permission_rows(&manifest.plugin.permissions, t)))
             // The plugin's own sections, as cards like the ones above: the app draws each
             // title and card, the plugin the rows inside.
@@ -227,6 +224,10 @@ impl SettingsWindow {
                         column.child(div().px(px(4.)).text_size(t.text_size_small()).text_color(t.text_muted).child(footer))
                     })
             }))
+            // Last of the plugin's own sections: tips are the least needed.
+            .when(!manifest.plugin.tips.is_empty(), |page| {
+                page.child(section("Tips", tip_rows(&manifest.plugin.tips, t)))
+            })
             .child(footer)
             .into_any_element()
     }
@@ -350,45 +351,77 @@ pub(super) fn broken_header(broken: &Broken, t: &Theme) -> AnyElement {
         .into_any_element()
 }
 
-/// The rows of a Permissions section: one per permission, with what it allows and why
-/// the plugin says it needs it, or one saying there are none.
+/// The rows of a Permissions section: one per permission, all on show, nothing behind a tooltip:
+/// an icon; the permission's name with what it allows beside it; the plugin's own reason under
+/// that; and, for a permission that lists things (the programs `Commands` runs), each as a chip.
+/// Or one row saying there are none.
 pub(super) fn permission_rows(permissions: &[PermissionRequest], t: &Theme) -> Vec<AnyElement> {
     if permissions.is_empty() {
         let check = Icon::new(IconName::CircleCheck).size(px(18.)).color(t.success).into_any_element();
         return vec![item(check, "Needs no permissions".into(), None, None, t)];
     }
-    permissions
-        .iter()
-        .map(|request| {
-            let spec = request.permission.spec();
-            let (name, explanation) = (spec.title(), spec.describe());
-            let icon = IconName::from_name(spec.icon()).unwrap_or(IconName::Puzzle);
-            let tinted = div()
-                .size(px(30.))
-                .flex_shrink_0()
-                .rounded(px(8.))
-                .bg(t.tint(t.warning))
-                .flex()
-                .items_center()
-                .justify_center()
-                .child(Icon::new(icon).size(px(18.)).color(t.warning))
-                .into_any_element();
-            let allows = div().mt(px(2.)).text_size(px(12.)).text_color(t.text_muted).child(explanation);
-            let lines = vec![allows.into_any_element(), reason(&request.reason, t)];
-            item_with(tinted, name.into(), lines, None)
-        })
-        .collect()
+    permissions.iter().map(|request| permission_row(request, t)).collect()
 }
 
-/// Why the plugin needs a permission, in its own words, set apart from what the
-/// permission allows (which is Delight's).
-fn reason(reason: &str, t: &Theme) -> AnyElement {
-    let line = div().mt(px(6.)).text_size(px(12.));
-    if reason.is_empty() {
+fn permission_row(request: &PermissionRequest, t: &Theme) -> AnyElement {
+    let spec = request.permission.spec();
+    let icon = IconName::from_name(spec.icon()).unwrap_or(IconName::Puzzle);
+    let tile = div()
+        .size(px(30.))
+        .flex_shrink_0()
+        .rounded(px(8.))
+        .bg(t.tint(t.warning))
+        .flex()
+        .items_center()
+        .justify_center()
+        .child(Icon::new(icon).size(px(18.)).color(t.warning));
+    let why = if request.reason.is_empty() {
         // Built before plugins said why.
-        return line.text_color(t.text_faint).child("The plugin doesn’t say why").into_any_element();
-    }
-    line.pl(px(8.)).border_l_2().border_color(t.border).child(format!("“{reason}”")).into_any_element()
+        div().mt(px(2.)).text_size(px(12.)).text_color(t.text_faint).child("The plugin doesn’t say why")
+    } else {
+        div().mt(px(2.)).text_size(px(12.)).child(request.reason.clone())
+    };
+    // Orange like the icon, so what the plugin runs stands out; a step darker in light mode,
+    // where the orange itself is too pale for text.
+    let ink = if t.dark { t.warning } else { gpui::hsla(t.warning.h, t.warning.s, t.warning.l * 0.72, 1.) };
+    let items = spec.items();
+    let items = (!items.is_empty()).then(|| {
+        h_flex().flex_wrap().gap(px(6.)).mt(px(7.)).children(items.into_iter().map(|item| {
+            div()
+                .px(px(8.))
+                .py(px(2.))
+                .rounded(px(10.))
+                .bg(t.tint(t.warning))
+                .border_1()
+                .border_color(t.warning.opacity(0.4))
+                .font_family(t.mono_font.clone())
+                .text_size(px(11.))
+                .font_weight(FontWeight::MEDIUM)
+                .text_color(ink)
+                .child(item)
+        }))
+    });
+    h_flex()
+        .items_start()
+        .gap(px(12.))
+        .px(px(14.))
+        .py(px(10.))
+        .child(tile)
+        .child(
+            v_flex()
+                .flex_1()
+                .min_w(px(0.))
+                .child(
+                    h_flex()
+                        .items_baseline()
+                        .gap(px(8.))
+                        .child(div().font_weight(FontWeight::SEMIBOLD).child(spec.title()))
+                        .child(div().text_size(px(11.5)).text_color(t.text_muted).child(spec.describe())),
+                )
+                .child(why)
+                .children(items),
+        )
+        .into_any_element()
 }
 
 /// The rows of a Tips section: each tip as its author wrote it, beside a lightbulb.
