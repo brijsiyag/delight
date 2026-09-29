@@ -167,7 +167,8 @@ impl TextEditor {
     /// Shows `completion` greyed after the text: how the input could go on
     /// (e.g. a remembered input). Tab inserts it. It shows only while the
     /// cursor is at the end with nothing selected, and any edit clears it:
-    /// set a fresh one on [`EditorEvent::Changed`].
+    /// set a fresh one on [`EditorEvent::Changed`]. In an empty editor it takes the
+    /// placeholder's place.
     pub fn set_completion(&mut self, completion: Option<SharedString>, cx: &mut Context<Self>) {
         let completion = completion.filter(|c| !c.is_empty());
         if completion != self.completion {
@@ -179,7 +180,7 @@ impl TextEditor {
     /// The completion, if it's showing now.
     pub(super) fn visible_completion(&self) -> Option<SharedString> {
         let at_end = self.selected_range.is_empty() && self.cursor() == self.content.len();
-        self.completion.clone().filter(|_| at_end && !self.content.is_empty() && self.marked_range.is_none())
+        self.completion.clone().filter(|_| at_end && self.marked_range.is_none())
     }
 
     pub fn select_all_text(&mut self, cx: &mut Context<Self>) {
@@ -293,6 +294,7 @@ impl TextEditor {
     /// `Editor`, plus flags the keymap can test:
     /// * `multiline` — ↵ variants insert a line;
     /// * `showing_completion` — a greyed completion shows (Tab accepts it);
+    /// * `empty_input` — there is no text;
     /// * `start_of_input` / `end_of_input` — the cursor is at the very start
     ///   / end with nothing selected (e.g. ↓ at the end moves to the tools).
     fn key_context(&self) -> KeyContext {
@@ -303,6 +305,9 @@ impl TextEditor {
         }
         if self.visible_completion().is_some() {
             context.add("showing_completion");
+        }
+        if self.content.is_empty() {
+            context.add("empty_input");
         }
         if self.selected_range.is_empty() {
             if self.cursor() == 0 {

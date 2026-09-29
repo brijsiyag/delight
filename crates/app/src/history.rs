@@ -139,7 +139,8 @@ impl InputHistory {
     /// the newest, 1 the one before (each text counted once), among the
     /// [`RECENT_INPUTS`] newest. `None` when there's no such input.
     pub fn completion_for(&self, typed: &str, nth: usize) -> Option<Completion<'_>> {
-        if typed.trim().is_empty() {
+        // Nothing typed completes with any input; only spaces, with none.
+        if !typed.is_empty() && typed.trim().is_empty() {
             return None;
         }
         let mut seen = HashSet::new();
@@ -285,6 +286,17 @@ mod tests {
         }
         let remainder = |nth| h.completion_for("git ", nth).map(|c| c.remainder);
         assert_eq!([remainder(0), remainder(1), remainder(2)], [Some("status"), Some("log"), None]);
+    }
+
+    #[test]
+    fn an_empty_input_completes_with_any_input_but_spaces_with_none() {
+        let mut h = TempHistory::new("empty");
+        for text in ["git status", "git log", "git status"] {
+            h.remember(LOGS, SEARCH, text).unwrap();
+        }
+        let whole = |nth| h.completion_for("", nth).map(|c| c.remainder);
+        assert_eq!([whole(0), whole(1), whole(2)], [Some("git status"), Some("git log"), None]);
+        assert!(h.completion_for("  ", 0).is_none());
     }
 
     #[test]

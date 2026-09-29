@@ -191,7 +191,9 @@ that code was organised. Where the rewrite changes something on purpose,
   is shown, first line only, greyed after the cursor, only when the cursor is
   at the end, nothing selected, non-empty, no IME composing. Any edit clears
   it. Tab accepts (and prefers that entry's tool). ⌃N older / ⌃P newer, only
-  if such a completion exists; otherwise they are ↓/↑. Must stay under 5 ms
+  if such a completion exists; otherwise they are ↓/↑. In the empty input
+  nothing shows by itself, but ⌃N or ⌃P shows the newest remembered input
+  (instead of the tip) and then steps older / newer; any edit ends it. Must stay under 5 ms
   per keystroke with 10k entries.
 - **⌃R search**: if history is off, toast "The input history is off: turn it
   on in Settings → General". Otherwise the input becomes "Search the history",

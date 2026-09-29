@@ -213,11 +213,14 @@ impl Element for TextElement {
         // offsets never land in it.
         let ghost = editor.visible_completion().and_then(|completion| {
             let first_line = completion.split('\n').next().unwrap_or_default().to_string();
-            let origin = position_for_offset(&layout, editor.content.len())?;
+            // In an empty editor the layout is the placeholder's: the ghost starts at 0.
+            let origin = if empty { point(px(0.), px(0.)) } else { position_for_offset(&layout, editor.content.len())? };
             let (mut lines, _) = Self::shape(&self.font_family, &first_line, self.placeholder_color, font_size, lh, None, window);
             Some((origin, lines.remove(0).wrapped))
         });
-        Prepaint { lines: layout.lines, placeholder: empty, selections, cursor: cursor.flatten(), ghost }
+        // A completion of an empty editor is shown instead of the placeholder.
+        let lines = if empty && ghost.is_some() { Vec::new() } else { layout.lines };
+        Prepaint { lines, placeholder: empty, selections, cursor: cursor.flatten(), ghost }
     }
 
     fn paint(

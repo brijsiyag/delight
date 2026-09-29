@@ -132,6 +132,9 @@ pub struct Launcher {
     /// Which remembered input the completion shows: 0 the newest that fits, then
     /// older ones (⌃N older, ⌃P newer). Back to 0 whenever the input changes.
     completion_index: usize,
+    /// ⌃N or ⌃P was pressed in the empty input: it shows the remembered inputs as
+    /// completions (it offers none by itself). Off whenever the input changes.
+    browsing_history: bool,
     /// After a remembered input is taken (a completion, or from ⌃R): the tool it
     /// was for, to select once the plugins have been asked about it.
     prefer_tool: Option<ToolIds>,
@@ -196,6 +199,7 @@ impl Launcher {
             picked: None,
             completion_tool: None,
             completion_index: 0,
+            browsing_history: false,
             prefer_tool: None,
             history: None,
             tip,
@@ -275,6 +279,7 @@ impl Launcher {
             self.picked = None;
         }
         self.completion_index = 0;
+        self.browsing_history = false;
         self.show_completion(cx);
         self.detect(cx);
         cx.notify();
@@ -284,18 +289,27 @@ impl Launcher {
     /// history is on.
     fn show_completion(&mut self, cx: &mut Context<Self>) {
         let text = self.input.read(cx).text().to_string();
-        let history_on = settings::get(cx).input_history;
-        let completion = history_on.then(|| history::get(cx).completion_for(&text, self.completion_index)).flatten();
+        // An empty input offers a completion only once ⌃N or ⌃P asked for one.
+        let offered = settings::get(cx).input_history && (!text.is_empty() || self.browsing_history);
+        let completion = offered.then(|| history::get(cx).completion_for(&text, self.completion_index)).flatten();
         self.completion_tool = completion.map(|c| (c.plugin_id.to_string(), c.operation_id.to_string()));
         let remainder = completion.map(|c| SharedString::from(c.remainder.to_string()));
         self.input.update(cx, |input, cx| input.set_completion(remainder, cx));
     }
 
     /// Complete with an older (`by` 1) or newer (-1) remembered input, if there's
-    /// one.
+    /// one. In the empty input the first press shows the newest, whichever way.
     fn step_completion(&mut self, by: isize, cx: &mut Context<Self>) {
-        let Some(index) = self.completion_index.checked_add_signed(by) else { return };
         let text = self.input.read(cx).text().to_string();
+        if text.is_empty() && !self.browsing_history {
+            if settings::get(cx).input_history && history::get(cx).completion_for("", 0).is_some() {
+                self.browsing_history = true;
+                self.completion_index = 0;
+                self.show_completion(cx);
+            }
+            return;
+        }
+        let Some(index) = self.completion_index.checked_add_signed(by) else { return };
         if history::get(cx).completion_for(&text, index).is_some() {
             self.completion_index = index;
             self.show_completion(cx);

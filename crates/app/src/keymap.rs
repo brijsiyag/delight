@@ -96,10 +96,10 @@ pub fn init(cx: &mut App) {
         KeyBinding::new("cmd-,", launcher::OpenSettings, launcher),
         KeyBinding::new("cmd-w", settings_window::CloseSettings, Some(SETTINGS)),
         KeyBinding::new("escape", settings_window::CloseSettings, Some(SETTINGS)),
-        // While the input shows a completion: ⌃N and ⌃P complete with the next
-        // (older) and previous (newer) remembered input.
-        KeyBinding::new("ctrl-n", launcher::OlderCompletion, Some("Launcher > Editor && showing_completion")),
-        KeyBinding::new("ctrl-p", launcher::NewerCompletion, Some("Launcher > Editor && showing_completion")),
+        // While the input shows a completion, or is empty: ⌃N and ⌃P complete with the
+        // next (older) and previous (newer) remembered input.
+        KeyBinding::new("ctrl-n", launcher::OlderCompletion, Some("Launcher > Editor && (showing_completion || empty_input)")),
+        KeyBinding::new("ctrl-p", launcher::NewerCompletion, Some("Launcher > Editor && (showing_completion || empty_input)")),
     ]);
     // Searching the input history: ↑/↓ pick an input, ↵ or Tab uses it, Esc or ⌃R
     // again goes back. Last, so they win over the launcher's input keys.
