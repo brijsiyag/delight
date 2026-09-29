@@ -44,7 +44,7 @@ impl<T: Tool> DynTool for Entity<T> {
         let actions = self.read(cx).list_actions(cx);
         actions
             .into_iter()
-            .map(|action| Action { id: action.id.id().to_string(), label: action.label, shortcut: action.shortcut })
+            .map(|action| Action { id: action.id.id().to_string(), label: action.label, shortcut: action.shortcut, style: action.style })
             .collect()
     }
 

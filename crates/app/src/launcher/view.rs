@@ -1,10 +1,11 @@
 //! Drawing the launcher: the input bar, then (with input) the tool list, the
 //! selected tool and the footer.
 
+use delight_protocol::ActionStyle;
 use delight_runtime::Plugin;
 use delight_ui::theme::INPUT_LINE_HEIGHT;
 use delight_ui::{
-    ActiveTheme, Button, Caption, Divider, Icon, IconButton, IconName, Keycap, KeycapStyle, LogoBadge, Theme, h_flex,
+    ActiveTheme, Button, ButtonVariant, Caption, Divider, Icon, IconButton, IconName, Keycap, KeycapStyle, LogoBadge, Theme, h_flex,
     keystroke_for, keystroke_label, v_flex,
 };
 use gpui::{
@@ -287,8 +288,13 @@ impl Launcher {
             if i > 0 {
                 actions = actions.child(Divider::vertical());
             }
+            let style = match action.style {
+                ActionStyle::Normal => ButtonVariant::Text,
+                ActionStyle::Primary => ButtonVariant::Primary,
+                ActionStyle::Attention => ButtonVariant::Attention,
+            };
             let mut button = Button::new(("action", i), action.label.clone())
-                .text()
+                .variant(style)
                 .on_click(cx.listener(move |this, _, _, cx| this.perform(&action, cx)));
             if let Some(keystroke) = &key {
                 button = button.shortcut(keystroke_label(keystroke));

@@ -60,7 +60,7 @@ impl Tool for YamlView {
         if self.output.text().is_none() {
             return Vec::new();
         }
-        vec![Action { id: YamlAction::Copy, label: self.copy_label().into(), shortcut: Shortcut::Keystroke("enter".into()) }]
+        vec![Action::new(YamlAction::Copy, self.copy_label(), Shortcut::Keystroke("enter".into()))]
     }
 
     fn perform_action(&mut self, action: YamlAction, cx: &mut Context<Self>) {

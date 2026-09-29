@@ -10,6 +10,7 @@ use gpui::{
     Styled, Task, Window, div, px,
 };
 
+use crate::DnsOperation;
 use crate::lookup::{Level, Notice, Report, Section, Target, target};
 use crate::query;
 
@@ -42,11 +43,16 @@ impl Tool for DnsView {
         }
         self.target = wanted.clone();
         self.report = None;
+        let typed = input.text.trim().to_string();
         self._task = wanted.map(|wanted| {
             cx.spawn(async move |this, cx| {
                 cx.background_executor().timer(DELAY).await;
                 let report = query::lookup(wanted, cx).await;
                 this.update(cx, |this, cx| {
+                    // A lookup that found something is worth coming back to.
+                    if report.found() {
+                        host(cx).remember_input(DnsOperation::Lookup, typed, cx);
+                    }
                     this.report = Some(report);
                     cx.notify();
                 })
@@ -62,25 +68,13 @@ impl Tool for DnsView {
         };
         let mut actions = Vec::new();
         if report.addresses.is_some() {
-            actions.push(Action {
-                id: DnsAction::Addresses,
-                label: "Copy addresses".into(),
-                shortcut: Shortcut::Keystroke("enter".into()),
-            });
+            actions.push(Action::new(DnsAction::Addresses, "Copy addresses", Shortcut::Keystroke("enter".into())));
         }
         if report.names.is_some() {
-            actions.push(Action {
-                id: DnsAction::Names,
-                label: "Copy names".into(),
-                shortcut: Shortcut::Keystroke("enter".into()),
-            });
+            actions.push(Action::new(DnsAction::Names, "Copy names", Shortcut::Keystroke("enter".into())));
         }
         if report.dig_command.is_some() {
-            actions.push(Action {
-                id: DnsAction::DigCommand,
-                label: "Copy dig command".into(),
-                shortcut: Shortcut::Keystroke("cmd-enter".into()),
-            });
+            actions.push(Action::new(DnsAction::DigCommand, "Copy dig command", Shortcut::Keystroke("cmd-enter".into())));
         }
         actions
     }

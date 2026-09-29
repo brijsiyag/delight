@@ -30,6 +30,8 @@ pub fn matches(own: &Keystroke, pressed: &Keystroke) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use delight_protocol::ActionStyle;
+
     use super::*;
 
     fn action(id: &str, shortcut: Option<&str>) -> Action {
@@ -37,6 +39,7 @@ mod tests {
             id: id.into(),
             label: id.into(),
             shortcut: shortcut.map_or(Shortcut::ClickOnly, |key| Shortcut::Keystroke(key.into())),
+            style: ActionStyle::Normal,
         }
     }
 

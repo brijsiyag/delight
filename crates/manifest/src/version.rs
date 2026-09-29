@@ -27,6 +27,10 @@ pub const PLUGIN_API_VERSION: &str = env!("CARGO_PKG_VERSION");
 /// tools with their actions, and its settings as sections (`settings_sections`,
 /// `open_settings_section`). Before 1.0 a minor bump may also break what it changes; keep the
 /// rules above from 1.0 on.
+///
+/// 0.2 adds an action's style (`Action::style`: normal, primary or attention), which an older
+/// plugin doesn't send (it is normal). The Rust `Action` gained the field, so a plugin builds its
+/// actions with `Action::new`.
 pub const PROTOCOL_VERSION: ProtocolVersion = ProtocolVersion {
     major: number(env!("CARGO_PKG_VERSION_MAJOR")),
     minor: number(env!("CARGO_PKG_VERSION_MINOR")),

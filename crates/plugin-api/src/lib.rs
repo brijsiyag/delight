@@ -55,7 +55,7 @@ pub mod network;
 mod tool;
 
 pub use delight_plugin_api_macros::{Actions, Operations, plugin};
-pub use delight_protocol::{Color, Command, CommandOutput, DnsResolver, Input, Shortcut, Theme};
+pub use delight_protocol::{ActionStyle, Color, Command, CommandOutput, DnsResolver, Input, Shortcut, Theme};
 pub use embedded_gpui::gpui;
 /// The `http` crate the network's requests and responses are made of.
 // TEMPORARY(network)
@@ -199,6 +199,26 @@ pub struct Action<A> {
     pub id: A,
     pub label: String,
     pub shortcut: Shortcut,
+    pub style: ActionStyle,
+}
+
+impl<A> Action<A> {
+    /// An action with the footer's usual button.
+    pub fn new(id: A, label: impl Into<String>, shortcut: Shortcut) -> Self {
+        Self { id, label: label.into(), shortcut, style: ActionStyle::Normal }
+    }
+
+    /// The button is filled: the main thing to do here.
+    pub fn primary(mut self) -> Self {
+        self.style = ActionStyle::Primary;
+        self
+    }
+
+    /// The button stands out: something needs doing first (stale results).
+    pub fn attention(mut self) -> Self {
+        self.style = ActionStyle::Attention;
+        self
+    }
 }
 
 /// What the macros' expansions use (only in wasm builds); not for plugins to use

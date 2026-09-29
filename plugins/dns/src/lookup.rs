@@ -167,6 +167,11 @@ pub struct Report {
 }
 
 impl Report {
+    /// The lookup found something: addresses or names (not just a reason it found none).
+    pub fn found(&self) -> bool {
+        self.addresses.is_some() || self.names.is_some()
+    }
+
     fn notice(&mut self, level: Level, text: impl Into<String>) {
         self.notices.push(Notice { level, text: text.into() });
     }
@@ -413,5 +418,13 @@ mod tests {
         assert_eq!(report.notices[1].level, Level::Warning, "the system resolver differs");
         assert_eq!(report.addresses.as_deref(), Some("1.2.3.4"));
         assert_eq!(report.dig_command.as_deref(), Some("dig @10.0.0.1 x.com A"));
+        assert!(report.found());
+    }
+
+    #[test]
+    fn a_lookup_that_found_nothing_is_not_found() {
+        let found = HostAnswers { answers: vec![Answer::default(); KINDS.len()], system: (Ok(Vec::new()), 3), reverse: Vec::new() };
+        let report = host_report("nothing.invalid", None, &found);
+        assert!(!report.found(), "{report:?}");
     }
 }

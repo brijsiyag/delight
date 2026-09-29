@@ -264,6 +264,29 @@ pub struct Action {
     pub id: String,
     pub label: String,
     pub shortcut: Shortcut,
+    /// How its button looks; a plugin built before there were styles sends none: `Normal`.
+    #[serde(default, skip_serializing_if = "ActionStyle::is_normal")]
+    pub style: ActionStyle,
+}
+
+/// How an action's button looks: a named style, drawn in the app's colours for the current
+/// theme, so a plugin never picks a colour.
+#[data]
+#[derive(PartialEq, Copy, Default)]
+pub enum ActionStyle {
+    /// The footer's usual button.
+    #[default]
+    Normal,
+    /// The main thing to do here: a filled button.
+    Primary,
+    /// Something needs doing before the rest can be trusted (results gone stale): it stands out.
+    Attention,
+}
+
+impl ActionStyle {
+    fn is_normal(&self) -> bool {
+        *self == ActionStyle::Normal
+    }
 }
 
 /// An action's key. Every action states one, so going without a key is a choice
@@ -318,6 +341,7 @@ mod tests {
                 id: "copy".into(),
                 label: "Copy".into(),
                 shortcut: Shortcut::Keystroke("cmd-enter".into()),
+                style: ActionStyle::Normal,
             },
             r#"{"id":"copy","label":"Copy","shortcut":{"Keystroke":"cmd-enter"}}"#,
         );
@@ -326,9 +350,17 @@ mod tests {
                 id: "copy".into(),
                 label: "Copy".into(),
                 shortcut: Shortcut::ClickOnly,
+                style: ActionStyle::Attention,
             },
-            r#"{"id":"copy","label":"Copy","shortcut":"ClickOnly"}"#,
+            r#"{"id":"copy","label":"Copy","shortcut":"ClickOnly","style":"Attention"}"#,
         );
+    }
+
+    #[test]
+    fn an_action_from_a_plugin_without_styles_is_normal() {
+        let json = r#"{"id":"copy","label":"Copy","shortcut":"ClickOnly"}"#;
+        let payload = embedded_gpui::Payload::from_parts(json.into(), Vec::new());
+        assert_eq!(decode::<Action>(&payload).unwrap().style, ActionStyle::Normal);
     }
 
     #[test]
