@@ -52,7 +52,7 @@ pub fn reload(cx: &mut App) {
                     continue;
                 }
                 let options = plugin_options(&manifest, data_dir(&id), text_system.clone());
-                let root = cx.new(|cx| HostRoot::new(id.clone(), cx));
+                let root = move |granted, cx: &mut App| cx.new(|cx| HostRoot::new(id, granted, cx));
                 let start = Plugin::start(source.file.clone(), manifest, options, root, cx);
                 starting.push((source, start));
             }

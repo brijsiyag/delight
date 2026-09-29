@@ -349,6 +349,14 @@ fn section(caption: &'static str, rows: Vec<AnyElement>) -> impl IntoElement {
 /// A row with an icon, a bold title and its detail, and maybe a control: a tool or a
 /// permission.
 fn item(icon: AnyElement, title: SharedString, detail: Option<SharedString>, control: Option<AnyElement>, t: &Theme) -> AnyElement {
+    let detail = detail.map(|detail| {
+        div().mt(px(2.)).text_size(px(12.)).text_color(t.text_muted).child(detail).into_any_element()
+    });
+    item_with(icon, title, detail.into_iter().collect(), control)
+}
+
+/// An [`item`] with its own lines under the title.
+fn item_with(icon: AnyElement, title: SharedString, lines: Vec<AnyElement>, control: Option<AnyElement>) -> AnyElement {
     h_flex()
         .gap(px(12.))
         .px(px(14.))
@@ -359,9 +367,7 @@ fn item(icon: AnyElement, title: SharedString, detail: Option<SharedString>, con
                 .flex_1()
                 .min_w(px(0.))
                 .child(div().font_weight(FontWeight::SEMIBOLD).child(title))
-                .when_some(detail, |column, detail| {
-                    column.child(div().mt(px(2.)).text_size(px(12.)).text_color(t.text_muted).child(detail))
-                }),
+                .children(lines),
         )
         .children(control)
         .into_any_element()

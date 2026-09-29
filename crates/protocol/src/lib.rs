@@ -14,7 +14,8 @@
 //! are unique across the interfaces here and don't clash with type names.
 
 pub use delight_manifest::{
-    Manifest, Operation, PLUGIN_API_VERSION, PROTOCOL_VERSION, Permission, PluginProperties, ProtocolVersion,
+    Manifest, Operation, PLUGIN_API_VERSION, PROTOCOL_VERSION, Permission, PermissionRequest, PluginProperties,
+    ProtocolVersion,
 };
 
 use embedded_gpui::surface::SurfaceApi;

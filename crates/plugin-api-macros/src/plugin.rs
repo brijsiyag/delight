@@ -6,10 +6,13 @@
 
 use darling::FromMeta;
 use darling::ast::NestedMeta;
-use delight_manifest::{MAX_TIPS, Permission, PluginProperties, SECTION, encode_properties, validate_id, validate_tip};
+use delight_manifest::{
+    MAX_TIPS, PermissionRequest, PluginProperties, SECTION, encode_properties, validate_id, validate_reason,
+    validate_tip,
+};
 use proc_macro2::{Literal, TokenStream};
 use quote::quote;
-use syn::{DeriveInput, Expr, Ident, LitStr};
+use syn::{DeriveInput, Expr, ExprLit, Ident, Lit, LitStr};
 
 use crate::{Icons, invalid, values};
 
@@ -82,10 +85,10 @@ impl PluginArgs {
     }
 }
 
-/// `permissions = [Network]`: permission names, as `delight-manifest` spells them.
-/// darling's own `PathList` reads only the `permissions(Network)` form.
+/// `permissions = [Network("Fetches schemas from the web")]`: permission names, as
+/// `delight-manifest` spells them, each with why the plugin needs it.
 #[derive(Default)]
-struct Permissions(Vec<Permission>);
+struct Permissions(Vec<PermissionRequest>);
 
 impl FromMeta for Permissions {
     fn from_expr(expr: &Expr) -> darling::Result<Self> {
@@ -102,18 +105,32 @@ impl FromMeta for Permissions {
     }
 }
 
-/// One name in the list, such as `Network`.
-fn permission(element: &Expr) -> darling::Result<Permission> {
-    let name = match element {
+/// One permission in the list, such as `Network("Fetches schemas from the web")`.
+fn permission(element: &Expr) -> darling::Result<PermissionRequest> {
+    let expected = || {
+        darling::Error::custom("expected a permission and why the plugin needs it, such as `Network(\"Fetches schemas from the web\")`")
+            .with_span(element)
+    };
+    let call = match element {
+        Expr::Call(call) => call,
+        Expr::Path(path) if path.path.get_ident().is_some() => {
+            let message = "say why the plugin needs it, which people read when they install it: `Name(\"…\")`";
+            return Err(darling::Error::custom(message).with_span(element));
+        }
+        _ => return Err(expected()),
+    };
+    let name = match &*call.func {
         Expr::Path(path) => path.path.get_ident(),
         _ => None,
     }
-    .ok_or_else(|| {
-        darling::Error::custom("expected a permission, such as `Network`").with_span(element)
-    })?;
-    name.to_string()
-        .parse()
-        .map_err(|error| darling::Error::custom(error).with_span(name))
+    .ok_or_else(expected)?;
+    let permission = name.to_string().parse().map_err(|error| darling::Error::custom(error).with_span(name))?;
+    let mut arguments = call.args.iter();
+    let (Some(Expr::Lit(ExprLit { lit: Lit::Str(reason), .. })), None) = (arguments.next(), arguments.next()) else {
+        return Err(expected());
+    };
+    validate_reason(&reason.value()).map_err(|error| invalid(error).with_span(reason))?;
+    Ok(PermissionRequest { permission, reason: reason.value() })
 }
 
 /// The plugin's type as written, and, for wasm, its custom section (the properties
@@ -158,5 +175,27 @@ fn generate(item: &TokenStream, plugin: &Ident, properties: &PluginProperties, i
 
             #api::__private::embedded_gpui::register_plugin!(Entry);
         };
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use delight_manifest::Permission;
+
+    fn read(element: Expr) -> Result<PermissionRequest, String> {
+        permission(&element).map_err(|error| error.to_string())
+    }
+
+    #[test]
+    fn a_permission_is_written_with_why_it_is_needed() {
+        let request = read(syn::parse_quote!(Network("Fetches schemas from the web"))).unwrap();
+        assert_eq!(request.permission, Permission::Network);
+        assert_eq!(request.reason, "Fetches schemas from the web");
+
+        assert!(read(syn::parse_quote!(Network)).unwrap_err().contains("say why"));
+        assert!(read(syn::parse_quote!(Network("  "))).unwrap_err().contains("blank"));
+        assert!(read(syn::parse_quote!(Files("Reads files"))).unwrap_err().contains("no permission"));
+        assert!(read(syn::parse_quote!(Network("a", "b"))).unwrap_err().contains("expected a permission"));
     }
 }

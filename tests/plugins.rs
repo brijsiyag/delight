@@ -11,11 +11,11 @@ use std::sync::{Arc, Once};
 use std::time::Duration;
 
 use delight_protocol::{
-    Action, Color, HostApi, Input, Shortcut, Theme, ToolApi, ToolApiCaller as _,
+    Action, Color, HostApi, Input, Permission, PermissionRequest, Shortcut, Theme, ToolApi, ToolApiCaller as _,
 };
-use delight_runtime::{Candidate, Plugin, detect_all, plugin_options, read_manifest};
+use delight_runtime::{Candidate, Granted, Plugin, detect_all, plugin_options, read_manifest};
 use embedded_gpui::{Remote, Surface, shared};
-use gpui::{AppContext as _, Context, Entity, TestAppContext};
+use gpui::{App, AppContext as _, Context, Entity, TestAppContext};
 
 /// Builds the fixture once per test run and returns its `.wasm`.
 fn fixture() -> PathBuf {
@@ -90,6 +90,12 @@ impl HostApi for FakeApp {
     }
 }
 
+/// `app` as the root `Plugin::start` makes: it has nothing to grant.
+fn root_of(app: &Entity<FakeApp>) -> impl FnOnce(Granted, &mut App) -> Entity<FakeApp> + 'static {
+    let app = app.clone();
+    move |_granted, _| app
+}
+
 /// Run everything queued, including the plugin's turns and the timers they set.
 fn settle(cx: &mut TestAppContext) {
     for _ in 0..5 {
@@ -112,7 +118,7 @@ async fn start(test: &str, cx: &mut TestAppContext) -> (Plugin, Entity<FakeApp>)
     let manifest = read_manifest(&std::fs::read(&wasm).unwrap()).unwrap();
     let options = plugin_options(&manifest, data_dir(test), Arc::new(gpui::NoopTextSystem::new()));
     let app = cx.new(|_| FakeApp::default());
-    let started = cx.update(|cx| Plugin::start(wasm, manifest, options, app.clone(), cx));
+    let started = cx.update(|cx| Plugin::start(wasm, manifest, options, root_of(&app), cx));
     settle(cx);
     (started.await.expect("the fixture starts"), app)
 }
@@ -135,6 +141,8 @@ fn the_manifest_is_read_from_the_wasm() {
     assert_eq!(manifest.operations.len(), 1);
     assert_eq!(manifest.operations[0].id, "echo");
     assert!(manifest.plugin.icon.starts_with("<svg"));
+    let reason = "Nothing: it's here to test how permissions are read".to_string();
+    assert_eq!(manifest.plugin.permissions, [PermissionRequest { permission: Permission::Network, reason }]);
 }
 
 #[gpui::test]
@@ -242,7 +250,7 @@ async fn a_plugin_that_overruns_its_turn_is_stopped(cx: &mut TestAppContext) {
     let options = plugin_options(&manifest, data_dir("stops"), Arc::new(gpui::NoopTextSystem::new()))
         .with_turn_budget(Duration::from_millis(200));
     let app = cx.new(|_| FakeApp::default());
-    let started = cx.update(|cx| Plugin::start(wasm, manifest, options, app, cx));
+    let started = cx.update(|cx| Plugin::start(wasm, manifest, options, root_of(&app), cx));
     settle(cx);
     let plugin = started.await.unwrap();
 

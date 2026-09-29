@@ -23,8 +23,9 @@ These were settled in the previous attempt (see its
    Install…, or dropping it in the plugins folder). No CLI, no plugin
    manager, no SDK kit, no rebuild-on-update.
 4. Permissions declared by the plugin gate everything outside its sandbox:
-   `Network`, `Commands`, `Clipboard` (reading; copying needs none).
-   Settings shows them; installing asks to confirm them.
+   `Network`, `Commands`, `Clipboard` (reading; copying needs none), each
+   with the plugin's reason for it. Settings shows them; installing asks to
+   confirm them.
 5. No Delight HTTP API: the network is WASI's `wasi:http` and
    `wasi:sockets`, and plugins use `wstd`.
 6. GPUI is not forked: it is used directly from Zed's repository by the
@@ -239,7 +240,7 @@ fork's `delight` branch.
 12. **Settings window and permissions**, a new design rather than the
     previous attempt's two tabs: an 800×580 window with a sidebar, like
     System Settings (General, each plugin as its own entry, plugins that
-    don't load, Install Plugin…). In three parts: the settings file and the
+    don't load, Install Plugin…). In four parts: the settings file and the
     General page (the shortcut, hiding, pasting on open, appearance, the
     input history, open at login), opened from the tray, ⌘, and the
     footer's ⚙. Then the plugin pages: their tools, each with its own switch
@@ -247,8 +248,13 @@ fork's `delight` branch.
     while both are on), permissions, on and off, delete, show in Finder,
     plugins that don't load, and installing with a sheet that lists the
     permissions and the tools. Then each plugin's own settings page on a
-    surface, the gated host capabilities (commands, clipboard reading),
-    `add_font`, host facts.
+    surface; each permission with the plugin's reason for it, shown under
+    what the permission allows; and `Granted`, the objects the manifest's
+    permissions grant, which the app's root object for the plugin hands out
+    when asked (so a plugin without the permission gets none). It has none
+    yet: the gated capabilities come with the plugins that need them (step
+    14). Then `add_font` and host facts, among them the Mac's DNS resolvers
+    (which server answers which domain, VPNs' included) for the DNS tool.
 13. **Network**: sockets through `with_wasi` for plugins with `Network`;
     **embedded_gpui**: link `wasi:http` with an outgoing sender whose TLS uses the
     macOS trust store (`rustls-platform-verifier`; bundled roots fail
@@ -261,7 +267,13 @@ fork's `delight` branch.
     if that is refused or slow.
 14. **DNS tool**, then port the third-party plugins in
     `~/Desktop/delight-plugins` (the image plugin waits for pasted files,
-    see Later).
+    see Later). DNS runs no programs: it asks the Mac's resolvers itself
+    over WASI sockets (`hickory-proto` for the messages; `Network`). Process
+    brings the `Commands` permission, as an object in `Granted` that runs
+    only the programs its manifest lists (shown when installing), with a
+    cleared environment, the plugin's data folder as the working folder,
+    and a time limit. Logs brings `Clipboard` (reading it, for its settings
+    page's "Paste from clipboard" key button).
 15. **Secrets, updates, release**: encrypted plugin secrets (one Keychain
     master key), automatic updates, bundling (the built-in plugins go in
     `Contents/Resources/plugins`), signing, notarisation, the DMG, version

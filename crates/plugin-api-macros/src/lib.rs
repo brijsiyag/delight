@@ -24,13 +24,15 @@ use syn::LitStr;
 ///     author = "Delight",
 ///     icon = "assets/icon.svg",        // a square, full-colour SVG
 ///     tags = ["json"],
-///     permissions = [Network],         // leave out for none
+///     permissions = [Network("Fetches schemas from the web")], // each with why; leave out for none
 ///     tips = ["Paste JSON to format it"], // up to 5, each one line
 /// )]
 /// struct Json;
 /// ```
 ///
-/// `id`, `name` and `icon` are required; the version is the crate's own. `tips` are
+/// `id`, `name` and `icon` are required; the version is the crate's own. Each
+/// permission says why the plugin needs it, in at most 100 characters: people read it
+/// next to what the permission allows when they install the plugin. `tips` are
 /// hints on using the plugin, which the launcher's empty input shows now and then:
 /// at most 5, each at most 80 characters. Icon paths
 /// are relative to the crate's `Cargo.toml`. The type must implement `Plugin`, whose

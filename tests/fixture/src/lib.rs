@@ -13,6 +13,7 @@ use delight_plugin_api::{
     description = "Echoes the input, for Delight's tests",
     author = "Delight",
     icon = "assets/icon.svg",
+    permissions = [Network("Nothing: it's here to test how permissions are read")],
 )]
 struct Fixture;
 

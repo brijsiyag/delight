@@ -32,8 +32,9 @@ pub struct PluginProperties {
     pub icon: String,
     #[serde(default)]
     pub tags: Vec<String>,
+    /// What it may do outside its sandbox, each with why it needs it.
     #[serde(default)]
-    pub permissions: Vec<Permission>,
+    pub permissions: Vec<PermissionRequest>,
     /// Up to [`MAX_TIPS`] short tips on using the plugin, written by its author, such
     /// as "cal <email> shows someone's meetings". The launcher's empty input shows
     /// them now and then, while the plugin has a tool on.
@@ -45,6 +46,8 @@ pub struct PluginProperties {
 pub const MAX_TIPS: usize = 5;
 /// The longest a tip is, in characters: it fits the launcher's input on one line.
 pub const MAX_TIP_CHARS: usize = 80;
+/// The longest a permission's reason is, in characters: a sentence.
+pub const MAX_REASON_CHARS: usize = 100;
 
 /// One tool a plugin offers.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -71,6 +74,35 @@ pub enum Permission {
     Network,
 }
 
+/// A permission a plugin asks for, and why. People see the reason, in the plugin's
+/// words, next to what the permission allows, when they install it and in Settings,
+/// and decide.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(from = "Requested")]
+pub struct PermissionRequest {
+    pub permission: Permission,
+    /// At most [`MAX_REASON_CHARS`] characters. Empty for a plugin built before
+    /// reasons (plugin API 1.5), which doesn't say.
+    pub reason: String,
+}
+
+/// A permission as manifests spell it: with its reason, or, before 1.5, only its name.
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum Requested {
+    WithReason { permission: Permission, reason: String },
+    Bare(Permission),
+}
+
+impl From<Requested> for PermissionRequest {
+    fn from(requested: Requested) -> Self {
+        match requested {
+            Requested::WithReason { permission, reason } => PermissionRequest { permission, reason },
+            Requested::Bare(permission) => PermissionRequest { permission, reason: String::new() },
+        }
+    }
+}
+
 impl std::str::FromStr for Permission {
     type Err = anyhow::Error;
 
@@ -95,7 +127,13 @@ impl Manifest {
 }
 
 impl PluginProperties {
-    /// Check what the types can't: the id's form, a name, a version, and its tips.
+    /// Whether it asks for `permission`.
+    pub fn asks_for(&self, permission: Permission) -> bool {
+        self.permissions.iter().any(|request| request.permission == permission)
+    }
+
+    /// Check what the types can't: the id's form, a name, a version, its permissions'
+    /// reasons (when it gives them) and its tips.
     pub fn validate(&self) -> Result<()> {
         validate_id(&self.id)?;
         if self.name.trim().is_empty() {
@@ -103,6 +141,15 @@ impl PluginProperties {
         }
         if self.version.trim().is_empty() {
             bail!("the plugin has no version");
+        }
+        let mut asked = HashSet::new();
+        for request in &self.permissions {
+            if !asked.insert(request.permission) {
+                bail!("the plugin asks for {:?} twice", request.permission);
+            }
+            if !request.reason.is_empty() {
+                validate_reason(&request.reason)?;
+            }
         }
         if self.tips.len() > MAX_TIPS {
             bail!("the plugin has {} tips: at most {MAX_TIPS}", self.tips.len());
@@ -135,6 +182,19 @@ impl Operation {
         }
         Ok(())
     }
+}
+
+/// Check why a plugin asks for a permission: not blank, and at most
+/// [`MAX_REASON_CHARS`] characters.
+pub fn validate_reason(reason: &str) -> Result<()> {
+    if reason.trim().is_empty() {
+        bail!("a permission's reason is blank");
+    }
+    let chars = reason.chars().count();
+    if chars > MAX_REASON_CHARS {
+        bail!("a permission's reason is {chars} characters: at most {MAX_REASON_CHARS}");
+    }
+    Ok(())
 }
 
 /// Check one tip: not blank, and at most [`MAX_TIP_CHARS`] characters.
@@ -183,7 +243,10 @@ pub(crate) fn sample() -> Manifest {
             author: "Delight".into(),
             icon: "<svg/>".into(),
             tags: vec!["json".into()],
-            permissions: vec![Permission::Network],
+            permissions: vec![PermissionRequest {
+                permission: Permission::Network,
+                reason: "Fetches schemas from the web".into(),
+            }],
             tips: vec!["Paste JSON to format it".into()],
         },
         operations: vec![Operation {
@@ -216,10 +279,7 @@ mod tests {
 
     #[test]
     fn permissions_are_spelled_as_in_the_manifest() {
-        assert_eq!(
-            serde_json::to_string(&[Permission::Network]).unwrap(),
-            r#"["Network"]"#
-        );
+        assert_eq!(serde_json::to_string(&[Permission::Network]).unwrap(), r#"["Network"]"#);
         assert!(serde_json::from_str::<Permission>(r#""Files""#).is_err());
         assert_eq!("Network".parse::<Permission>().unwrap(), Permission::Network);
         assert!("Files".parse::<Permission>().is_err());
@@ -275,6 +335,35 @@ mod tests {
         let mut untitled = sample();
         untitled.operations[0].title = String::new();
         assert!(untitled.validate().is_err());
+    }
+
+    #[test]
+    fn a_permission_comes_with_its_reason_or_before_1_5_without() {
+        let request = PermissionRequest { permission: Permission::Network, reason: "Syncs".into() };
+        let json = r#"{"permission":"Network","reason":"Syncs"}"#;
+        assert_eq!(serde_json::to_string(&request).unwrap(), json);
+        assert_eq!(serde_json::from_str::<PermissionRequest>(json).unwrap(), request);
+        let bare = serde_json::from_str::<PermissionRequest>(r#""Network""#).unwrap();
+        assert_eq!(bare, PermissionRequest { permission: Permission::Network, reason: String::new() });
+    }
+
+    #[test]
+    fn validate_checks_the_permissions() {
+        let with_reasons = |reasons: &[&str]| {
+            let mut manifest = sample();
+            manifest.plugin.permissions = reasons
+                .iter()
+                .map(|reason| PermissionRequest { permission: Permission::Network, reason: reason.to_string() })
+                .collect();
+            manifest.validate()
+        };
+        assert!(with_reasons(&["Fetches schemas"]).is_ok());
+        assert!(with_reasons(&[""]).is_ok(), "built before reasons");
+        assert!(with_reasons(&["  "]).is_err(), "blank");
+        assert!(with_reasons(&[&"é".repeat(MAX_REASON_CHARS)]).is_ok(), "the limit counts characters");
+        assert!(with_reasons(&[&"é".repeat(MAX_REASON_CHARS + 1)]).is_err(), "too long");
+        assert!(with_reasons(&["Fetches", "Syncs"]).is_err(), "asked for twice");
+        assert!(sample().plugin.asks_for(Permission::Network));
     }
 
     #[test]

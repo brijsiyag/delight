@@ -3,7 +3,7 @@
 
 use std::path::Path;
 
-use delight_protocol::Permission;
+use delight_protocol::{Permission, PermissionRequest};
 use delight_runtime::Plugin;
 use embedded_gpui::Surface;
 use delight_ui::{Button, Disableable as _, Icon, IconName, LogoBadge, Switch, Theme, h_flex, v_flex};
@@ -12,7 +12,7 @@ use gpui::{
     PromptLevel, SharedString, Styled, Task, div, prelude::*, px,
 };
 
-use super::{Page, SettingsWindow, item, section};
+use super::{Page, SettingsWindow, item, item_with, section};
 use crate::plugins::{self, Broken, Source};
 use crate::settings;
 
@@ -280,16 +280,17 @@ pub(super) fn broken_header(broken: &Broken, t: &Theme) -> AnyElement {
         .into_any_element()
 }
 
-/// The rows of a Permissions section: one per permission, or one saying there are none.
-pub(super) fn permission_rows(permissions: &[Permission], t: &Theme) -> Vec<AnyElement> {
+/// The rows of a Permissions section: one per permission, with what it allows and why
+/// the plugin says it needs it, or one saying there are none.
+pub(super) fn permission_rows(permissions: &[PermissionRequest], t: &Theme) -> Vec<AnyElement> {
     if permissions.is_empty() {
         let check = Icon::new(IconName::CircleCheck).size(px(18.)).color(t.success).into_any_element();
         return vec![item(check, "Needs no permissions".into(), None, None, t)];
     }
     permissions
         .iter()
-        .map(|permission| {
-            let (icon, name, explanation) = match permission {
+        .map(|request| {
+            let (icon, name, explanation) = match request.permission {
                 Permission::Network => (IconName::Globe, "Network", "Can reach the internet and your local network"),
             };
             let tinted = div()
@@ -302,9 +303,22 @@ pub(super) fn permission_rows(permissions: &[Permission], t: &Theme) -> Vec<AnyE
                 .justify_center()
                 .child(Icon::new(icon).size(px(18.)).color(t.warning))
                 .into_any_element();
-            item(tinted, name.into(), Some(explanation.into()), None, t)
+            let allows = div().mt(px(2.)).text_size(px(12.)).text_color(t.text_muted).child(explanation);
+            let lines = vec![allows.into_any_element(), reason(&request.reason, t)];
+            item_with(tinted, name.into(), lines, None)
         })
         .collect()
+}
+
+/// Why the plugin needs a permission, in its own words, set apart from what the
+/// permission allows (which is Delight's).
+fn reason(reason: &str, t: &Theme) -> AnyElement {
+    let line = div().mt(px(6.)).text_size(px(12.));
+    if reason.is_empty() {
+        // Built before plugins said why.
+        return line.text_color(t.text_faint).child("The plugin doesn’t say why").into_any_element();
+    }
+    line.pl(px(8.)).border_l_2().border_color(t.border).child(format!("“{reason}”")).into_any_element()
 }
 
 /// The rows of a Tips section: each tip as its author wrote it, beside a lightbulb.

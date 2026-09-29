@@ -1,6 +1,7 @@
 //! What one plugin may ask of the app: its host object.
 
 use delight_protocol::{HostApi, Theme};
+use delight_runtime::Granted;
 use delight_ui::ActiveTheme as _;
 use embedded_gpui::shared;
 use gpui::{ClipboardItem, Context, Subscription};
@@ -11,14 +12,17 @@ use crate::{history, launcher, settings};
 /// that plugin's.
 pub(super) struct HostRoot {
     plugin_id: String,
+    /// What its permissions let it do, handed out when it asks (nothing yet: see
+    /// `Granted`).
+    _granted: Granted,
     _theme_changes: Subscription,
 }
 
 impl HostRoot {
-    pub(super) fn new(plugin_id: String, cx: &mut Context<Self>) -> Self {
+    pub(super) fn new(plugin_id: String, granted: Granted, cx: &mut Context<Self>) -> Self {
         // The plugin observes this object: tell it when the theme changes.
         let theme_changes = cx.observe_global::<delight_ui::Theme>(|_, cx| cx.notify());
-        Self { plugin_id, _theme_changes: theme_changes }
+        Self { plugin_id, _granted: granted, _theme_changes: theme_changes }
     }
 }
 

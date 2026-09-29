@@ -16,7 +16,7 @@ use embedded_gpui::{PluginHost, PluginHostHandle as _, PluginOptions, Remote, Sh
 use futures::future::{Either, join_all, select};
 use wasmtime_wasi::{DirPerms, FilePerms};
 
-use crate::{Candidate, rank};
+use crate::{Candidate, Granted, rank};
 
 /// Longest the app waits for a plugin's answer. A plugin that stops mid-call fails
 /// the call, but one called just after it stopped never answers; the timeout makes
@@ -36,7 +36,7 @@ pub fn plugin_options(
     data_dir: PathBuf,
     text_system: Arc<dyn PlatformTextSystem>,
 ) -> PluginOptions {
-    let network = manifest.plugin.permissions.contains(&Permission::Network);
+    let network = manifest.plugin.asks_for(Permission::Network);
     PluginOptions::new(text_system).with_wasi(move |wasi| {
         let mounted = std::fs::create_dir_all(&data_dir)
             .map_err(anyhow::Error::from)
@@ -65,19 +65,22 @@ pub struct Plugin {
 
 impl Plugin {
     /// Start the plugin in `file`: compile and instantiate it on a background thread,
-    /// install `host_root` as the app's root object for this plugin alone, and connect
-    /// to the plugin's root. A plugin that can't start is an error.
+    /// make the app's root object for this plugin alone with `host_root`, given what
+    /// the manifest grants, install it, and connect to the plugin's root. A plugin
+    /// that can't start is an error.
     pub fn start<H: Shared<HostApi>>(
         file: PathBuf,
         manifest: Manifest,
         options: PluginOptions,
-        host_root: Entity<H>,
+        host_root: impl FnOnce(Granted, &mut App) -> Entity<H> + 'static,
         cx: &mut App,
     ) -> Task<Result<Plugin>> {
         let load = PluginHost::load(file, options, cx);
         cx.spawn(async move |cx| {
             let host = load.await.context("the plugin didn't start")?;
             Ok(cx.update(|cx| {
+                let granted = Granted::new(host.registry(cx));
+                let host_root = host_root(granted, cx);
                 host.share_root(&host_root, cx);
                 let root = host.root::<PluginApi>(cx);
                 Plugin {
