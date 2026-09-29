@@ -1,6 +1,5 @@
-//! The editor's actions and the handler each one runs. Their keys are in
-//! Delight's keymap (the app's `keymaps/default-macos.json`), bound in the
-//! `Editor` key context; the editor's key context adds what the keymap can
+//! The editor's actions and the handler each one runs. Their keys are
+//! [`key_bindings`](super::key_bindings), bound in the `Editor` key context; the editor's key context adds what the keymap can
 //! test, e.g. `Editor && showing_completion`.
 
 use gpui::{Context, Div, InteractiveElement};

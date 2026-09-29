@@ -15,7 +15,7 @@
 
 pub use delight_manifest::{
     COMMAND_DIRS, CommandsPermission, MAX_TIP_CHARS, Manifest, NetworkPermission, Operation, PLUGIN_API_VERSION,
-    PROTOCOL_VERSION, Permission, PermissionRequest, PermissionSpec, PluginProperties, ProtocolVersion, validate_tip,
+    PROTOCOL_VERSION, Permission, PermissionRequest, PermissionSpec, PluginProperties, ProtocolVersion, validate_id, validate_tip,
 };
 
 /// Running programs, for plugins with `Commands`.
@@ -117,6 +117,24 @@ pub trait HostApi {
     /// Running the programs the manifest's `Commands` permission lists (`commands/`):
     /// `None` unless the plugin has it.
     fn commands(&mut self, cx: &mut gpui::Context<Self>) -> Option<Ref<CommandsApi>>;
+
+    /// A secret this plugin saved with [`HostApi::set_secret`] (an API key, a sign-in's
+    /// tokens), decrypted: `None` if there is none by this name. They are kept
+    /// encrypted, with the key in the Keychain, apart from the plugin's other data.
+    /// Needs no permission.
+    async fn secret(&mut self, key: String, cx: &mut gpui::Context<Self>) -> Option<String>;
+
+    /// Save a secret under `key` (1 to 256 bytes), encrypted. An empty `value` deletes
+    /// it.
+    async fn set_secret(&mut self, key: String, value: String, cx: &mut gpui::Context<Self>);
+
+    /// This Mac's time zone, as its offset from UTC now, in seconds: a plugin's sandbox
+    /// has no time zone of its own (its clock is UTC).
+    fn utc_offset_seconds(&mut self, cx: &mut gpui::Context<Self>) -> i32;
+
+    /// Open the settings window on this plugin's own page (its settings, if it has
+    /// them). Deferred: the launcher may be mid-update.
+    fn show_settings(&mut self, cx: &mut gpui::Context<Self>);
 }
 
 /// What is in the launcher: the typed or pasted text. A struct, so more (such as
@@ -302,7 +320,7 @@ mod tests {
         );
         assert_eq!(
             methods(HostApi::schema()),
-            ["toast", "hide", "remember_input", "current_theme", "clipboard", "http", "open_url", "dns", "commands"]
+            ["toast", "hide", "remember_input", "current_theme", "clipboard", "http", "open_url", "dns", "commands", "secret", "set_secret", "utc_offset_seconds", "show_settings"]
         );
     }
 }

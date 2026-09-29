@@ -385,13 +385,16 @@ height / text / icon / padding).
   (id, title, description, tags), permissions, has_settings.
 - Permissions and their labels: Network "Network", Commands "Runs commands",
   InputFiles "Reads pasted files", Clipboard "Reads the clipboard".
-- Host, no permission: settings / set_settings (JSON; null removes); data
+- Host, no permission (done so far in the rewrite: `secret` / `set_secret`, UTC
+  offset, `open_settings` as `show_settings`): settings / set_settings
+  (JSON; null removes); data
   folder `/data`; secret / set_secret (empty deletes); encrypt / decrypt
   (bound to this plugin); remember_input; set_input (undoable, drops files,
   re-detects: for chaining tools); toast; hide; copy_text; copy_file (name +
   bytes; Finder-style file, images also as image data; only the file name is
   used; the folder is wiped on each copy); open_url; open_settings (own
-  page); add_font (before first use); theme (+ observe); UTC offset; app pid.
+  page); add_font (before first use); theme (+ observe); UTC offset. No app pid: passing the right PID to a
+  process tool is the user's business.
 - Host, gated: read_input_file (InputFiles; the path must be one of the
   *current* input files); read_clipboard (Clipboard); run (Commands: a program
   the manifest lists, an absolute path directly in /bin, /sbin, /usr/bin or

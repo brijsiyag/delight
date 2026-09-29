@@ -61,6 +61,7 @@ pub fn delete(plugin_id: &str, file: &Path, cx: &mut App) -> anyhow::Result<()> 
         _ => {}
     }
     history::forget_plugin(plugin_id, cx);
+    crate::secrets::forget_plugin(plugin_id, cx);
     settings::update(cx, |settings| settings.forget_plugin(plugin_id));
     reload(cx);
     Ok(())

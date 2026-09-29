@@ -1674,6 +1674,8 @@ name = "delight-app"
 version = "2.0.0"
 dependencies = [
  "anyhow",
+ "base64 0.22.1",
+ "chrono",
  "delight-protocol",
  "delight-runtime",
  "delight-ui",
@@ -1691,6 +1693,8 @@ dependencies = [
  "plist",
  "raw-window-handle",
  "resvg",
+ "ring",
+ "security-framework",
  "serde",
  "serde_json",
  "tray-icon",

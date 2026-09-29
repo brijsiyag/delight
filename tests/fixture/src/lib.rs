@@ -2,6 +2,7 @@
 //! actions that depend on it, and some the tests perform to try what the app offers.
 
 mod commands;
+mod host_facts;
 // TEMPORARY(network)
 mod network;
 
@@ -92,6 +93,10 @@ enum EchoAction {
     Grpc,
     /// Runs the input's first line as a program with the other lines as its arguments.
     Run,
+    /// Secrets, the UTC offset, and the settings page.
+    Secrets,
+    Facts,
+    ShowSettings,
     // TEMPORARY(open_url): opens the input as a URL, toasting "opened" or why not.
     OpenUrl,
 }
@@ -140,6 +145,9 @@ impl Tool for Echo {
             EchoAction::Listen => network::listen(cx),
             EchoAction::Grpc => network::grpc(&self.text.clone(), cx),
             EchoAction::Run => commands::run(&self.text.clone(), cx),
+            EchoAction::Secrets => host_facts::secrets(&self.text.clone(), cx),
+            EchoAction::Facts => host_facts::facts(cx),
+            EchoAction::ShowSettings => host(cx).open_settings(cx),
             // TEMPORARY(open_url)
             EchoAction::OpenUrl => {
                 let opened = host(cx).open_url(self.text.clone(), cx);

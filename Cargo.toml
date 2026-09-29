@@ -47,6 +47,8 @@ anyhow = "=1.0.103"
 # the lock (GPUI, wasmtime): HTTP for plugins, the bytes that cross (base64), and the
 # async runtime the app's HTTP runs on.
 base64 = "=0.22.1"
+# The version GPUI links, for the local time zone's offset from UTC.
+chrono = { version = "=0.4.45", default-features = false, features = ["clock"] }
 bytes = "=1.12.0"
 http = "=1.4.2"
 http-body = "=1.0.1"
@@ -83,6 +85,9 @@ objc2-app-kit = { version = "=0.3.2", default-features = false, features = [
 objc2-foundation = { version = "=0.3.2", default-features = false, features = ["std", "NSGeometry", "NSString"] }
 # Writing the open-at-login LaunchAgent.
 plist = "=1.10.1"
+# Plugin secrets: AES-256-GCM (`ring`), with the key in the login Keychain.
+ring = "=0.17.14"
+security-framework = "=3.7.0"
 proc-macro2 = "=1.0.106"
 # The version GPUI links: the NSView behind a GPUI window.
 raw-window-handle = "=0.6.2"

@@ -109,6 +109,19 @@ pub fn open(cx: &mut App) {
     }
 }
 
+/// Open the settings window on a plugin's own page.
+pub fn open_plugin(plugin_id: String, cx: &mut App) {
+    open(cx);
+    if let Some(handle) = cx.try_global::<OpenSettingsWindow>().map(|open| open.0) {
+        handle
+            .update(cx, |this, _, cx| {
+                this.page = Page::Plugin(plugin_id);
+                cx.notify();
+            })
+            .ok();
+    }
+}
+
 impl SettingsWindow {
     fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
         let shortcut = cx.new(|cx| ShortcutRecorder::new(hotkey::current(cx), cx));

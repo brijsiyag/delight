@@ -7,7 +7,7 @@ use embedded_gpui::{ClipboardApi, Ref, shared};
 use anyhow::Result;
 use gpui::{Context, Subscription, Task};
 
-use crate::{history, launcher, settings};
+use crate::{history, launcher, secrets, settings, settings_window};
 
 /// What one plugin may ask of the app. Each plugin has its own, so every call is
 /// that plugin's.
@@ -66,6 +66,23 @@ impl HostApi for HostRoot {
 
     fn commands(&mut self, cx: &mut Context<Self>) -> Option<Ref<CommandsApi>> {
         self.granted.commands(cx)
+    }
+
+    fn secret(&mut self, key: String, cx: &mut Context<Self>) -> Task<Result<Option<String>>> {
+        Task::ready(secrets::get_mut(cx).get(&self.plugin_id, &key))
+    }
+
+    fn set_secret(&mut self, key: String, value: String, cx: &mut Context<Self>) -> Task<Result<()>> {
+        Task::ready(secrets::get_mut(cx).set(&self.plugin_id, &key, &value))
+    }
+
+    fn utc_offset_seconds(&mut self, _cx: &mut Context<Self>) -> i32 {
+        chrono::Local::now().offset().local_minus_utc()
+    }
+
+    fn show_settings(&mut self, cx: &mut Context<Self>) {
+        let plugin_id = self.plugin_id.clone();
+        cx.defer(move |cx| settings_window::open_plugin(plugin_id, cx));
     }
 
     // TEMPORARY(open_url)

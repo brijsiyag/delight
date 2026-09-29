@@ -53,8 +53,10 @@ pub fn init_plugin(cx: &mut gpui::App) {
     cx.bind_keys(key_bindings());
 }
 
-/// The kit's own keys, for the app's keymap and each plugin's: ← and → in a
-/// segmented control.
+/// The kit's own keys, for the app's keymap and each plugin's: text editing in an input,
+/// and ← and → in a segmented control.
 pub fn key_bindings() -> Vec<gpui::KeyBinding> {
-    segmented::key_bindings().into()
+    let mut bindings: Vec<gpui::KeyBinding> = editor::key_bindings();
+    bindings.extend(segmented::key_bindings());
+    bindings
 }

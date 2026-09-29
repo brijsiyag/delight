@@ -19,9 +19,11 @@ mod blink;
 mod commands;
 mod element;
 pub mod history;
+mod keys;
 mod ime;
 pub mod actions;
 mod state;
 pub mod text;
 
+pub use keys::key_bindings;
 pub use state::{EditorEvent, EditorFont, TextEditor};

@@ -143,7 +143,7 @@ in its step):
   plugin's settings, secrets and encrypt/decrypt; remember an input; set the
   launcher input (`set_launcher_input`); toast;
   hide; copy text or a file; open a URL; open its settings page; add a
-  font; host facts (UTC offset, app pid); the theme object; and the gated
+  font; host facts (the UTC offset); the theme object; and the gated
   objects this plugin was granted (run commands, read the clipboard).
 - **Plugin root**: `detect(input) -> [(operation, confidence)]`,
   `open_tool(operation, surface) -> Ref<Tool>`, `open_settings(surface)`.
@@ -293,9 +293,15 @@ fork's `delight` branch.
     arguments (not checked: no shell, so `|` and `;` are just text), a
     cleared environment, the plugin's data folder as the working folder,
     and a time limit. It is generic, for any plugin, so Process and Port
-    kill use it rather than an API of their own; Process also brings the
-    app's process id as a host fact (it won't stop Delight). Logs takes an API key on its settings page: ⌘V pastes
-    it into the field, so its "Paste from clipboard" button can go.
+    kill use it rather than an API of their own; passing the right PID
+    is the user's business (nothing stops Delight's own). Logs takes an API key on its settings page: ⌘V pastes
+    it into the field, so its "Paste from clipboard" button can go. Done in
+    `~/Desktop/delight-umbrella/delight-plugins`: Process, Port kill (new: `port <n>`), Logs and
+    Google Calendar, with `secret` / `set_secret` (step 15's store, early: one
+    Keychain master key, AES-256-GCM), `utc_offset_seconds` and
+    `show_settings` as host facts, and the text editor's keys bound in every plugin
+    (`delight_ui::key_bindings`). Logs and Google Calendar use the Network
+    permission's HTTP; Valmo's self-signed cluster is a decision still open.
 15. **Secrets, updates, release**: encrypted plugin secrets (one Keychain
     master key), automatic updates, bundling (the built-in plugins go in
     `Contents/Resources/plugins`), signing, notarisation, the DMG, version

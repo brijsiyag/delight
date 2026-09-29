@@ -6,6 +6,7 @@
 
 mod files;
 mod history;
+mod secrets;
 mod hotkey;
 mod keymap;
 mod launcher;
@@ -65,6 +66,7 @@ fn main() {
         settings::apply_appearance(appearance, cx);
         keymap::init(cx);
         history::init(cx);
+        secrets::init(cx);
         cx.on_action(|_: &Quit, cx| cx.quit());
         if let Err(error) = launcher::open(cx) {
             log::error!("opening the launcher: {error:#}");

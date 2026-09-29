@@ -29,8 +29,9 @@ pub const PLUGIN_API_VERSION: &str = env!("CARGO_PKG_VERSION");
 /// plugins use GPUI's own clipboard (`HostApi::clipboard`: reading and writing)
 /// instead of `HostApi::copy_text`, `Plugin::open_tool` and `settings_page` have no
 /// window, and a tool's actions are an enum (`Tool::Action`, `#[derive(Actions)]`);
-/// with `HostApi::http` (the app's network, for now), `HostApi::open_url`, `HostApi::dns`
-/// and `HostApi::commands` (the `Commands` permission).
+/// with `HostApi::http` (the app's network, for now), `HostApi::open_url`, `HostApi::dns`,
+/// `HostApi::commands` (the `Commands` permission), secrets, the UTC offset and
+/// `HostApi::show_settings`.
 pub const PROTOCOL_VERSION: ProtocolVersion = ProtocolVersion {
     major: number(env!("CARGO_PKG_VERSION_MAJOR")),
     minor: number(env!("CARGO_PKG_VERSION_MINOR")),

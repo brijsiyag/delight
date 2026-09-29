@@ -49,6 +49,10 @@ struct FakeApp {
     theme_requests: usize,
     /// TEMPORARY(open_url): the pages the plugin opened.
     opened: Vec<String>,
+    /// What the plugin saved as secrets.
+    secrets: std::collections::HashMap<String, String>,
+    /// How many times the plugin asked for its settings page.
+    settings_shown: usize,
 }
 
 #[shared]
@@ -98,6 +102,27 @@ impl HostApi for FakeApp {
 
     fn dns(&mut self, cx: &mut Context<Self>) -> Option<Ref<DnsApi>> {
         self.granted.as_ref().expect("given as the plugin starts").dns(cx)
+    }
+
+    fn secret(&mut self, key: String, _cx: &mut Context<Self>) -> gpui::Task<anyhow::Result<Option<String>>> {
+        gpui::Task::ready(Ok(self.secrets.get(&key).cloned()))
+    }
+
+    fn set_secret(&mut self, key: String, value: String, _cx: &mut Context<Self>) -> gpui::Task<anyhow::Result<()>> {
+        if value.is_empty() {
+            self.secrets.remove(&key);
+        } else {
+            self.secrets.insert(key, value);
+        }
+        gpui::Task::ready(Ok(()))
+    }
+
+    fn utc_offset_seconds(&mut self, _cx: &mut Context<Self>) -> i32 {
+        19_800
+    }
+
+    fn show_settings(&mut self, _cx: &mut Context<Self>) {
+        self.settings_shown += 1;
     }
 
     fn commands(&mut self, cx: &mut Context<Self>) -> Option<Ref<CommandsApi>> {
@@ -385,6 +410,7 @@ async fn the_plugin_reads_the_clipboard(cx: &mut TestAppContext) {
 }
 
 mod commands;
+mod host_facts;
 
 // TEMPORARY(network): the app's HTTP for plugins.
 mod network;
