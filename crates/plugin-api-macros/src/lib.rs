@@ -36,7 +36,7 @@ use syn::LitStr;
 /// permission says why the plugin needs it, in at most 100 characters: people read it
 /// next to what the permission allows when they install the plugin. `tips` are
 /// hints on using the plugin, which the launcher's empty input shows now and then:
-/// at most 5, each at most 80 characters. Icon paths
+/// at most 5, each at most 60 characters. Icon paths
 /// are relative to the crate's `Cargo.toml`. The type must implement `Plugin`, whose
 /// `Operation` derives `Operations`: the two are joined into the plugin's custom
 /// section at compile time. A mistake is a compile error.

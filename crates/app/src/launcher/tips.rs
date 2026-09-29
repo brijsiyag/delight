@@ -63,6 +63,15 @@ mod tests {
     use super::*;
 
     #[test]
+    fn delights_own_tips_keep_to_the_plugins_limit() {
+        // The launcher's own shortcut at its longest: every modifier, and a named key.
+        let shortcut = format!("{} shows Delight from any app", "⌃⌥⇧⌘Space");
+        for tip in TIPS.iter().chain(HISTORY_TIPS).copied().chain([shortcut.as_str()]) {
+            delight_protocol::validate_tip(tip).unwrap_or_else(|error| panic!("{tip:?}: {error:#}"));
+        }
+    }
+
+    #[test]
     fn never_the_same_tip_twice_in_a_row() {
         let tips = || TIPS.iter().map(|tip| tip.to_string()).collect::<Vec<_>>();
         for random in 0..20 {

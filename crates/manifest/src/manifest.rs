@@ -44,8 +44,10 @@ pub struct PluginProperties {
 
 /// Most tips a plugin has.
 pub const MAX_TIPS: usize = 5;
-/// The longest a tip is, in characters: it fits the launcher's input on one line.
-pub const MAX_TIP_CHARS: usize = 80;
+/// The longest a tip is, in characters, so it fits the launcher's input on one line:
+/// the input is 562pt wide when a tip shows, which is 72 characters of 13pt Lilex, and
+/// symbols such as ⌘ and ↵ come from wider fonts.
+pub const MAX_TIP_CHARS: usize = 60;
 /// The longest a permission's reason is, in characters: a sentence.
 pub const MAX_REASON_CHARS: usize = 100;
 

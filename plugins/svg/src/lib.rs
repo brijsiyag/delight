@@ -22,7 +22,7 @@ use gpui::{App, AppContext as _, AssetSource};
     icon = "assets/icon.svg",
     tags = ["svg", "image", "preview"],
     tips = [
-        "Paste an SVG to preview it, on a checkerboard or a light or dark backdrop",
+        "Paste an SVG to preview it on a checkerboard, light or dark",
         "↵ copies a pasted SVG as a data URI",
     ],
 )]

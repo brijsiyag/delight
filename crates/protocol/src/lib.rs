@@ -14,8 +14,8 @@
 //! are unique across the interfaces here and don't clash with type names.
 
 pub use delight_manifest::{
-    Manifest, Operation, PLUGIN_API_VERSION, PROTOCOL_VERSION, Permission, PermissionRequest, PluginProperties,
-    ProtocolVersion,
+    MAX_TIP_CHARS, Manifest, Operation, PLUGIN_API_VERSION, PROTOCOL_VERSION, Permission, PermissionRequest,
+    PluginProperties, ProtocolVersion, validate_tip,
 };
 
 use embedded_gpui::ClipboardApi;
