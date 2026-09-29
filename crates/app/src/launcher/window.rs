@@ -29,7 +29,7 @@ pub fn open(cx: &mut App) -> anyhow::Result<()> {
             size(px(BAR_WIDTH), px(BAR_HEIGHT)),
         ))),
         titlebar: None,
-        // Shown once restyled, by `show`.
+        // Not shown at launch: the hotkey or the menu bar icon shows it (`show`).
         focus: false,
         show: false,
         kind: WindowKind::PopUp,
@@ -55,11 +55,10 @@ pub fn open(cx: &mut App) -> anyhow::Result<()> {
         async {}
     })
     .detach();
-    cx.spawn(async move |cx| {
+    cx.spawn(async move |_| {
         if let Some(native) = native {
             native.style_floating_panel(BAR_RADIUS.into());
         }
-        cx.update(show);
     })
     .detach();
     Ok(())

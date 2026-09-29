@@ -54,7 +54,7 @@ that code was organised. Where the rewrite changes something on purpose,
   app or Settings took focus). Save the input for restore if history is on.
 - Esc hides (deferred). Losing activation while visible hides if "Hide when
   focus is lost" is on (default on).
-- At launch the window is shown and the app activated.
+- At launch the window is made and styled but not shown: the hotkey or "Open Delight" in the menu bar shows it.
 - **GPUI deadlock (fixed upstream)**: a window becoming key while the app
   is inactive makes AppKit report `isKeyWindow == NO` inside
   `windowDidBecomeKey:`, and GPUI then calls `resignKeyWindow`. crates.io
