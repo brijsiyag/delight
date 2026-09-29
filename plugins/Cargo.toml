@@ -4,7 +4,7 @@
 # development the app loads them from target/wasm32-wasip2/release.
 [workspace]
 resolver = "3"
-members = ["svg"]
+members = ["json", "svg", "yaml"]
 
 [workspace.package]
 # The built-ins ship with the app: its version.
@@ -28,6 +28,11 @@ gpui = { git = "https://github.com/zed-industries/zed.git", branch = "gpui-multi
 base64 = "=0.22.1"
 # The version GPUI links, with no features of its own.
 resvg = { version = "=0.46.0", default-features = false }
+serde = { version = "=1.0.228", features = ["derive"] }
+# Objects keep their keys' order (JSON's Format, YAML ⇄ JSON).
+serde_json = { version = "=1.0.150", features = ["preserve_order"] }
+# YAML 1.2, pure Rust.
+yaml-rust2 = { version = "=0.13.0", default-features = false }
 
 [profile.release]
 lto = true

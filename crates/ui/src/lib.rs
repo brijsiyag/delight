@@ -10,6 +10,10 @@
 mod assets;
 mod badge;
 mod button;
+#[cfg(feature = "code")]
+pub mod code;
+#[cfg(feature = "code")]
+pub mod conversion;
 pub mod editor;
 mod group;
 mod icon;
@@ -32,7 +36,7 @@ pub use raster::render_image;
 pub use segmented::SegmentedControl;
 pub use styled::{Disableable, Selectable, Sizable, Size, StyledExt, h_flex, v_flex};
 pub use switch::Switch;
-pub use theme::{ActiveTheme, Theme, ThemeMode};
+pub use theme::{ActiveTheme, Syntax, Theme, ThemeMode};
 pub use tooltip::Tooltip;
 
 /// In the app: load the bundled font and resolve the theme.
@@ -41,8 +45,16 @@ pub fn init(cx: &mut gpui::App, mode: ThemeMode) {
     theme::init(cx, mode);
 }
 
-/// In a plugin (a built-in tool): the theme is the app's, and follows it. Call it
-/// once, before drawing, and install [`Assets`] as the plugin's assets.
+/// In a plugin (a built-in tool): the theme is the app's, and follows it, and the
+/// kit's keys are bound (the app's keymap doesn't reach a plugin). Call it once,
+/// before drawing, and install [`Assets`] as the plugin's assets.
 pub fn init_plugin(cx: &mut gpui::App) {
     theme::init_plugin(cx);
+    cx.bind_keys(key_bindings());
+}
+
+/// The kit's own keys, for the app's keymap and each plugin's: ← and → in a
+/// segmented control.
+pub fn key_bindings() -> Vec<gpui::KeyBinding> {
+    segmented::key_bindings().into()
 }

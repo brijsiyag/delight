@@ -9,8 +9,9 @@
 use std::rc::Rc;
 
 use gpui::{
-    App, ElementId, FocusHandle, InteractiveElement, IntoElement, KeyContext, MouseButton, ParentElement, RenderOnce,
-    SharedString, StatefulInteractiveElement, Styled, Window, actions, div, prelude::FluentBuilder, px, white,
+    App, ElementId, FocusHandle, InteractiveElement, IntoElement, KeyBinding, KeyContext, MouseButton, ParentElement,
+    RenderOnce, SharedString, StatefulInteractiveElement, Styled, Window, actions, div, prelude::FluentBuilder, px,
+    white,
 };
 
 use crate::{ActiveTheme, Disableable};
@@ -19,6 +20,16 @@ actions!(segmented_control, [SelectPrevious, SelectNext]);
 
 /// The key context of a focused segmented control.
 pub const CONTEXT: &str = "SegmentedControl";
+
+/// ← and → move between a focused control's segments. Past its ends they aren't
+/// bound, so they go on to what's around it: in the launcher, ← on the first segment
+/// goes back to the tool list.
+pub(crate) fn key_bindings() -> [KeyBinding; 2] {
+    [
+        KeyBinding::new("left", SelectPrevious, Some("SegmentedControl && !first")),
+        KeyBinding::new("right", SelectNext, Some("SegmentedControl && !last")),
+    ]
+}
 
 type ChangeHandler = Rc<dyn Fn(&usize, &mut Window, &mut App)>;
 

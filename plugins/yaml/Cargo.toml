@@ -1,0 +1,20 @@
+[package]
+name = "delight-yaml"
+description = "Delight's YAML tool: YAML to JSON, and JSON to YAML"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+delight-plugin-api = { workspace = true }
+delight-ui = { workspace = true, features = ["code"] }
+gpui = { workspace = true }
+serde_json = { workspace = true }
+yaml-rust2 = { workspace = true }

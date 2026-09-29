@@ -8,14 +8,14 @@ use delight_ui::{
     keystroke_for, keystroke_label, v_flex,
 };
 use gpui::{
-    AnyElement, Context, FocusHandle, Focusable, FontWeight, IntoElement, MouseButton, ParentElement, Render,
-    Styled, Window, div, prelude::*, px,
+    AnyElement, Context, FocusHandle, Focusable, FontWeight, IntoElement, KeyDownEvent, MouseButton, ParentElement,
+    Render, Styled, Window, div, prelude::*, px,
 };
 
 use super::{
     BAR_HEIGHT, BAR_ICON_GAP, BAR_ICON_SIZE, BAR_PADDING_X, CONTEXT, ClearInput, Dismiss, FocusNext, FocusPrevious,
-    FocusTools, Launcher, NewerCompletion, OlderCompletion, OpenSettings, SelectNext, SelectPrevious, SelectTool,
-    TOOL_LIST_CONTEXT, hide, history_search,
+    FocusTool, FocusTools, Launcher, NewerCompletion, OlderCompletion, OpenSettings, SelectNext, SelectPrevious,
+    SelectTool, TOOL_CONTEXT, TOOL_LIST_CONTEXT, hide, history_search,
 };
 use crate::{macos, plugins, settings_window};
 
@@ -58,6 +58,7 @@ impl Render for Launcher {
             .on_action(cx.listener(|_, _: &FocusNext, window, cx| window.focus_next(cx)))
             .on_action(cx.listener(|_, _: &FocusPrevious, window, cx| window.focus_prev(cx)))
             .on_action(cx.listener(|this, _: &FocusTools, window, cx| this.focus_tools(window, cx)))
+            .on_action(cx.listener(|this, _: &FocusTool, window, cx| this.focus_tool(window, cx)))
             .on_action(cx.listener(|this, _: &SelectPrevious, window, cx| this.select_previous(window, cx)))
             .on_action(cx.listener(|this, _: &SelectNext, _, cx| this.select_next(cx)))
             .on_action(cx.listener(|this, SelectTool(n): &SelectTool, _, cx| {
@@ -242,7 +243,14 @@ impl Launcher {
             // The rest of the height; the plugin draws its view there.
             Some(pane) => {
                 let surface = pane.read(cx).surface.clone();
-                detail.child(v_flex().flex_1().min_h(px(0.)).overflow_hidden().child(surface))
+                let tool = v_flex()
+                    .key_context(TOOL_CONTEXT)
+                    .on_key_down(cx.listener(|this, event: &KeyDownEvent, window, cx| this.on_tool_key_down(event, window, cx)))
+                    .flex_1()
+                    .min_h(px(0.))
+                    .overflow_hidden()
+                    .child(surface);
+                detail.child(tool)
             }
             None => detail,
         }

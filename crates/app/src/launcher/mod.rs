@@ -70,6 +70,9 @@ const STOPPED_TOAST: Duration = Duration::from_secs(8);
 pub const CONTEXT: &str = "Launcher";
 /// The key context of the tool list, while it has focus.
 pub const TOOL_LIST_CONTEXT: &str = "ToolList";
+/// The key context around the selected tool's view: keys the tool doesn't use come
+/// back out through it.
+pub const TOOL_CONTEXT: &str = "Tool";
 
 actions!(
     launcher,
@@ -81,6 +84,8 @@ actions!(
         FocusPrevious,
         /// Move focus to the tool list.
         FocusTools,
+        /// Move focus into the selected tool, to its first control.
+        FocusTool,
         /// In the tool list; on the first tool, back to the input.
         SelectPrevious,
         SelectNext,
@@ -430,6 +435,29 @@ impl Launcher {
         }
         window.focus(&self.list_focus, cx);
         cx.notify();
+    }
+
+    /// Move focus into the selected tool: its view is the tab stop after the list, and
+    /// focus arriving there goes on to the tool's first control.
+    fn focus_tool(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.selected_pane(cx).is_some() {
+            window.focus_next(cx);
+        }
+    }
+
+    /// Keys the tool left alone (it answers first): ← and ⇧Tab go back to the tool
+    /// list, and Tab past the tool's last control on to the input.
+    fn on_tool_key_down(&mut self, event: &KeyDownEvent, window: &mut Window, cx: &mut Context<Self>) {
+        let keystroke = &event.keystroke;
+        let modifiers = keystroke.modifiers;
+        let plain = !(modifiers.platform || modifiers.control || modifiers.alt || modifiers.function);
+        match keystroke.key.as_str() {
+            "left" if plain && !modifiers.shift => self.focus_tools(window, cx),
+            "tab" if plain && modifiers.shift => self.focus_tools(window, cx),
+            "tab" if plain => window.focus_next(cx),
+            _ => return,
+        }
+        cx.stop_propagation();
     }
 
     /// Typing while the tool list has focus goes on in the input.

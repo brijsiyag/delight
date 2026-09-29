@@ -9,6 +9,12 @@ publish = false
 [lints]
 workspace = true
 
+[features]
+# Highlighted code and a converting tool's result: tree-sitter, which is C (for
+# plugins, built with the WASI SDK; see the README). Only the built-ins that show
+# code turn it on.
+code = ["dep:tree-sitter", "dep:tree-sitter-highlight", "dep:tree-sitter-json", "dep:tree-sitter-yaml"]
+
 [dependencies]
 delight-protocol = { workspace = true }
 gpui = { workspace = true }
@@ -16,4 +22,8 @@ image = { workspace = true }
 log = { workspace = true }
 resvg = { workspace = true }
 smallvec = { workspace = true }
+tree-sitter = { workspace = true, optional = true }
+tree-sitter-highlight = { workspace = true, optional = true }
+tree-sitter-json = { workspace = true, optional = true }
+tree-sitter-yaml = { workspace = true, optional = true }
 unicode-segmentation = { workspace = true }

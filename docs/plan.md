@@ -238,7 +238,10 @@ fork's `delight` branch.
     `delight-ui` in plugins (its wasm build, its theme from `theme(cx)`,
     its icons through `Plugin::assets`); and the SVG tool, which needs no C
     (copying as PNG waits for `copy_file`). Then, after step 12 (settings
-    and installing plugins come first): the WASI SDK (tree-sitter is C),
+    and installing plugins come first): the WASI SDK (tree-sitter is C:
+    its clang and wasi-libc build it for wasm32-wasip2; developers unpack
+    the pinned SDK into `target/wasi-sdk`, where `plugins/.cargo/config.toml`
+    points `WASI_SDK_PATH`, and the release xtask fetches it, step 15),
     syntax highlighting, and the JSON and YAML tools.
 12. **Settings window and permissions**, a new design rather than the
     previous attempt's two tabs: an 800×580 window with a sidebar, like
@@ -304,14 +307,12 @@ Not needed to get the app working; each waits until it is.
   GPUI's own clipboard calls, through embedded_gpui's clipboard object the
   app hands out (`HostApi::clipboard`: reading and writing, so ⌘V pastes in
   a plugin's text field), instead of `HostApi::copy_text`; `open_view` takes a finished
-  view, so `Plugin::open_tool` and `settings_page` have no window. It also
+  view, so `Plugin::open_tool` and `settings_page` have no window; and a
+  surface is a tab stop that passes focus to the tool's first control and
+  back the keys the tool leaves alone, so → (or Tab) in the tool list moves
+  into the tool and ← on its first control back. It also
   brings overlays (a plugin's tooltips and popovers, drawn above the app),
   IME and dead keys in plugins, and a stopped plugin's surface saying why.
-- **Keyboard focus into a tool**: with `surfaces-as-roots` a surface is a
-  tab stop, and Tab crosses into it and out. The launcher's Tab takes the
-  grey completion, so which key moves into the tool is to decide; until
-  then a surface takes focus when clicked, and tools work through the
-  input and their footer actions.
 - **Pasted files**: Finder files pasted into the input, shown as tags and
   passed to tools with the text, their contents only with an `InputFiles`
   permission. `Input` is a struct so they can join it as a minor protocol

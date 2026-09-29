@@ -139,6 +139,48 @@ impl Theme {
     pub fn window_tint(&self) -> Hsla {
         if self.dark { gray(0.13, 0.88) } else { gray(0.97, 0.86) }
     }
+
+    /// Colours for highlighted code: Xcode's, in light or dark.
+    pub fn syntax(&self) -> Syntax {
+        if self.dark {
+            Syntax {
+                property: color(0x67B7A4),
+                string: color(0xFC6A5D),
+                number: color(0xD0BF69),
+                constant: color(0xFC5FA3),
+                comment: color(0x6C7986),
+                type_: color(0x5DD8FF),
+                keyword: color(0xFC5FA3),
+                punctuation: gray(1., 0.55),
+            }
+        } else {
+            Syntax {
+                property: color(0x0B4F79),
+                string: color(0xC41A16),
+                number: color(0x1C00CF),
+                constant: color(0x9B2393),
+                comment: color(0x5D6C79),
+                type_: color(0x3900A0),
+                keyword: color(0x9B2393),
+                punctuation: gray(0., 0.5),
+            }
+        }
+    }
+}
+
+/// Colours for highlighted code ([`Theme::syntax`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Syntax {
+    /// Keys: a JSON object's, a YAML mapping's.
+    pub property: Hsla,
+    pub string: Hsla,
+    pub number: Hsla,
+    /// `true`, `null`, escapes.
+    pub constant: Hsla,
+    pub comment: Hsla,
+    pub type_: Hsla,
+    pub keyword: Hsla,
+    pub punctuation: Hsla,
 }
 
 fn color(hex: u32) -> Hsla {
