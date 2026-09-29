@@ -8,8 +8,10 @@
 //!   [`detect_all`], which asks every plugin at once and ranks the answers.
 
 mod granted;
+// TEMPORARY(open_url): which URLs a plugin may open; README, "Temporary host APIs".
+pub mod open_url;
 // TEMPORARY(network): the app's HTTP for plugins, until embedded_gpui links `wasi:http`; README,
-// "Temporary: the network APIs".
+// "Temporary host APIs".
 mod network;
 mod plugin;
 mod plugin_file;

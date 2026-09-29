@@ -42,8 +42,11 @@
 #[cfg(target_arch = "wasm32")]
 mod glue;
 mod host;
+// TEMPORARY(open_url): `Host::open_url`, until embedded_gpui forwards GPUI's own; README,
+// "Temporary host APIs".
+mod open_url;
 // TEMPORARY(network): HTTP, callbacks and gRPC through the app, until embedded_gpui links
-// `wasi:http`; README, "Temporary: the network APIs".
+// `wasi:http`; README, "Temporary host APIs".
 pub mod network;
 mod tool;
 

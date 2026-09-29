@@ -29,7 +29,7 @@ These were settled in the previous attempt (see its
 5. The network, for now, is the app's (step 13): HTTP, HTTP callbacks and
    gRPC done natively and handed to plugins with `Network`, besides WASI's
    own sockets. It goes once embedded_gpui links `wasi:http`, and plugins use
-   standard clients (README, "Temporary: the network APIs").
+   standard clients (README, "Temporary host APIs").
 6. GPUI is not forked: it is used directly from Zed's repository by the
    app, embedded_gpui and every plugin.
 7. embedded_gpui is used from upstream (`zed-industries/embedded_gpui`) at a
@@ -263,7 +263,7 @@ fork's `delight` branch.
     yet: the gated capabilities, `add_font` and the host facts come with the
     plugins that need them (step 14).
 13. **Network**, temporary until embedded_gpui links `wasi:http` (README,
-    "Temporary: the network APIs"; every piece in a `network/` folder or marked
+    "Temporary host APIs"; every piece in a `network/` folder or marked
     `TEMPORARY(network)`). Plugins with `Network` keep WASI's sockets
     (`with_wasi`), and get `HostApi::http`: requests streamed both ways
     through an exchange object and a plugin-homed receiver (the app waits for
@@ -276,7 +276,8 @@ fork's `delight` branch.
     feature). Headless tests against local HTTP and HTTP/2 servers.
 14. **DNS tool**, then port the third-party plugins in
     `~/Desktop/delight-plugins` (the image plugin waits for pasted files,
-    see Later). Each brings the host capabilities it needs. DNS runs no
+    see Later). Each brings the host capabilities it needs; `open_url`, for
+    a sign-in, is in already (temporarily: README, "Temporary host APIs"). DNS runs no
     programs: it asks the Mac's resolvers itself over WASI sockets
     (`hickory-proto` for the messages; `Network`), and the app tells it
     which they are, as a host fact (which server answers which domain, VPNs'

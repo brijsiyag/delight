@@ -47,6 +47,8 @@ struct FakeApp {
     remembered: Vec<(String, String)>,
     /// How many times the plugin asked for the theme.
     theme_requests: usize,
+    /// TEMPORARY(open_url): the pages the plugin opened.
+    opened: Vec<String>,
 }
 
 #[shared]
@@ -92,6 +94,12 @@ impl HostApi for FakeApp {
 
     fn http(&mut self, cx: &mut Context<Self>) -> Option<Ref<HttpApi>> {
         self.granted.as_ref().expect("given as the plugin starts").http(cx)
+    }
+
+    // TEMPORARY(open_url): as the app, with its check, but without a browser.
+    fn open_url(&mut self, url: String, _cx: &mut Context<Self>) -> gpui::Task<anyhow::Result<()>> {
+        let checked = delight_runtime::open_url::web_page(&url).map(|url| self.opened.push(url.to_string()));
+        gpui::Task::ready(checked)
     }
 }
 
@@ -339,3 +347,6 @@ async fn the_plugin_reads_the_clipboard(cx: &mut TestAppContext) {
 
 // TEMPORARY(network): the app's HTTP for plugins.
 mod network;
+
+// @M@: opening a web page.
+mod open_url;

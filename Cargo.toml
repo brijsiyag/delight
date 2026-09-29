@@ -43,7 +43,7 @@ delight-ui = { path = "crates/ui" }
 embedded_gpui = { git = "https://github.com/zed-industries/embedded_gpui.git", rev = "ceb0df8266592ddb4c5540c5f09ec10680f34c14" }
 anyhow = "=1.0.103"
 # TEMPORARY(network), down to `tower-service`: the app's HTTP for plugins, until embedded_gpui
-# links `wasi:http` (README, "Temporary: the network APIs"). The versions already in
+# links `wasi:http` (README, "Temporary host APIs"). The versions already in
 # the lock (GPUI, wasmtime): HTTP for plugins, the bytes that cross (base64), and the
 # async runtime the app's HTTP runs on.
 base64 = "=0.22.1"

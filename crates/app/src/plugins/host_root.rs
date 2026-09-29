@@ -4,7 +4,8 @@ use delight_protocol::{HostApi, HttpApi, Theme};
 use delight_runtime::Granted;
 use delight_ui::ActiveTheme as _;
 use embedded_gpui::{ClipboardApi, Ref, shared};
-use gpui::{Context, Subscription};
+use anyhow::Result;
+use gpui::{Context, Subscription, Task};
 
 use crate::{history, launcher, settings};
 
@@ -57,5 +58,15 @@ impl HostApi for HostRoot {
     // TEMPORARY(network)
     fn http(&mut self, cx: &mut Context<Self>) -> Option<Ref<HttpApi>> {
         self.granted.http(cx)
+    }
+
+    // TEMPORARY(open_url)
+    fn open_url(&mut self, url: String, cx: &mut Context<Self>) -> Task<Result<()>> {
+        if let Err(error) = delight_runtime::open_url::web_page(&url) {
+            return Task::ready(Err(error));
+        }
+        // Deferred: the browser taking focus hides the launcher, mid-update otherwise.
+        cx.defer(move |cx| cx.open_url(&url));
+        Task::ready(Ok(()))
     }
 }

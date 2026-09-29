@@ -83,6 +83,8 @@ enum EchoAction {
     Fetch,
     Listen,
     Grpc,
+    // TEMPORARY(open_url): opens the input as a web page, toasting "opened" or why not.
+    OpenUrl,
 }
 
 impl Tool for Echo {
@@ -128,6 +130,18 @@ impl Tool for Echo {
             EchoAction::Fetch => network::fetch(&self.text.clone(), cx),
             EchoAction::Listen => network::listen(cx),
             EchoAction::Grpc => network::grpc(&self.text.clone(), cx),
+            // TEMPORARY(open_url)
+            EchoAction::OpenUrl => {
+                let opened = host(cx).open_url(self.text.clone(), cx);
+                cx.spawn(async move |_, cx| {
+                    let message = match opened.await {
+                        Ok(()) => "opened".to_string(),
+                        Err(error) => format!("{error:#}"),
+                    };
+                    cx.update(|cx| host(cx).toast(message, cx));
+                })
+                .detach();
+            }
         }
     }
 }

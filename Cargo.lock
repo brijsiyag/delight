@@ -1773,6 +1773,7 @@ dependencies = [
 name = "delight-tests"
 version = "2.0.0"
 dependencies = [
+ "anyhow",
  "bytes",
  "delight-protocol",
  "delight-runtime",

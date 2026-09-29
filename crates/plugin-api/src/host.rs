@@ -11,7 +11,7 @@ use crate::gpui::{App, Global, Subscription};
 /// wait for the app. Natively (in a plugin's unit tests) they do nothing.
 #[derive(Clone)]
 pub struct Host {
-    // TEMPORARY(network): crate-wide for `network/`.
+    // TEMPORARY(network), TEMPORARY(open_url): crate-wide for `network/` and `open_url/`.
     pub(crate) remote: Option<Remote<HostApi>>,
 }
 

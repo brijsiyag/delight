@@ -19,7 +19,7 @@ pub use delight_manifest::{
 };
 
 // TEMPORARY(network): the app's HTTP for plugins, until embedded_gpui links `wasi:http`. It's all
-// in `network/`; README, "Temporary: the network APIs".
+// in `network/`; README, "Temporary host APIs".
 mod network;
 
 pub use network::*;
@@ -93,6 +93,11 @@ pub trait HostApi {
     /// the plugin has the `Network` permission.
     // TEMPORARY(network)
     fn http(&mut self, cx: &mut gpui::Context<Self>) -> Option<Ref<HttpApi>>;
+
+    /// Open `url` in the browser: an `http` or `https` page (a sign-in's, say); the
+    /// app refuses anything else, with why. Needs no permission.
+    // TEMPORARY(open_url): until embedded_gpui forwards GPUI's own `cx.open_url` from plugins.
+    async fn open_url(&mut self, url: String, cx: &mut gpui::Context<Self>);
 }
 
 /// What is in the launcher: the typed or pasted text. A struct, so more (such as
@@ -278,7 +283,7 @@ mod tests {
         );
         assert_eq!(
             methods(HostApi::schema()),
-            ["toast", "hide", "remember_input", "current_theme", "clipboard", "http"]
+            ["toast", "hide", "remember_input", "current_theme", "clipboard", "http", "open_url"]
         );
     }
 }
