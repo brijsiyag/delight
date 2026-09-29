@@ -42,11 +42,21 @@
 #[cfg(target_arch = "wasm32")]
 mod glue;
 mod host;
+// TEMPORARY(network): HTTP, callbacks and gRPC through the app, until embedded_gpui links
+// `wasi:http`; README, "Temporary: the network APIs".
+pub mod network;
 mod tool;
 
 pub use delight_plugin_api_macros::{Actions, Operations, plugin};
 pub use delight_protocol::{Color, Input, Shortcut, Theme};
 pub use embedded_gpui::gpui;
+/// The `http` crate the network's requests and responses are made of.
+// TEMPORARY(network)
+pub use http;
+/// tonic, for gRPC clients over the app's HTTP (the `grpc` feature).
+// TEMPORARY(network)
+#[cfg(feature = "grpc")]
+pub use tonic;
 pub use host::{Host, host, theme};
 pub use tool::AnyTool;
 

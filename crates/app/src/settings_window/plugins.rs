@@ -291,7 +291,11 @@ pub(super) fn permission_rows(permissions: &[PermissionRequest], t: &Theme) -> V
         .iter()
         .map(|request| {
             let (icon, name, explanation) = match request.permission {
-                Permission::Network => (IconName::Globe, "Network", "Can reach the internet and your local network"),
+                Permission::Network => (
+                    IconName::Globe,
+                    "Network",
+                    "Can reach the internet and your local network, and take callbacks on this Mac",
+                ),
             };
             let tinted = div()
                 .size(px(30.))

@@ -1,5 +1,8 @@
 //! The plugin Delight's headless tests drive: one tool that shows the input, with
-//! actions that depend on it.
+//! actions that depend on it, and some the tests perform to try what the app offers.
+
+// TEMPORARY(network)
+mod network;
 
 use delight_plugin_api::gpui::{AnyView, App, AppContext as _, ClipboardItem, Context, IntoElement, Render, Window, div};
 use delight_plugin_api::gpui::{Hsla, ParentElement as _, Styled as _, prelude::FluentBuilder as _};
@@ -66,6 +69,8 @@ impl Render for FixtureSettings {
 #[derive(Default)]
 struct Echo {
     text: String,
+    /// TEMPORARY(network): the listener `Listen` opened, kept open.
+    listener: Option<delight_plugin_api::network::HttpListener>,
 }
 
 #[derive(Actions)]
@@ -74,6 +79,10 @@ enum EchoAction {
     Clear,
     /// Not in the footer: the tests perform it to see what the plugin can read.
     ReadClipboard,
+    // TEMPORARY(network): not in the footer either; see `network`.
+    Fetch,
+    Listen,
+    Grpc,
 }
 
 impl Tool for Echo {
@@ -115,6 +124,10 @@ impl Tool for Echo {
                 let text = cx.read_from_clipboard().and_then(|item| item.text());
                 host(cx).toast(text.unwrap_or_else(|| "nothing".into()), cx);
             }
+            // TEMPORARY(network)
+            EchoAction::Fetch => network::fetch(&self.text.clone(), cx),
+            EchoAction::Listen => network::listen(cx),
+            EchoAction::Grpc => network::grpc(&self.text.clone(), cx),
         }
     }
 }

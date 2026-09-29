@@ -11,5 +11,9 @@ publish = false
 workspace = true
 
 [dependencies]
+# TEMPORARY(network): anyhow, base64, http.
+anyhow = { workspace = true }
+base64 = { workspace = true }
 delight-manifest = { workspace = true }
 embedded_gpui = { workspace = true }
+http = { workspace = true }

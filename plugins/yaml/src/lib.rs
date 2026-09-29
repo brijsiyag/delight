@@ -19,10 +19,7 @@ use yaml_rust2::Yaml;
     author = "Delight",
     icon = "assets/icon.svg",
     tags = ["yaml", "yml", "json", "convert"],
-    tips = [
-        "Paste YAML to get it as JSON",
-        "Paste JSON, then pick JSON → YAML to get YAML",
-    ],
+    tips = ["Paste YAML to get JSON, or JSON to get YAML"],
 )]
 struct YamlPlugin;
 

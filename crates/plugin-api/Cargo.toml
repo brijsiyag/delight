@@ -10,9 +10,21 @@ publish = false
 [lints]
 workspace = true
 
+[features]
+# TEMPORARY(network): gRPC with tonic's generated clients (`network::grpc`), over the app's HTTP/2.
+grpc = ["dep:tonic", "dep:tower-service", "dep:http-body", "dep:http-body-util", "dep:bytes"]
+
 [dependencies]
 anyhow = { workspace = true }
 delight-protocol = { workspace = true }
 delight-plugin-api-macros = { workspace = true }
 embedded_gpui = { workspace = true }
+# TEMPORARY(network): `futures` and `http`, and the optional ones below.
+futures = { workspace = true }
+http = { workspace = true }
 log = { workspace = true }
+bytes = { workspace = true, optional = true }
+http-body = { workspace = true, optional = true }
+http-body-util = { workspace = true, optional = true }
+tonic = { workspace = true, optional = true }
+tower-service = { workspace = true, optional = true }

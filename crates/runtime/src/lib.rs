@@ -8,6 +8,9 @@
 //!   [`detect_all`], which asks every plugin at once and ranks the answers.
 
 mod granted;
+// TEMPORARY(network): the app's HTTP for plugins, until embedded_gpui links `wasi:http`; README,
+// "Temporary: the network APIs".
+mod network;
 mod plugin;
 mod plugin_file;
 mod ranking;

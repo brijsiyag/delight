@@ -21,10 +21,7 @@ use gpui::{App, AppContext as _, AssetSource};
     author = "Delight",
     icon = "assets/icon.svg",
     tags = ["svg", "image", "preview"],
-    tips = [
-        "Paste an SVG to preview it on a checkerboard, light or dark",
-        "↵ copies a pasted SVG as a data URI",
-    ],
+    tips = ["Paste SVG code to preview the image"],
 )]
 struct Svg;
 

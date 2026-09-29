@@ -11,7 +11,7 @@ use std::sync::{Arc, Once};
 use std::time::Duration;
 
 use delight_protocol::{
-    Action, Color, HostApi, Input, Permission, PermissionRequest, Shortcut, Theme, ToolApi, ToolApiCaller as _,
+    Action, Color, HostApi, HttpApi, Input, Permission, PermissionRequest, Shortcut, Theme, ToolApi, ToolApiCaller as _,
 };
 use delight_runtime::{Candidate, Granted, Plugin, detect_all, plugin_options, read_manifest};
 use embedded_gpui::{ClipboardApi, Ref, Remote, Surface, shared};
@@ -88,6 +88,10 @@ impl HostApi for FakeApp {
 
     fn clipboard(&mut self, cx: &mut Context<Self>) -> Ref<ClipboardApi> {
         self.granted.as_ref().expect("given as the plugin starts").clipboard(cx)
+    }
+
+    fn http(&mut self, cx: &mut Context<Self>) -> Option<Ref<HttpApi>> {
+        self.granted.as_ref().expect("given as the plugin starts").http(cx)
     }
 }
 
@@ -332,3 +336,6 @@ async fn the_plugin_reads_the_clipboard(cx: &mut TestAppContext) {
     performed.await.expect("perform_action");
     app.read_with(cx, |app, _| assert_eq!(app.toasts, ["copied elsewhere"]));
 }
+
+// TEMPORARY(network): the app's HTTP for plugins.
+mod network;

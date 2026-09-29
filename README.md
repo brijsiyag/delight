@@ -28,6 +28,31 @@ what the app does.
 - Installed plugins are the `.wasm` files in
   `~/Library/Application Support/Delight/plugins`.
 
+## Temporary: the network APIs
+
+Plugins with the `Network` permission get the app's HTTP: requests with the `http`
+crate's types (`host(cx).http(…)`), HTTP callbacks on `127.0.0.1`
+(`host(cx).listen_http(…)`, for a sign-in's redirect), and gRPC with tonic's
+generated clients (`network::grpc::channel`, the plugin API's `grpc` feature).
+The app does the HTTP/1.1, HTTP/2 and TLS natively (hyper and rustls, on a small
+tokio runtime), so plugins don't block and TLS is checked by macOS. They also
+keep WASI's own sockets.
+
+This stands in for what WASI will give plugins directly: `wasi:http` (and WASI
+0.3's async, which drops the reactor problem of wstd #166) once embedded_gpui
+links it, so plugins can use standard HTTP and gRPC clients. When it does, these
+APIs are deprecated, then removed. To make that easy, all of it is apart:
+
+- in its own folder in each crate: `crates/protocol/src/network/`,
+  `crates/runtime/src/network/`, `crates/plugin-api/src/network/`, and in the
+  tests `tests/network.rs` and `tests/fixture/src/network.rs`;
+- every line outside those folders (the `HostApi::http` method, `Granted`'s HTTP
+  object, the dependencies, the fixture's actions) is marked
+  `TEMPORARY(network)`: `grep -rn "TEMPORARY(network)"` lists them all.
+
+New host APIs of this kind follow the same rule: a folder of their own, and a
+marker on each line outside it.
+
 ## Workarounds to remove
 
 `crates/app/src/macos.rs` calls AppKit directly for what GPUI can't do

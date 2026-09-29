@@ -42,6 +42,24 @@ delight-ui = { path = "crates/ui" }
 # docs/plan.md, Later).
 embedded_gpui = { git = "https://github.com/zed-industries/embedded_gpui.git", rev = "ceb0df8266592ddb4c5540c5f09ec10680f34c14" }
 anyhow = "=1.0.103"
+# TEMPORARY(network), down to `tower-service`: the app's HTTP for plugins, until embedded_gpui
+# links `wasi:http` (README, "Temporary: the network APIs"). The versions already in
+# the lock (GPUI, wasmtime): HTTP for plugins, the bytes that cross (base64), and the
+# async runtime the app's HTTP runs on.
+base64 = "=0.22.1"
+bytes = "=1.12.0"
+http = "=1.4.2"
+http-body = "=1.0.1"
+tokio = { version = "=1.52.3", default-features = false, features = ["rt-multi-thread", "net", "time", "sync"] }
+# The app's HTTP/1.1 and HTTP/2, client and server, with TLS checked by macOS.
+http-body-util = "=0.1.5"
+hyper = { version = "=1.11.1", default-features = false, features = ["client", "server", "http1", "http2"] }
+hyper-rustls = { version = "=0.27.10", default-features = false, features = ["http1", "http2", "ring", "tls12", "rustls-platform-verifier"] }
+hyper-util = { version = "=0.1.21", default-features = false, features = ["client-legacy", "server", "server-auto", "http1", "http2", "tokio"] }
+rustls = { version = "=0.23.45", default-features = false, features = ["ring", "std", "tls12"] }
+# gRPC in plugins (the plugin API's `grpc` feature): tonic's client over the app's HTTP.
+tonic = { version = "=0.14.6", default-features = false, features = ["codegen"] }
+tower-service = "=0.3.3"
 # Attribute parsing for the plugin API's proc macros.
 darling = "=0.23.0"
 dirs = "=6.0.0"

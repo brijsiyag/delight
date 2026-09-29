@@ -1,6 +1,6 @@
 //! What one plugin may ask of the app: its host object.
 
-use delight_protocol::{HostApi, Theme};
+use delight_protocol::{HostApi, HttpApi, Theme};
 use delight_runtime::Granted;
 use delight_ui::ActiveTheme as _;
 use embedded_gpui::{ClipboardApi, Ref, shared};
@@ -52,5 +52,10 @@ impl HostApi for HostRoot {
 
     fn clipboard(&mut self, cx: &mut Context<Self>) -> Ref<ClipboardApi> {
         self.granted.clipboard(cx)
+    }
+
+    // TEMPORARY(network)
+    fn http(&mut self, cx: &mut Context<Self>) -> Option<Ref<HttpApi>> {
+        self.granted.http(cx)
     }
 }

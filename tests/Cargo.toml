@@ -18,3 +18,11 @@ delight-protocol = { workspace = true }
 delight-runtime = { workspace = true }
 embedded_gpui = { workspace = true }
 gpui = { workspace = true, features = ["test-support"] }
+# TEMPORARY(network): the local servers the network tests talk to.
+bytes = { workspace = true }
+futures = { workspace = true }
+http = { workspace = true }
+http-body-util = { workspace = true }
+hyper = { workspace = true }
+hyper-util = { workspace = true }
+tokio = { workspace = true }

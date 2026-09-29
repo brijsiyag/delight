@@ -27,16 +27,22 @@ use syn::LitStr;
 ///     icon = "assets/icon.svg",        // a square, full-colour SVG
 ///     tags = ["json"],
 ///     permissions = [Network("Fetches schemas from the web")], // each with why; leave out for none
-///     tips = ["Paste JSON to format it"], // up to 5, each one line
+///     tips = ["Paste JSON to format it"], // what to type, and what it gives; few
 /// )]
 /// struct Json;
 /// ```
 ///
 /// `id`, `name` and `icon` are required; the version is the crate's own. Each
 /// permission says why the plugin needs it, in at most 100 characters: people read it
-/// next to what the permission allows when they install the plugin. `tips` are
-/// hints on using the plugin, which the launcher's empty input shows now and then:
-/// at most 5, each at most 60 characters. Icon paths
+/// next to what the permission allows when they install the plugin.
+///
+/// `tips` are shown now and then in the launcher's empty input, so each says what
+/// someone can type there and what they get: `cal` opens your calendar, `cal <email>`
+/// shows that person's meetings. Not keys or actions: the footer already shows those
+/// ("↵ Copy"). Keep them few, one or two where they're all worth reading; at most 5,
+/// each at most 60 characters.
+///
+/// Icon paths
 /// are relative to the crate's `Cargo.toml`. The type must implement `Plugin`, whose
 /// `Operation` derives `Operations`: the two are joined into the plugin's custom
 /// section at compile time. A mistake is a compile error.

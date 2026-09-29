@@ -11,11 +11,20 @@ workspace = true
 
 [dependencies]
 anyhow = { workspace = true }
+# TEMPORARY(network): bytes, futures, http, http-body-util, hyper*, rustls, tokio.
+bytes = { workspace = true }
 delight-manifest = { workspace = true }
 delight-protocol = { workspace = true }
 embedded_gpui = { workspace = true }
 futures = { workspace = true }
+http = { workspace = true }
+http-body-util = { workspace = true }
+hyper = { workspace = true }
+hyper-rustls = { workspace = true }
+hyper-util = { workspace = true }
 log = { workspace = true }
+rustls = { workspace = true }
+tokio = { workspace = true }
 wasmparser = { workspace = true }
 wasmtime-wasi = { workspace = true }
 

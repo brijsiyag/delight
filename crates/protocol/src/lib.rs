@@ -18,6 +18,12 @@ pub use delight_manifest::{
     PluginProperties, ProtocolVersion, validate_tip,
 };
 
+// TEMPORARY(network): the app's HTTP for plugins, until embedded_gpui links `wasi:http`. It's all
+// in `network/`; README, "Temporary: the network APIs".
+mod network;
+
+pub use network::*;
+
 use embedded_gpui::ClipboardApi;
 use embedded_gpui::surface::SurfaceApi;
 use embedded_gpui::{Ref, data, interface};
@@ -64,7 +70,6 @@ pub trait HostApi {
     /// Show `message` in the launcher's footer for a moment.
     fn toast(&mut self, message: String, cx: &mut gpui::Context<Self>);
 
-
     /// Hide the launcher.
     fn hide(&mut self, cx: &mut gpui::Context<Self>);
 
@@ -83,6 +88,11 @@ pub trait HostApi {
     /// plugin copies, and ⌘V pastes in its text fields. Every plugin has it: it
     /// needs no permission.
     fn clipboard(&mut self, cx: &mut gpui::Context<Self>) -> Ref<ClipboardApi>;
+
+    /// HTTP (and gRPC, over it) and callback listeners, done by the app: `None` unless
+    /// the plugin has the `Network` permission.
+    // TEMPORARY(network)
+    fn http(&mut self, cx: &mut gpui::Context<Self>) -> Option<Ref<HttpApi>>;
 }
 
 /// What is in the launcher: the typed or pasted text. A struct, so more (such as
@@ -268,7 +278,7 @@ mod tests {
         );
         assert_eq!(
             methods(HostApi::schema()),
-            ["toast", "hide", "remember_input", "current_theme", "clipboard"]
+            ["toast", "hide", "remember_input", "current_theme", "clipboard", "http"]
         );
     }
 }

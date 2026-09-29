@@ -26,8 +26,10 @@ These were settled in the previous attempt (see its
    `Network`, `Commands`, each with the plugin's reason for it. Settings
    shows them; installing asks to confirm them. The clipboard needs none:
    every plugin reads and writes it (⌘V pastes in its text fields).
-5. No Delight HTTP API: the network is WASI's `wasi:http` and
-   `wasi:sockets`, and plugins use `wstd`.
+5. The network, for now, is the app's (step 13): HTTP, HTTP callbacks and
+   gRPC done natively and handed to plugins with `Network`, besides WASI's
+   own sockets. It goes once embedded_gpui links `wasi:http`, and plugins use
+   standard clients (README, "Temporary: the network APIs").
 6. GPUI is not forked: it is used directly from Zed's repository by the
    app, embedded_gpui and every plugin.
 7. embedded_gpui is used from upstream (`zed-industries/embedded_gpui`) at a
@@ -260,16 +262,18 @@ fork's `delight` branch.
     when asked (so a plugin without the permission gets none). It has none
     yet: the gated capabilities, `add_font` and the host facts come with the
     plugins that need them (step 14).
-13. **Network**: sockets through `with_wasi` for plugins with `Network`;
-    **embedded_gpui**: link `wasi:http` with an outgoing sender whose TLS uses the
-    macOS trust store (`rustls-platform-verifier`; bundled roots fail
-    behind a company TLS proxy). In the plugin API (behind a `network` feature),
-    wstd driven by GPUI: a wstd future checks its own pollable every time
-    it is polled, so the plugin API re-polls pending network futures from a GPUI
-    timer, and embedded_gpui needs no I/O driver. The one thing released
-    wstd lacks is a public way to make its reactor current without
-    `block_on` (about ten lines): propose it upstream first; fork wstd only
-    if that is refused or slow.
+13. **Network**, temporary until embedded_gpui links `wasi:http` (README,
+    "Temporary: the network APIs"; every piece in a `network/` folder or marked
+    `TEMPORARY(network)`). Plugins with `Network` keep WASI's sockets
+    (`with_wasi`), and get `HostApi::http`: requests streamed both ways
+    through an exchange object and a plugin-homed receiver (the app waits for
+    each piece to be taken: back-pressure), over hyper on a small tokio
+    runtime, HTTP/1.1 and HTTP/2, TLS checked by macOS
+    (`rustls-platform-verifier`); callback listeners on `127.0.0.1`, each
+    request answered by the plugin's own responder; in the plugin API, the
+    `http` crate's types (`host(cx).http`, `host(cx).listen_http`) and gRPC
+    through tonic's generated clients (`network::grpc::channel`, the `grpc`
+    feature). Headless tests against local HTTP and HTTP/2 servers.
 14. **DNS tool**, then port the third-party plugins in
     `~/Desktop/delight-plugins` (the image plugin waits for pasted files,
     see Later). Each brings the host capabilities it needs. DNS runs no
@@ -342,11 +346,6 @@ Not needed to get the app working; each waits until it is.
 
 ## Open questions
 
-- Network, step 13: WASI network (above) or a host HTTP API. The latter
-  needs no wstd change but adds a Delight method per kind of network use.
-  Also: wstd behind a plugin API `network` feature, or kept out of it. And
-  the re-poll interval (short while a request is in flight, backing off for
-  long waits such as a sign-in redirect).
 - WASI 0.3: wstd's `main` is adding it, and there the host drives async and
   wstd has no reactor, so no change would be needed. Not usable yet;
   revisit if embedded_gpui moves to it.

@@ -79,7 +79,7 @@ impl Plugin {
         cx.spawn(async move |cx| {
             let host = load.await.context("the plugin didn't start")?;
             Ok(cx.update(|cx| {
-                let granted = Granted::new(host.registry(cx), host.read(cx).clipboard());
+                let granted = Granted::new(&manifest, host.registry(cx), host.read(cx).clipboard(), cx);
                 let host_root = host_root(granted, cx);
                 host.share_root(&host_root, cx);
                 let root = host.root::<PluginApi>(cx);

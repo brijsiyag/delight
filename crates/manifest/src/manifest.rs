@@ -35,9 +35,10 @@ pub struct PluginProperties {
     /// What it may do outside its sandbox, each with why it needs it.
     #[serde(default)]
     pub permissions: Vec<PermissionRequest>,
-    /// Up to [`MAX_TIPS`] short tips on using the plugin, written by its author, such
-    /// as "cal <email> shows someone's meetings". The launcher's empty input shows
-    /// them now and then, while the plugin has a tool on.
+    /// Up to [`MAX_TIPS`] short tips, written by its author, on what to type and what
+    /// it gives, such as "cal <email> shows someone's meetings": not keys or actions,
+    /// which the footer shows. The launcher's empty input shows them now and then,
+    /// while the plugin has a tool on. As few as are worth reading.
     #[serde(default)]
     pub tips: Vec<String>,
 }

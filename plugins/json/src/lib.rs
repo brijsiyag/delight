@@ -19,11 +19,7 @@ use serde_json::Value;
     author = "Delight",
     icon = "assets/icon.svg",
     tags = ["json", "format", "pretty print"],
-    tips = [
-        "Paste JSON to format, minify, escape or unescape it",
-        "⌘↵ copies formatted JSON minified",
-        "JSON that doesn't parse shows where it breaks",
-    ],
+    tips = ["Paste JSON to format it"],
 )]
 struct Json;
 

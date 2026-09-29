@@ -1040,6 +1040,8 @@ dependencies = [
  "delight-plugin-api-macros",
  "delight-protocol",
  "embedded_gpui",
+ "futures",
+ "http",
  "log",
 ]
 
@@ -1059,8 +1061,11 @@ dependencies = [
 name = "delight-protocol"
 version = "2.0.0"
 dependencies = [
+ "anyhow",
+ "base64",
  "delight-manifest",
  "embedded_gpui",
+ "http",
 ]
 
 [[package]]
