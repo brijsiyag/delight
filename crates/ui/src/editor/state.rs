@@ -76,6 +76,8 @@ pub struct TextEditor {
     pub(super) scroll: ScrollHandle,
     /// Scroll the cursor into view on the next paint.
     pub(super) autoscroll: bool,
+    /// How far a single-line editor's text is scrolled left, to keep the cursor in view.
+    pub(super) scroll_x: Pixels,
     _subscriptions: Vec<Subscription>,
 }
 
@@ -118,6 +120,7 @@ impl TextEditor {
             blink,
             scroll: ScrollHandle::new(),
             autoscroll: false,
+            scroll_x: px(0.),
             _subscriptions: subscriptions,
         }
     }
