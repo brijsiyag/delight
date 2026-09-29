@@ -73,7 +73,7 @@ mod imp {
         parts.uri = joined(&base, &parts.uri)?;
         let remote = cx.update(|cx| host(cx).remote).ok_or("gRPC is Delight's: a plugin reaches it only in Delight")?;
         let api = http_api(&remote, &mut cx).await?;
-        let Started { exchange, mut events } = cx.update(|cx| start(&api, HttpRequestHead::from_parts(&parts), cx));
+        let Started { exchange, mut events } = start(&api, HttpRequestHead::from_parts(&parts), &mut cx).await?;
         // The request's body streams in the background; the exchange lives until the
         // response's body is done with (or dropped), since dropping it cancels.
         let (done, response_done) = oneshot::channel::<()>();

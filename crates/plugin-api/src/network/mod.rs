@@ -140,11 +140,13 @@ pub(crate) mod imp {
 
     /// Start a request with `head`; its body goes through `exchange`, and the request
     /// is cancelled when the last clone of `exchange` is dropped.
-    pub(crate) fn start(api: &Remote<HttpApi>, head: HttpRequestHead, cx: &mut App) -> Started {
+    pub(crate) async fn start(api: &Remote<HttpApi>, head: HttpRequestHead, cx: &mut AsyncApp) -> Result<Started> {
         let (events, received) = mpsc::channel(4);
-        let receiver = cx.new(|_| Receiver { events });
-        let exchange = api.start_exchange(head, share(&receiver, cx), cx);
-        Started { exchange: exchange.remote(), events: received }
+        let started = cx.update(|cx| {
+            let receiver = cx.new(|_| Receiver { events });
+            api.start_exchange(head, share(&receiver, cx), cx)
+        });
+        Ok(Started { exchange: started.await?, events: received })
     }
 
     /// Send `body` through `exchange`, a piece at a time, then finish the request.
@@ -162,7 +164,7 @@ pub(crate) mod imp {
             let api = http_api(&host, cx).await?;
             let (parts, body) = request.into_parts();
             let head = HttpRequestHead { length: Some(body.len() as u64), ..HttpRequestHead::from_parts(&parts) };
-            let Started { exchange, mut events } = cx.update(|cx| start(&api, head, cx));
+            let Started { exchange, mut events } = start(&api, head, cx).await?;
             send_body(&exchange, &body, cx).await?;
             let (mut head, mut body) = (None, Vec::new());
             while let Some(event) = events.next().await {

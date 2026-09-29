@@ -83,6 +83,8 @@ struct Echo {
     text: String,
     /// TEMPORARY(network): the listener `Listen` opened, kept open.
     listener: Option<delight_plugin_api::network::HttpListener>,
+    /// Requests `Hang` started and `Release` gives up on.
+    hanging: Vec<delight_plugin_api::gpui::Task<()>>,
 }
 
 #[derive(Actions)]
@@ -93,6 +95,12 @@ enum EchoAction {
     ReadClipboard,
     // TEMPORARY(network): not in the footer either; see `network`.
     Fetch,
+    /// Start a request to `{input}/hang`, which is never answered, and keep it going; toasts what became of it.
+    Hang,
+    /// Give up on every request `Hang` started.
+    Release,
+    /// One request to `{input}/ok`; toasts "ok {status}" or the error.
+    Ok,
     Listen,
     Grpc,
     /// Runs the input's first line as a program with the other lines as its arguments.
@@ -153,6 +161,12 @@ impl Tool for Echo {
             }
             // TEMPORARY(network)
             EchoAction::Fetch => network::fetch(&self.text.clone(), cx),
+            EchoAction::Hang => {
+                let task = network::hang(&self.text.clone(), cx);
+                self.hanging.push(task);
+            }
+            EchoAction::Release => self.hanging.clear(),
+            EchoAction::Ok => network::ok(&self.text.clone(), cx),
             EchoAction::Listen => network::listen(cx),
             EchoAction::Grpc => network::grpc(&self.text.clone(), cx),
             EchoAction::Run => commands::run(&self.text.clone(), cx),

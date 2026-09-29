@@ -62,6 +62,81 @@ async fn a_plugin_fetches_through_the_apps_http(cx: &mut TestAppContext) {
     assert_eq!(toast, "200 got POST /hello?x=1 ping 1");
 }
 
+/// A server that answers `/ok` and holds every other request open, unanswered.
+fn hanging_server() -> (u16, std::sync::Arc<std::sync::atomic::AtomicUsize>) {
+    let hung = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let counted = hung.clone();
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
+    std::thread::spawn(move || {
+        let mut held = Vec::new();
+        for stream in listener.incoming() {
+            let mut stream = stream.unwrap();
+            let mut head = String::new();
+            let mut reader = BufReader::new(stream.try_clone().unwrap());
+            let mut line = String::new();
+            while reader.read_line(&mut line).unwrap_or(0) > 2 {
+                head.push_str(&line);
+                line.clear();
+            }
+            if head.starts_with("GET /ok") {
+                stream.write_all(b"HTTP/1.1 200 OK\r\ncontent-length: 2\r\nconnection: close\r\n\r\nok").unwrap();
+            } else {
+                counted.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                held.push(stream);
+            }
+        }
+    });
+    (port, hung)
+}
+
+/// Wait until `count` requests reached the hanging server (running the app meanwhile).
+fn wait_for_hung(hung: &std::sync::atomic::AtomicUsize, count: usize, cx: &mut TestAppContext) {
+    let deadline = Instant::now() + Duration::from_secs(20);
+    while hung.load(std::sync::atomic::Ordering::SeqCst) < count {
+        assert!(Instant::now() < deadline, "only {} requests reached the server", hung.load(std::sync::atomic::Ordering::SeqCst));
+        cx.executor().run_until_parked();
+        std::thread::sleep(Duration::from_millis(10));
+    }
+}
+
+/// A request that has finished no longer counts as open: a plugin makes far more than the most
+/// it may have open at once, one after another.
+#[gpui::test]
+async fn finished_requests_stop_counting_as_open(cx: &mut TestAppContext) {
+    cx.executor().allow_parking();
+    let (port, _hung) = hanging_server();
+    let (plugin, app) = start("finished-requests", cx).await;
+    let tool = tool_with(&plugin, &format!("http://127.0.0.1:{port}"), cx).await;
+    for n in 0..40 {
+        app.update(cx, |app, _| app.toasts.clear());
+        cx.update(|cx| drop(tool.perform_action("Ok".into(), cx)));
+        let toast = wait_for_toast(&app, cx, |toast| toast.starts_with("ok"));
+        assert_eq!(toast, "ok 200", "request {n}");
+    }
+}
+
+/// Nor does one the plugin gave up on (dropped the task of) while it was still open.
+#[gpui::test]
+async fn requests_a_plugin_gives_up_on_stop_counting_as_open(cx: &mut TestAppContext) {
+    cx.executor().allow_parking();
+    let (port, hung) = hanging_server();
+    let (plugin, app) = start("giving-up", cx).await;
+    let tool = tool_with(&plugin, &format!("http://127.0.0.1:{port}"), cx).await;
+    // As many open as it may (a few more than that would be refused), given up on, over and over.
+    for round in 1..=4 {
+        for _ in 0..8 {
+            cx.update(|cx| drop(tool.perform_action("Hang".into(), cx)));
+        }
+        wait_for_hung(&hung, round * 8, cx);
+        cx.update(|cx| drop(tool.perform_action("Release".into(), cx)));
+        cx.executor().run_until_parked();
+    }
+    cx.update(|cx| drop(tool.perform_action("Ok".into(), cx)));
+    let toast = wait_for_toast(&app, cx, |toast| toast.starts_with("ok"));
+    assert_eq!(toast, "ok 200");
+}
+
 #[gpui::test]
 async fn a_plugin_answers_requests_to_its_listener(cx: &mut TestAppContext) {
     cx.executor().allow_parking();

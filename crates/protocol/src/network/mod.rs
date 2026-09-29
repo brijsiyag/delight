@@ -20,7 +20,11 @@ pub trait HttpApi {
     /// Send a request: its head now, its body through the returned exchange (then
     /// [`HttpExchangeApi::finish_request`]). The app calls `receiver` with the
     /// response as it arrives. Dropping the exchange cancels the request.
-    fn start_exchange(
+    ///
+    /// Answered, not pipelined (a bare `Ref` return would be): a pipelined ref leaves the app
+    /// holding the exchange under its real id after the plugin drops it, so the request
+    /// would count as open for as long as the plugin lives.
+    async fn start_exchange(
         &mut self,
         head: HttpRequestHead,
         receiver: Ref<HttpReceiverApi>,

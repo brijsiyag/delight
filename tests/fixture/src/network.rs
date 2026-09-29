@@ -28,6 +28,33 @@ pub fn fetch(url: &str, cx: &mut Context<Echo>) {
     .detach();
 }
 
+/// A request to `{url}/hang`, which is never answered; toasts what became of it (only if it ends).
+pub fn hang(url: &str, cx: &mut Context<Echo>) -> Task<()> {
+    let request = http::Request::get(format!("{url}/hang")).body(Vec::new()).unwrap();
+    let sent = host(cx).http(request, cx);
+    cx.spawn(async move |_, cx| {
+        let message = match sent.await {
+            Ok(response) => format!("hang {}", response.status().as_u16()),
+            Err(error) => format!("hang: {error:#}"),
+        };
+        cx.update(|cx| host(cx).toast(message, cx));
+    })
+}
+
+/// One request to `{url}/ok`; toasts "ok {status}" or the error.
+pub fn ok(url: &str, cx: &mut Context<Echo>) {
+    let request = http::Request::get(format!("{url}/ok")).body(Vec::new()).unwrap();
+    let sent = host(cx).http(request, cx);
+    cx.spawn(async move |_, cx| {
+        let message = match sent.await {
+            Ok(response) => format!("ok {}", response.status().as_u16()),
+            Err(error) => format!("ok: {error:#}"),
+        };
+        cx.update(|cx| host(cx).toast(message, cx));
+    })
+    .detach();
+}
+
 /// Listen on any free port, answer each request with "hello {path}" (toasting "hit
 /// {path}"), and toast "listening {port}".
 pub fn listen(cx: &mut Context<Echo>) {

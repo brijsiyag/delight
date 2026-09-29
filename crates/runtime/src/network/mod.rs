@@ -86,11 +86,11 @@ impl HttpApi for Http {
         head: HttpRequestHead,
         receiver: Ref<HttpReceiverApi>,
         cx: &mut Context<Self>,
-    ) -> Ref<HttpExchangeApi> {
+    ) -> Task<Result<Ref<HttpExchangeApi>>> {
         let receiver = receiver.connect();
         let open = Opened::count(&self.exchanges, MAX_EXCHANGES, "requests");
         let exchange = cx.new(|cx| Exchange::start(head, receiver, open, cx));
-        self.registry.share(&exchange, cx)
+        Task::ready(Ok(self.registry.share(&exchange, cx)))
     }
 
     fn listen_http(
