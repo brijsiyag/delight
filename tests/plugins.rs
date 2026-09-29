@@ -207,7 +207,8 @@ async fn its_tool_takes_input_and_offers_actions(cx: &mut TestAppContext) {
 
     // Empty text: only Copy.
     let ids = |actions: &[Action]| actions.iter().map(|a| a.id.clone()).collect::<Vec<_>>();
-    assert_eq!(ids(&actions(&tool, cx).await), ["copy"]);
+    // An action's id is its variant's name.
+    assert_eq!(ids(&actions(&tool, cx).await), ["Copy"]);
 
     // Text: the tool notifies, and now offers Clear too.
     let notified = Rc::new(Cell::new(0));
@@ -221,22 +222,28 @@ async fn its_tool_takes_input_and_offers_actions(cx: &mut TestAppContext) {
     settle(cx);
     assert!(notified.get() > before, "the app hears that the actions changed");
     let offered = actions(&tool, cx).await;
-    assert_eq!(ids(&offered), ["copy", "clear"]);
+    assert_eq!(ids(&offered), ["Copy", "Clear"]);
     assert_eq!(offered[0].shortcut, Shortcut::Keystroke("cmd-enter".into()));
     assert_eq!(offered[1].shortcut, Shortcut::ClickOnly);
 
     // Performing Copy puts the text on the clipboard, through GPUI's own
     // `write_to_clipboard` in the plugin, and reaches the app's root object.
-    let performed = cx.update(|cx| tool.perform_action("copy".into(), cx));
+    let performed = cx.update(|cx| tool.perform_action("Copy".into(), cx));
     settle(cx);
     performed.await.expect("perform_action");
     settle(cx);
     assert_eq!(clipboard_text(cx).as_deref(), Some("hi"));
+
+    // An id the tool has no action for is ignored.
+    let performed = cx.update(|cx| tool.perform_action("Nope".into(), cx));
+    settle(cx);
+    performed.await.expect("perform_action");
     app.read_with(cx, |app, _| {
         assert_eq!(app.toasts, ["Copied"]);
         assert_eq!(app.remembered, [("echo".to_string(), "hi".to_string())]);
         assert_eq!(app.hides, 0);
     });
+    assert_eq!(plugin.stopped(), None);
 }
 
 #[gpui::test]
@@ -320,7 +327,7 @@ async fn the_plugin_reads_the_clipboard(cx: &mut TestAppContext) {
     let tool = tool.await.expect("open_tool");
 
     // The fixture toasts what GPUI's `read_from_clipboard` gives it.
-    let performed = cx.update(|cx| tool.perform_action("read-clipboard".into(), cx));
+    let performed = cx.update(|cx| tool.perform_action("ReadClipboard".into(), cx));
     settle(cx);
     performed.await.expect("perform_action");
     app.read_with(cx, |app, _| assert_eq!(app.toasts, ["copied elsewhere"]));

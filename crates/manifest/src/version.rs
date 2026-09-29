@@ -27,8 +27,8 @@ pub const PLUGIN_API_VERSION: &str = env!("CARGO_PKG_VERSION");
 /// plugin's reason for it (the app shows a permission from an older plugin without one).
 /// 2.0 moved to embedded_gpui's `surfaces-as-roots`, whose wire protocol changed:
 /// plugins use GPUI's own clipboard (`HostApi::clipboard`: reading and writing)
-/// instead of `HostApi::copy_text`, and `Plugin::open_tool` and `settings_page` have
-/// no window.
+/// instead of `HostApi::copy_text`, `Plugin::open_tool` and `settings_page` have no
+/// window, and a tool's actions are an enum (`Tool::Action`, `#[derive(Actions)]`).
 pub const PROTOCOL_VERSION: ProtocolVersion = ProtocolVersion {
     major: number(env!("CARGO_PKG_VERSION_MAJOR")),
     minor: number(env!("CARGO_PKG_VERSION_MINOR")),

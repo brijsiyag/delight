@@ -3,8 +3,10 @@
 
 use std::rc::Rc;
 
+use delight_protocol::Action;
+
 use crate::gpui::{AnyView, App, Entity, Subscription};
-use crate::{Action, Input, Tool};
+use crate::{Actions, Input, Tool};
 
 /// A tool of any type, as [`Plugin::open_tool`](crate::Plugin::open_tool) returns it:
 /// `entity.into()`.
@@ -37,12 +39,22 @@ impl<T: Tool> DynTool for Entity<T> {
         self.update(cx, |tool, cx| tool.on_input_changed(input, cx));
     }
 
+    /// The actions, with their ids for the app.
     fn list_actions(&self, cx: &App) -> Vec<Action> {
-        self.read(cx).list_actions(cx)
+        let actions = self.read(cx).list_actions(cx);
+        actions
+            .into_iter()
+            .map(|action| Action { id: action.id.id().to_string(), label: action.label, shortcut: action.shortcut })
+            .collect()
     }
 
+    /// The action with the id the app hands back; one the tool doesn't have is
+    /// ignored.
     fn perform_action(&self, action: &str, cx: &mut App) {
-        self.update(cx, |tool, cx| tool.perform_action(action, cx));
+        match T::Action::from_id(action) {
+            Some(action) => self.update(cx, |tool, cx| tool.perform_action(action, cx)),
+            None => log::warn!("the app asked for an action this tool doesn't have: {action:?}"),
+        }
     }
 
     fn observe(&self, mut on_notify: Box<dyn FnMut(&mut App)>, cx: &mut App) -> Subscription {

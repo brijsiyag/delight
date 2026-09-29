@@ -3,7 +3,8 @@
 //! A plugin is a `cdylib` crate built for `wasm32-wasip2`. Its type implements
 //! [`Plugin`] and carries [`#[plugin(...)]`](plugin), its operations are an enum with
 //! [`#[derive(Operations)]`](derive@Operations), and each of its tools is a GPUI view
-//! implementing [`Tool`]. It reaches the app through [`host`]. GPUI is the one
+//! implementing [`Tool`], whose footer actions are an enum with
+//! [`#[derive(Actions)]`](derive@Actions). It reaches the app through [`host`]. GPUI is the one
 //! re-exported here, so a plugin builds against the same GPUI as the app.
 //!
 //! ```ignore
@@ -43,8 +44,8 @@ mod glue;
 mod host;
 mod tool;
 
-pub use delight_plugin_api_macros::{Operations, plugin};
-pub use delight_protocol::{Action, Color, Input, Shortcut, Theme};
+pub use delight_plugin_api_macros::{Actions, Operations, plugin};
+pub use delight_protocol::{Color, Input, Shortcut, Theme};
 pub use embedded_gpui::gpui;
 pub use host::{Host, host, theme};
 pub use tool::AnyTool;
@@ -116,17 +117,39 @@ impl<O> Detection<O> {
 /// One tool: a GPUI view the app shows in its tool pane, plus what the launcher
 /// asks of it.
 pub trait Tool: Render {
+    /// Its footer actions: an enum with `#[derive(Actions)]`.
+    type Action: Actions;
+
     /// The launcher's input changed (or the tool just opened): the app telling the
     /// tool what it now is.
     fn on_input_changed(&mut self, input: &Input, cx: &mut Context<Self>);
 
-    /// The footer actions, in order. Call `cx.notify()` when they change; the app
-    /// asks again then.
-    fn list_actions(&self, cx: &App) -> Vec<Action>;
+    /// The footer actions it offers now, in order. Call `cx.notify()` when they
+    /// change; the app asks again then.
+    fn list_actions(&self, cx: &App) -> Vec<Action<Self::Action>>;
 
-    /// Run the action with this id, doing the work itself: copying with GPUI's
+    /// Run `action`, one it offered, doing the work itself: copying with GPUI's
     /// `cx.write_to_clipboard`, toasting and hiding through [`host`].
-    fn perform_action(&mut self, action: &str, cx: &mut Context<Self>);
+    fn perform_action(&mut self, action: Self::Action, cx: &mut Context<Self>);
+}
+
+/// A tool's footer actions (its [`Tool::Action`]). Derive it for a fieldless enum, one
+/// variant per action; see [`derive@Actions`].
+pub trait Actions: Sized + 'static {
+    /// This action's id, as the app hands it back: the variant's name.
+    fn id(&self) -> &'static str;
+
+    /// The action with this id, if the tool has one.
+    fn from_id(id: &str) -> Option<Self>;
+}
+
+/// A footer action a tool offers: which one, its button's label, and its key. Every
+/// action states a shortcut, so going without a key is a choice rather than an
+/// oversight.
+pub struct Action<A> {
+    pub id: A,
+    pub label: String,
+    pub shortcut: Shortcut,
 }
 
 /// What the macros' expansions use (only in wasm builds); not for plugins to use

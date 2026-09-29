@@ -1,10 +1,12 @@
-//! The proc macros behind `#[delight_plugin_api::plugin]` and
-//! `#[derive(delight_plugin_api::Operations)]`; use them through that crate.
+//! The proc macros behind `#[delight_plugin_api::plugin]`,
+//! `#[derive(delight_plugin_api::Operations)]` and
+//! `#[derive(delight_plugin_api::Actions)]`; use them through that crate.
 //!
-//! Both read their attributes (parsed by `darling`) and the icon files those name,
-//! check them at compile time, and turn them into their part of the plugin's custom
-//! section (see `delight_manifest::SECTION`).
+//! The first two read their attributes (parsed by `darling`) and the icon files those
+//! name, check them at compile time, and turn them into their part of the plugin's
+//! custom section (see `delight_manifest::SECTION`).
 
+mod actions;
 mod operations;
 mod plugin;
 
@@ -74,6 +76,32 @@ pub fn operations(item: TokenStream) -> TokenStream {
             // A stand-in impl, so the error isn't followed by "`Operations` is not
             // implemented" wherever the enum is used.
             let stand_in = operations::stand_in(item);
+            let errors = error.write_errors();
+            quote!(#stand_in #errors)
+        })
+        .into()
+}
+
+/// A tool's footer actions, from a fieldless enum: one variant per action.
+///
+/// ```ignore
+/// #[derive(Actions)]
+/// enum FormatAction {
+///     Copy,
+///     CopyMinified,
+/// }
+/// ```
+///
+/// The tool names it as its `Tool::Action`, offers them in `list_actions` (with a
+/// label and a shortcut each) and gets them back in `perform_action`, so a `match`
+/// there covers every action. Each id is the variant's name: the app only hands it
+/// back to the tool, and stores none.
+#[proc_macro_derive(Actions)]
+pub fn actions(item: TokenStream) -> TokenStream {
+    let item = proc_macro2::TokenStream::from(item);
+    actions::expand(item.clone())
+        .unwrap_or_else(|error| {
+            let stand_in = actions::stand_in(item);
             let errors = error.write_errors();
             quote!(#stand_in #errors)
         })

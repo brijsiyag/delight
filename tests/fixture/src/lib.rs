@@ -4,7 +4,7 @@
 use delight_plugin_api::gpui::{AnyView, App, AppContext as _, ClipboardItem, Context, IntoElement, Render, Window, div};
 use delight_plugin_api::gpui::{Hsla, ParentElement as _, Styled as _, prelude::FluentBuilder as _};
 use delight_plugin_api::{
-    Action, AnyTool, Detection, Input, Operations, Plugin, Shortcut, Tool, host, plugin, theme,
+    Action, Actions, AnyTool, Detection, Input, Operations, Plugin, Shortcut, Tool, host, plugin, theme,
 };
 
 #[plugin(
@@ -68,21 +68,31 @@ struct Echo {
     text: String,
 }
 
+#[derive(Actions)]
+enum EchoAction {
+    Copy,
+    Clear,
+    /// Not in the footer: the tests perform it to see what the plugin can read.
+    ReadClipboard,
+}
+
 impl Tool for Echo {
+    type Action = EchoAction;
+
     fn on_input_changed(&mut self, input: &Input, cx: &mut Context<Self>) {
         self.text = input.text.clone();
         cx.notify();
     }
 
-    fn list_actions(&self, _cx: &App) -> Vec<Action> {
+    fn list_actions(&self, _cx: &App) -> Vec<Action<EchoAction>> {
         let mut actions = vec![Action {
-            id: "copy".into(),
+            id: EchoAction::Copy,
             label: "Copy".into(),
             shortcut: Shortcut::Keystroke("cmd-enter".into()),
         }];
         if !self.text.is_empty() {
             actions.push(Action {
-                id: "clear".into(),
+                id: EchoAction::Clear,
                 label: "Clear".into(),
                 shortcut: Shortcut::ClickOnly,
             });
@@ -90,23 +100,21 @@ impl Tool for Echo {
         actions
     }
 
-    fn perform_action(&mut self, action: &str, cx: &mut Context<Self>) {
+    fn perform_action(&mut self, action: EchoAction, cx: &mut Context<Self>) {
         match action {
-            "copy" => {
+            EchoAction::Copy => {
                 cx.write_to_clipboard(ClipboardItem::new_string(self.text.clone()));
                 host(cx).toast("Copied", cx);
                 host(cx).remember_input(FixtureOperation::Echo, self.text.clone(), cx);
             }
-            "clear" => {
+            EchoAction::Clear => {
                 self.text.clear();
                 cx.notify();
             }
-            // Not in the footer: the tests perform it to see what the plugin can read.
-            "read-clipboard" => {
+            EchoAction::ReadClipboard => {
                 let text = cx.read_from_clipboard().and_then(|item| item.text());
                 host(cx).toast(text.unwrap_or_else(|| "nothing".into()), cx);
             }
-            _ => {}
         }
     }
 }

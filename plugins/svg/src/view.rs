@@ -1,7 +1,7 @@
 //! The SVG tool: the drawing on a canvas (checkerboard, light or dark), its size, and
 //! the copy action.
 
-use delight_plugin_api::{Action, Input, Shortcut, Tool, host};
+use delight_plugin_api::{Action, Actions, Input, Shortcut, Tool, host};
 use delight_ui::{ActiveTheme, IconButton, IconName, Selectable, h_flex, v_flex};
 use gpui::{
     App, ClipboardItem, Context, Hsla, ImageSource, IntoElement, ParentElement, Render, SharedString, Styled, Task,
@@ -39,7 +39,15 @@ pub struct SvgView {
     rendering: Option<Task<()>>,
 }
 
+/// The footer's actions.
+#[derive(Actions)]
+pub enum SvgAction {
+    CopyDataUri,
+}
+
 impl Tool for SvgView {
+    type Action = SvgAction;
+
     /// Render the input in the background, then show it.
     fn on_input_changed(&mut self, input: &Input, cx: &mut Context<Self>) {
         let svg = input.text.trim().to_string();
@@ -53,24 +61,26 @@ impl Tool for SvgView {
         }));
     }
 
-    fn list_actions(&self, _: &App) -> Vec<Action> {
+    fn list_actions(&self, _: &App) -> Vec<Action<SvgAction>> {
         let Preview::Ready(_) = &self.preview else {
             return Vec::new();
         };
         vec![Action {
-            id: "copy_data_uri".into(),
+            id: SvgAction::CopyDataUri,
             label: "Copy data URI".into(),
             shortcut: Shortcut::Keystroke("enter".into()),
         }]
     }
 
-    fn perform_action(&mut self, action: &str, cx: &mut Context<Self>) {
+    fn perform_action(&mut self, action: SvgAction, cx: &mut Context<Self>) {
         let Preview::Ready(rendered) = &self.preview else {
             return;
         };
-        if action == "copy_data_uri" {
-            cx.write_to_clipboard(ClipboardItem::new_string(rendered.data_uri.clone()));
-            host(cx).toast("Copy data URI — copied to clipboard", cx);
+        match action {
+            SvgAction::CopyDataUri => {
+                cx.write_to_clipboard(ClipboardItem::new_string(rendered.data_uri.clone()));
+                host(cx).toast("Copy data URI — copied to clipboard", cx);
+            }
         }
     }
 }
