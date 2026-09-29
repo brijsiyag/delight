@@ -63,8 +63,12 @@ rustls = { version = "=0.23.45", default-features = false, features = ["ring", "
 # gRPC in plugins (the plugin API's `grpc` feature): tonic's client over the app's HTTP.
 tonic = { version = "=0.14.6", default-features = false, features = ["codegen"] }
 tower-service = "=0.3.3"
+# Sparkle's release is an .xz archive.
+lzma-rs = "=0.3.0"
 sha2 = "=0.10.9"
 tar = "=0.4.46"
+# Reading the versions in Cargo.toml files.
+toml = { version = "=0.8.23", default-features = false, features = ["parse"] }
 # Certificates are checked by macOS (as the app's HTTP does), so a company proxy's CA works.
 ureq = { version = "=3.4.2", features = ["platform-verifier"] }
 # Attribute parsing for the plugin API's proc macros.

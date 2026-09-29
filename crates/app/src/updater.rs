@@ -208,16 +208,16 @@ mod tests {
 
         // As Sparkle calls it: by selector, on the object.
         let _: () = unsafe { msg_send![&*delegate, updaterDidNotFindUpdate: nothing, error: nothing] };
-        assert!(matches!(events.try_next(), Ok(Some(Event::UpToDate))));
+        assert!(matches!(events.try_recv(), Ok(Event::UpToDate)));
 
         // An update: Sparkle passes its `SUAppcastItem`, which answers `displayVersionString`.
         let item: Retained<FakeItem> = unsafe { msg_send![FakeItem::class(), new] };
         let _: () = unsafe { msg_send![&*delegate, updater: nothing, didFindValidUpdate: &*item] };
-        assert!(matches!(events.try_next(), Ok(Some(Event::Found(version))) if version == "2.1.0"));
+        assert!(matches!(events.try_recv(), Ok(Event::Found(version)) if version == "2.1.0"));
 
         let error: Retained<FakeError> = unsafe { msg_send![FakeError::class(), new] };
         let _: () = unsafe { msg_send![&*delegate, updater: nothing, didAbortWithError: &*error] };
-        assert!(matches!(events.try_next(), Ok(Some(Event::Failed(why))) if why == "no network"));
+        assert!(matches!(events.try_recv(), Ok(Event::Failed(why)) if why == "no network"));
     }
 
     define_class!(

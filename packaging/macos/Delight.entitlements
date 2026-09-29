@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "https://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Plugins are WebAssembly, which wasmtime compiles to machine code as Delight
+         starts them. The Hardened Runtime (needed for notarisation) kills a process that
+         makes code executable unless it has this entitlement; `allow-jit` alone doesn't
+         do it (tested: a signed test binary is killed with it, and runs with this). -->
+    <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+    <true/>
+</dict>
+</plist>

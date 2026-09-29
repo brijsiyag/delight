@@ -3,3 +3,5 @@
 /tests/fixture/target
 # The built-ins are their own workspace.
 /plugins/target
+# Release artifacts, and what the release tasks download.
+/dist

@@ -317,15 +317,15 @@ fork's `delight` branch.
       (`github.com/brijsiyag/delight/releases/latest/download/appcast.xml`) given by the
       delegate. Its Objective-C glue is tested; Sparkle itself is not yet run, as that
       needs the pieces below.
-    - Left, all `xtask` tasks: fetch Sparkle 2.9.6 (SHA-256 pinned); the `.app` with an
-      `Info.plist` (version, build, `SUPublicEDKey`) and the built-ins in
-      `Contents/Resources/plugins`; the universal build; signing, notarising and
-      stapling; the zip, the DMG and `appcast.xml`; version checks. The `Info.plist`
-      (`SUFeedURL`, `SUEnableAutomaticChecks`, `SUScheduledCheckInterval`, `SUPublicEDKey`) is
-      the previous attempt's (`~/Desktop/delight/packaging/macos/Info.plist`): the EdDSA key pair
-      already exists (the public key is in that plist, the private half in the login Keychain
-      under the account `delight`), and must be reused: a new key would stop existing
-      installs from updating.
+    - Done, written for this architecture (README, "Releasing"): `cargo xtask check-versions`,
+      `bundle-macos`, `sign-macos`, `package-macos` and `release-macos`: the `.app`
+      (Sparkle, the built-in plugins in `Contents/Resources/plugins`, `Info.plist` from
+      `packaging/macos/`), signing, and one disk image that is both the first install and
+      what Sparkle updates from, with the feed. Not run yet: it needs the build Mac's
+      certificate, notary profile and update key. The EdDSA key pair already exists and must
+      be reused: a new key would stop existing installs from updating. The signed app needs
+      `allow-unsigned-executable-memory` (wasmtime's compiled plugins; tested on a signed
+      test binary).
 
 ## Later
 

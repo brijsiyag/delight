@@ -12,6 +12,10 @@ workspace = true
 [dependencies]
 anyhow = { workspace = true }
 flate2 = { workspace = true }
+lzma-rs = { workspace = true }
+plist = { workspace = true }
+resvg = { workspace = true }
 sha2 = { workspace = true }
 tar = { workspace = true }
+toml = { workspace = true }
 ureq = { workspace = true }

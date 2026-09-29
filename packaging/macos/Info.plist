@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "https://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>CFBundleDevelopmentRegion</key>
+    <string>en</string>
+    <key>CFBundleDisplayName</key>
+    <string>Delight</string>
+    <key>CFBundleExecutable</key>
+    <string>Delight</string>
+    <key>CFBundleIconFile</key>
+    <string>Delight</string>
+    <key>CFBundleIdentifier</key>
+    <string>dev.delight.app</string>
+    <key>CFBundleInfoDictionaryVersion</key>
+    <string>6.0</string>
+    <key>CFBundleName</key>
+    <string>Delight</string>
+    <key>CFBundlePackageType</key>
+    <string>APPL</string>
+    <key>CFBundleShortVersionString</key>
+    <string>__DELIGHT_VERSION__</string>
+    <key>CFBundleVersion</key>
+    <string>__DELIGHT_BUILD__</string>
+    <key>LSMinimumSystemVersion</key>
+    <string>11.0</string>
+    <key>LSUIElement</key>
+    <true/>
+    <key>NSHighResolutionCapable</key>
+    <true/>
+    <key>NSLocalNetworkUsageDescription</key>
+    <string>A plugin you allowed to use the network may reach devices on your local network.</string>
+    <key>SUEnableAutomaticChecks</key>
+    <true/>
+    <key>SUScheduledCheckInterval</key>
+    <integer>86400</integer>
+    <key>SUFeedURL</key>
+    <string>https://github.com/brijsiyag/delight/releases/latest/download/appcast.xml</string>
+    <key>SUPublicEDKey</key>
+    <string>y9Ygn3/Hm1p293KirwBTaB/ePAfM9WmhZar4dXIeR48=</string>
+</dict>
+</plist>
