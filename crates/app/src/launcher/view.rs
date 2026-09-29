@@ -300,7 +300,7 @@ impl Launcher {
             }
             let style = match action.style {
                 ActionStyle::Normal => ButtonVariant::Text,
-                ActionStyle::Primary => ButtonVariant::Primary,
+                ActionStyle::Primary => ButtonVariant::Emphasis,
                 ActionStyle::Attention => ButtonVariant::Attention,
             };
             let mut button = Button::new(("action", i), action.label.clone())

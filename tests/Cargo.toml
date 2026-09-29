@@ -20,6 +20,7 @@ delight-protocol = { workspace = true }
 delight-runtime = { workspace = true }
 embedded_gpui = { workspace = true }
 gpui = { workspace = true, features = ["test-support"] }
+log = { workspace = true }
 # TEMPORARY(network): the local servers the network tests talk to.
 bytes = { workspace = true }
 futures = { workspace = true }

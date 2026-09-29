@@ -14,6 +14,10 @@ pub enum KeycapStyle {
     OnAccent,
     /// Tinted with the accent colour (a text button).
     Accent,
+    /// A solid accent chip: the key of a button that is the main thing to do.
+    Solid,
+    /// Tinted with the attention colour.
+    Attention,
 }
 
 #[derive(IntoElement)]
@@ -40,6 +44,8 @@ impl RenderOnce for Keycap {
             KeycapStyle::Plain => (t.fill, t.text_muted),
             KeycapStyle::OnAccent => (t.accent_text.opacity(0.22), t.accent_text.opacity(0.9)),
             KeycapStyle::Accent => (t.tint(t.accent), t.accent),
+            KeycapStyle::Solid => (t.accent, t.accent_text),
+            KeycapStyle::Attention => (t.tint(t.attention()), t.attention()),
         };
         div()
             .flex_shrink_0()

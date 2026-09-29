@@ -40,11 +40,14 @@ pub fn plugin_options(
     text_system: Arc<dyn PlatformTextSystem>,
 ) -> PluginOptions {
     let network = manifest.plugin.permission::<NetworkPermission>().is_some();
+    let name = manifest.plugin.name.clone();
     // The app asks a plugin's focused text field questions on the main thread (where the cursor is,
     // for the input method) and waits for the answer this long: the plugin's turn in between may
     // be a frame's drawing, more than embedded_gpui's default 5 ms, and an unanswered question is
     // a wrong answer.
     PluginOptions::new(text_system).with_input_query_budget(INPUT_QUERY_BUDGET).with_wasi(move |wasi| {
+        // What the plugin logs goes into the app's log (see `plugin_log`), not to the terminal.
+        wasi.stderr(crate::plugin_log::PluginStderr::new(name.clone()));
         let mounted = std::fs::create_dir_all(&data_dir)
             .map_err(anyhow::Error::from)
             .and_then(|()| wasi.preopened_dir(&data_dir, "/data", DirPerms::all(), FilePerms::all()));

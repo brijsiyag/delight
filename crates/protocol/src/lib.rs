@@ -298,10 +298,10 @@ pub enum ActionStyle {
     /// The footer's usual button.
     #[default]
     Normal,
-    /// The main thing to do here: a filled button.
+    /// The main thing to do here: a bolder label and a solid key.
     Primary,
-    /// Something needs doing before the rest can be trusted (results gone stale): it stands out,
-    /// on a tint of the accent colour.
+    /// Something needs doing before the rest can be trusted (results gone stale): it stands out in
+    /// pink, with a bolder label.
     Attention,
 }
 

@@ -36,6 +36,25 @@ async fn a_plugin_opens_its_settings_page(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
+async fn what_a_plugin_logs_is_in_the_apps_log_under_its_name(cx: &mut TestAppContext) {
+    cx.executor().allow_parking();
+    let (plugin, _app) = start("plugin-log", cx).await;
+    let tool = tool_with(&plugin, "", cx).await;
+    cx.update(|cx| drop(tool.perform_action("Log".into(), cx)));
+    let deadline = Instant::now() + Duration::from_secs(20);
+    loop {
+        cx.executor().run_until_parked();
+        let logged = LOGGED.lock().unwrap().clone();
+        let found = |level, text: &str| logged.iter().any(|(target, l, message)| target == "plugin::Fixture" && *l == level && message == text);
+        if found(log::Level::Warn, "the fixture warns") && found(log::Level::Error, "the fixture fails") {
+            break;
+        }
+        assert!(Instant::now() < deadline, "not in the app's log: {logged:?}");
+        std::thread::sleep(Duration::from_millis(20));
+    }
+}
+
+#[gpui::test]
 async fn a_plugin_asks_the_user_to_confirm_and_hears_the_answer(cx: &mut TestAppContext) {
     cx.executor().allow_parking();
     let (plugin, app) = start("confirm", cx).await;

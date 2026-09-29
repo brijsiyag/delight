@@ -110,6 +110,8 @@ enum EchoAction {
     Secrets,
     Facts,
     ShowSettings,
+    /// Log a warning and an error, to be found in the app's log.
+    Log,
     /// Ask the user to confirm, destructively; toasts "confirmed" or "cancelled".
     Confirm,
     /// Ask the app for a window; toasts "window ok" once it has drawn there, or why not.
@@ -169,6 +171,10 @@ impl Tool for Echo {
             EchoAction::Run => commands::run(&self.text.clone(), cx),
             EchoAction::Secrets => host_facts::secrets(&self.text.clone(), cx),
             EchoAction::Facts => host_facts::facts(cx),
+            EchoAction::Log => {
+                log::warn!("the fixture warns");
+                log::error!("the fixture fails");
+            }
             EchoAction::Confirm => {
                 let asked = host(cx).confirm(Confirm::new("Remove it?", "It cannot be undone.").continue_label("Remove").destructive(), cx);
                 cx.spawn(async move |_, cx| {

@@ -120,6 +120,12 @@ impl Theme {
     }
 
     /// A tinted background for `color` (a status colour, or the accent).
+    /// The colour of a button that needs attention (results gone stale): a pink, well apart from
+    /// the accent blue. Not part of the theme plugins are given: the app draws those buttons.
+    pub fn attention(&self) -> Hsla {
+        color(if self.dark { 0xFF6AA2 } else { 0xE0397F })
+    }
+
     pub fn tint(&self, color: Hsla) -> Hsla {
         color.opacity(if self.dark { 0.18 } else { 0.12 })
     }

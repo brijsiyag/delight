@@ -19,6 +19,7 @@ pub mod open_url;
 mod network;
 mod plugin;
 mod plugin_file;
+mod plugin_log;
 mod ranking;
 
 pub use granted::Granted;

@@ -21,7 +21,10 @@ pub enum ButtonVariant {
     Secondary,
     /// Borderless, accent-coloured label (AppKit "borderless" / link style).
     Text,
-    /// Borderless like `Text`, but on a tint of the accent colour: something needs doing first.
+    /// Like `Text` with a bolder label and a solid accent key: the main thing to do here.
+    Emphasis,
+    /// Like `Text` with a bolder label in the attention colour (pink) and a key tinted with it:
+    /// something needs doing first.
     Attention,
 }
 
@@ -48,11 +51,17 @@ impl ButtonVariant {
                 hover: t.tint(t.accent),
                 keycap: KeycapStyle::Accent,
             },
-            ButtonVariant::Attention => Colors {
-                bg: Some(t.tint(t.accent)),
+            ButtonVariant::Emphasis => Colors {
+                bg: None,
                 fg: t.accent,
-                hover: t.accent.opacity(0.28),
-                keycap: KeycapStyle::Accent,
+                hover: t.tint(t.accent),
+                keycap: KeycapStyle::Solid,
+            },
+            ButtonVariant::Attention => Colors {
+                bg: None,
+                fg: t.attention(),
+                hover: t.tint(t.attention()),
+                keycap: KeycapStyle::Attention,
             },
         }
     }
@@ -136,9 +145,13 @@ impl Disableable for Button {
 impl RenderOnce for Button {
     fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
         let c = self.variant.colors(cx.theme());
-        let text = self.variant == ButtonVariant::Text;
+        let text = matches!(self.variant, ButtonVariant::Text | ButtonVariant::Emphasis | ButtonVariant::Attention);
         let padding = if text { self.size.padding_x() - px(2.) } else { self.size.padding_x() };
-        let weight = if text { FontWeight::NORMAL } else { FontWeight::MEDIUM };
+        let weight = match self.variant {
+            ButtonVariant::Text => FontWeight::NORMAL,
+            ButtonVariant::Emphasis | ButtonVariant::Attention => FontWeight::SEMIBOLD,
+            _ => FontWeight::MEDIUM,
+        };
         div()
             .id(self.id)
             .flex_shrink_0()

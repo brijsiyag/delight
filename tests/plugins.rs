@@ -234,8 +234,38 @@ fn data_dir(test: &str) -> PathBuf {
         .join(format!("{test}-{}", std::process::id()))
 }
 
+/// What the app logged during the tests: (target, level, text), for the tests to look through.
+static LOGGED: std::sync::Mutex<Vec<(String, log::Level, String)>> = std::sync::Mutex::new(Vec::new());
+
+struct Capture;
+
+impl log::Log for Capture {
+    fn enabled(&self, _: &log::Metadata) -> bool {
+        true
+    }
+
+    fn log(&self, record: &log::Record) {
+        if let Ok(mut logged) = LOGGED.lock() {
+            logged.push((record.target().to_string(), record.level(), record.args().to_string()));
+        }
+    }
+
+    fn flush(&self) {}
+}
+
+/// The app's logger, for the tests: one that keeps what is logged.
+fn capture_logs() {
+    static ONCE: Once = Once::new();
+    ONCE.call_once(|| {
+        if log::set_logger(&Capture).is_ok() {
+            log::set_max_level(log::LevelFilter::Info);
+        }
+    });
+}
+
 /// Start the fixture with a fake app root, as the app will start any plugin.
 async fn start(test: &str, cx: &mut TestAppContext) -> (Plugin, Entity<FakeApp>) {
+    capture_logs();
     let wasm = fixture();
     let manifest = read_manifest(&std::fs::read(&wasm).unwrap()).unwrap();
     let options = plugin_options(&manifest, data_dir(test), Arc::new(gpui::NoopTextSystem::new()));
@@ -261,7 +291,7 @@ async fn actions(tool: &Remote<ToolApi>, cx: &mut TestAppContext) -> Vec<Action>
 fn the_manifest_is_read_from_the_wasm() {
     let manifest = read_manifest(&std::fs::read(fixture()).unwrap()).unwrap();
     assert_eq!(manifest.plugin.id, "dev.delight.fixture");
-    assert_eq!(manifest.plugin.version, "0.1.0");
+    assert_eq!(manifest.plugin.version, "0.0.1");
     assert_eq!(manifest.operations.len(), 1);
     assert_eq!(manifest.operations[0].id, "echo");
     assert!(manifest.plugin.icon.starts_with("<svg"));

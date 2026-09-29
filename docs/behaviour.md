@@ -67,6 +67,8 @@ that code was organised. Where the rewrite changes something on purpose,
   kept. The menu bar's "Open Logs": with one file it opens in the Mac's text editor (the app that
   opens a `.txt` file); with several it zips them as `Delight-logs-….zip` in Downloads and shows the
   zip in Finder; with none it opens the folder.
+  What a plugin logs (its `log` lines, which it sends to its stderr) is logged by the app as
+  `plugin::<name>` at the level the plugin gave, so it is in the console and the files with the rest.
 - **GPUI deadlock (fixed upstream)**: a window becoming key while the app
   is inactive makes AppKit report `isKeyWindow == NO` inside
   `windowDidBecomeKey:`, and GPUI then calls `resignKeyWindow`. crates.io

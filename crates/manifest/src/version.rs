@@ -21,25 +21,12 @@ pub const PLUGIN_API_VERSION: &str = env!("CARGO_PKG_VERSION");
 /// method, changing a type, a new enum variant sent to plugins, a change to the Rust
 /// API that plugins can't build against unchanged. Bump the patch for the rest.
 ///
-/// 0.1 is the first release, and the protocol it shipped with: the host API (toast, hide,
-/// `remember_input`, the theme, the clipboard, `http`, `open_url`, `dns`, `commands`,
-/// secrets, settings, `set_launcher_input`, the UTC offset and `show_settings`), the plugin's
-/// tools with their actions, and its settings as sections (`settings_sections`,
-/// `open_settings_section`). Before 1.0 a minor bump may also break what it changes; keep the
-/// rules above from 1.0 on.
-///
-/// 0.2 adds an action's style (`Action::style`: normal, primary or attention), which an older
-/// plugin doesn't send (it is normal). The Rust `Action` gained the field, so a plugin builds its
-/// actions with `Action::new`.
-///
-/// 0.3 lets a plugin open a window of its own (`HostApi::open_window`, `PluginApi::open_window_view`,
-/// `host(cx).open_window`).
-///
-/// 0.4 tells a tool when a click lands elsewhere in the launcher (`ToolApi::focus_lost`,
-/// `Tool::on_focus_lost`), so it can close a menu.
-///
-/// 0.5 lets a plugin ask the user to confirm something with the system's alert (`HostApi::confirm`,
-/// `host(cx).confirm`).
+/// 0.0 is the protocol so far: the host API (toast, hide, `remember_input`, the theme, the
+/// clipboard, `http`, `open_url`, `dns`, `commands`, secrets, settings, `set_launcher_input`, the
+/// UTC offset, `show_settings`, windows of a plugin's own, and the system's confirm alert), the
+/// plugin's tools with their actions (each with a style: normal, primary or attention; a tool is
+/// told when a click lands elsewhere in the launcher), and its settings as sections. Before 1.0 a
+/// minor bump may also break what it changes; keep the rules above from 1.0 on.
 pub const PROTOCOL_VERSION: ProtocolVersion = ProtocolVersion {
     major: number(env!("CARGO_PKG_VERSION_MAJOR")),
     minor: number(env!("CARGO_PKG_VERSION_MINOR")),
