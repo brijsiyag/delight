@@ -10,7 +10,7 @@ use tray_icon::menu::{Menu, MenuEvent, MenuItem, PredefinedMenuItem};
 use tray_icon::{Icon, TrayIcon, TrayIconBuilder};
 
 use crate::updater::Status;
-use crate::{hotkey, launcher, settings_window, updater};
+use crate::{hotkey, launcher, logs, settings_window, updater};
 
 /// Black on transparent, so macOS can tint it for light and dark menu bars.
 const LOGO: &[u8] = delight_ui::LOGO_SVG;
@@ -29,13 +29,14 @@ struct Tray {
 impl Global for Tray {}
 
 /// Put Delight's icon in the menu bar, with "Open Delight" (and the launcher
-/// shortcut), "Check for Updates…" (dimmed if this build can't update itself), "Settings…" and
-/// "Quit Delight". The menu's clicks arrive on the system's
+/// shortcut), "Check for Updates…" (dimmed if this build can't update itself), "Settings…",
+/// "Open Logs" and "Quit Delight". The menu's clicks arrive on the system's
 /// thread and reach GPUI through a channel.
 pub fn install(cx: &mut App) -> Result<()> {
     let shortcut = hotkey::current(cx).and_then(|keystroke| accelerator(&keystroke));
     let open = MenuItem::with_id("open", "Open Delight", true, shortcut);
     let settings = MenuItem::with_id("settings", "Settings", true, None);
+    let logs = MenuItem::with_id("logs", "Open Logs", true, None);
     let quit = MenuItem::with_id("quit", "Quit Delight", true, None);
     let separator = PredefinedMenuItem::separator();
     let updates = MenuItem::with_id("updates", UPDATES, updater::available(cx), None);
@@ -44,6 +45,7 @@ pub fn install(cx: &mut App) -> Result<()> {
     menu.append(&separator)?;
     menu.append(&updates)?;
     menu.append(&settings)?;
+    menu.append(&logs)?;
     menu.append(&PredefinedMenuItem::separator())?;
     menu.append(&quit)?;
     let icon = TrayIconBuilder::new()
@@ -64,6 +66,7 @@ pub fn install(cx: &mut App) -> Result<()> {
                 "open" => launcher::show(cx),
                 "updates" => updater::check(cx),
                 "settings" => settings_window::open(cx),
+                "logs" => logs::open(cx),
                 "quit" => cx.quit(),
                 _ => {}
             });

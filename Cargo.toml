@@ -92,7 +92,9 @@ objc2-app-kit = { version = "=0.3.2", default-features = false, features = [
     "NSGlassEffectView", "NSGraphics", "NSImage", "NSResponder", "NSRunningApplication", "NSView",
     "NSVisualEffectView", "NSWindow", "NSWorkspace", "libc", "objc2-quartz-core",
 ] }
-objc2-foundation = { version = "=0.3.2", default-features = false, features = ["std", "NSGeometry", "NSString"] }
+objc2-foundation = { version = "=0.3.2", default-features = false, features = ["std", "NSArray", "NSGeometry", "NSString", "NSURL"] }
+# Zipping the log files for the menu's Open Logs.
+zip = { version = "=8.6.0", default-features = false, features = ["deflate"] }
 # Writing the open-at-login LaunchAgent.
 plist = "=1.10.1"
 # Plugin secrets: AES-256-GCM (`ring`), with the key in the login Keychain.

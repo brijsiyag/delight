@@ -13,6 +13,7 @@ mod hotkey;
 mod keymap;
 mod launcher;
 mod login;
+mod logs;
 mod macos;
 mod plugin_windows;
 mod plugins;
@@ -36,8 +37,49 @@ fn app_dir() -> PathBuf {
     dirs::data_dir().unwrap_or_else(std::env::temp_dir).join("Delight")
 }
 
+/// Everything logged goes to the console and to this run's file (see [`logs`]).
+struct Tee {
+    console: env_logger::Logger,
+    file: Option<env_logger::Logger>,
+}
+
+impl log::Log for Tee {
+    fn enabled(&self, metadata: &log::Metadata) -> bool {
+        self.console.enabled(metadata)
+    }
+
+    fn log(&self, record: &log::Record) {
+        self.console.log(record);
+        if let Some(file) = &self.file {
+            file.log(record);
+        }
+    }
+
+    fn flush(&self) {
+        self.console.flush();
+        if let Some(file) = &self.file {
+            file.flush();
+        }
+    }
+}
+
 fn init_logging() {
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
+    let env = || env_logger::Env::default().default_filter_or("info");
+    let console = env_logger::Builder::from_env(env()).build();
+    let file = match logs::SessionLog::start() {
+        Ok(log) => Some(
+            env_logger::Builder::from_env(env())
+                .target(env_logger::Target::Pipe(Box::new(log.writer())))
+                .write_style(env_logger::WriteStyle::Never)
+                .build(),
+        ),
+        Err(error) => {
+            eprintln!("Delight can't write its log file: {error:#}");
+            None
+        }
+    };
+    log::set_max_level(console.filter());
+    log::set_boxed_logger(Box::new(Tee { console, file })).ok();
 }
 
 fn main() {

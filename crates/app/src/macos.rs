@@ -280,3 +280,37 @@ impl NativeWindow {
         }
     }
 }
+
+/// Show `path` in Finder: a folder is opened, a file is selected in its folder.
+pub fn reveal(path: &std::path::Path) {
+    use objc2_foundation::{NSArray, NSString, NSURL};
+    let url = NSURL::fileURLWithPath(&NSString::from_str(&path.to_string_lossy()));
+    let workspace = NSWorkspace::sharedWorkspace();
+    if path.is_dir() {
+        workspace.openURL(&url);
+    } else {
+        workspace.activateFileViewerSelectingURLs(&NSArray::from_slice(&[&*url]));
+    }
+}
+
+/// Open the file in the Mac's text editor: the app that opens a plain `.txt` file (TextEdit unless
+/// the user chose another). The file's own default app (for `.log`, Console) if none is found.
+pub fn open_in_text_editor(path: &std::path::Path) {
+    use objc2_app_kit::NSWorkspaceOpenConfiguration;
+    use objc2_foundation::{NSArray, NSString, NSURL};
+    let url = NSURL::fileURLWithPath(&NSString::from_str(&path.to_string_lossy()));
+    let workspace = NSWorkspace::sharedWorkspace();
+    // Asked by name only: what opens a `.txt` file doesn't need the file to exist.
+    let text_file = NSURL::fileURLWithPath(&NSString::from_str("/tmp/delight.txt"));
+    match workspace.URLForApplicationToOpenURL(&text_file) {
+        Some(editor) => workspace.openURLs_withApplicationAtURL_configuration_completionHandler(
+            &NSArray::from_slice(&[&*url]),
+            &editor,
+            &NSWorkspaceOpenConfiguration::configuration(),
+            None,
+        ),
+        None => {
+            workspace.openURL(&url);
+        }
+    }
+}

@@ -62,6 +62,11 @@ that code was organised. Where the rewrite changes something on purpose,
   Settings) and "Hide when focus is lost" is on, the launcher and all the windows go off screen
   (not closed), and the hotkey brings back the launcher and every window that hid, where they were.
   Esc or the hotkey on the launcher hides the windows with it. Reloading the plugins closes them.
+- **Logs**: everything the app logs goes to the console and to a file in `~/Library/Logs/Delight`, one
+  `delight-YYYYMMDD-HHMMSS.log` for each run (a new one when a run's file passes 8 MiB), the last six
+  kept. The menu bar's "Open Logs": with one file it opens in the Mac's text editor (the app that
+  opens a `.txt` file); with several it zips them as `Delight-logs-….zip` in Downloads and shows the
+  zip in Finder; with none it opens the folder.
 - **GPUI deadlock (fixed upstream)**: a window becoming key while the app
   is inactive makes AppKit report `isKeyWindow == NO` inside
   `windowDidBecomeKey:`, and GPUI then calls `resignKeyWindow`. crates.io
