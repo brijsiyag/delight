@@ -1056,7 +1056,7 @@ checksum = "be1e0bca6c3637f992fc1cc7cbc52a78c1ef6db076dbf1059c4323d6a2048376"
 
 [[package]]
 name = "delight-dns"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "delight-plugin-api",
  "delight-ui",
@@ -1068,7 +1068,7 @@ dependencies = [
 
 [[package]]
 name = "delight-json"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "delight-plugin-api",
  "delight-ui",
@@ -1127,7 +1127,7 @@ dependencies = [
 
 [[package]]
 name = "delight-svg"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "base64",
  "delight-plugin-api",
@@ -1138,7 +1138,7 @@ dependencies = [
 
 [[package]]
 name = "delight-ui"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "delight-protocol",
  "gpui",
@@ -1155,7 +1155,7 @@ dependencies = [
 
 [[package]]
 name = "delight-yaml"
-version = "0.1.1"
+version = "0.1.2"
 dependencies = [
  "delight-plugin-api",
  "delight-ui",
