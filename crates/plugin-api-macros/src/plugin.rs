@@ -7,7 +7,7 @@
 use darling::FromMeta;
 use darling::ast::NestedMeta;
 use delight_manifest::{
-    MAX_TIPS, PermissionRequest, PluginProperties, SECTION, encode_properties, validate_id, validate_reason,
+    MAX_TIPS, Permission, PermissionRequest, PluginProperties, SECTION, encode_properties, validate_id, validate_reason,
     validate_tip,
 };
 use proc_macro2::{Literal, TokenStream};
@@ -86,7 +86,10 @@ impl PluginArgs {
 }
 
 /// `permissions = [Network("Fetches schemas from the web")]`: permission names, as
-/// `delight-manifest` spells them, each with why the plugin needs it.
+/// `delight-manifest` spells them, each with why the plugin needs it, and then the data
+/// only that permission has, by field name: `Commands("Lists processes", programs =
+/// ["/bin/ps", "/usr/sbin/lsof"])`. The macro knows no permission: the fields are read
+/// as the permission's own type is, so a new permission needs nothing here.
 #[derive(Default)]
 struct Permissions(Vec<PermissionRequest>);
 
@@ -124,13 +127,45 @@ fn permission(element: &Expr) -> darling::Result<PermissionRequest> {
         _ => None,
     }
     .ok_or_else(expected)?;
-    let permission = name.to_string().parse().map_err(|error| darling::Error::custom(error).with_span(name))?;
     let mut arguments = call.args.iter();
-    let (Some(Expr::Lit(ExprLit { lit: Lit::Str(reason), .. })), None) = (arguments.next(), arguments.next()) else {
+    let Some(Expr::Lit(ExprLit { lit: Lit::Str(reason), .. })) = arguments.next() else {
         return Err(expected());
     };
     validate_reason(&reason.value()).map_err(|error| invalid(error).with_span(reason))?;
+    // The rest, `field = value`, joined with the name into the object the manifest
+    // holds, which the permission's own type reads and checks.
+    let mut object = serde_json::Map::new();
+    object.insert("permission".into(), name.to_string().into());
+    for argument in arguments {
+        let Expr::Assign(assign) = argument else {
+            return Err(expected());
+        };
+        let field = match &*assign.left {
+            Expr::Path(path) => path.path.get_ident(),
+            _ => None,
+        }
+        .ok_or_else(expected)?;
+        object.insert(field.to_string(), json(&assign.right)?);
+    }
+    let permission: Permission = serde_json::from_value(object.into())
+        .map_err(|error| darling::Error::custom(format!("{name}: {error}")).with_span(call))?;
+    permission.spec().validate().map_err(|error| invalid(error).with_span(call))?;
     Ok(PermissionRequest { permission, reason: reason.value() })
+}
+
+/// A field's value as JSON: a string, number, boolean, or an array of them.
+fn json(expr: &Expr) -> darling::Result<serde_json::Value> {
+    let unsupported = || darling::Error::custom("expected a string, number, boolean or array of them").with_span(expr);
+    match expr {
+        Expr::Lit(ExprLit { lit, .. }) => match lit {
+            Lit::Str(string) => Ok(string.value().into()),
+            Lit::Bool(boolean) => Ok(boolean.value.into()),
+            Lit::Int(int) => Ok(int.base10_parse::<i64>().map_err(darling::Error::from)?.into()),
+            _ => Err(unsupported()),
+        },
+        Expr::Array(array) => Ok(array.elems.iter().map(json).collect::<darling::Result<Vec<_>>>()?.into()),
+        _ => Err(unsupported()),
+    }
 }
 
 /// The plugin's type as written, and, for wasm, its custom section (the properties
@@ -190,12 +225,25 @@ mod tests {
     #[test]
     fn a_permission_is_written_with_why_it_is_needed() {
         let request = read(syn::parse_quote!(Network("Fetches schemas from the web"))).unwrap();
-        assert_eq!(request.permission, Permission::Network);
+        assert_eq!(request.permission, Permission::network());
         assert_eq!(request.reason, "Fetches schemas from the web");
 
         assert!(read(syn::parse_quote!(Network)).unwrap_err().contains("say why"));
         assert!(read(syn::parse_quote!(Network("  "))).unwrap_err().contains("blank"));
-        assert!(read(syn::parse_quote!(Files("Reads files"))).unwrap_err().contains("no permission"));
+        assert!(read(syn::parse_quote!(Files("Reads files"))).unwrap_err().contains("unknown variant"));
         assert!(read(syn::parse_quote!(Network("a", "b"))).unwrap_err().contains("expected a permission"));
+    }
+
+    #[test]
+    fn a_permissions_own_data_is_written_by_field() {
+        let request = read(syn::parse_quote!(Commands("Lists processes", programs = ["/bin/ps", "/usr/sbin/lsof"]))).unwrap();
+        assert_eq!(request.permission, Permission::commands(["/bin/ps", "/usr/sbin/lsof"]));
+
+        assert!(read(syn::parse_quote!(Commands("Lists processes"))).unwrap_err().contains("missing field `programs`"));
+        assert!(read(syn::parse_quote!(Commands("Lists", programs = []))).unwrap_err().contains("no programs"));
+        assert!(read(syn::parse_quote!(Commands("Lists", programs = ["ps"]))).unwrap_err().contains("directly in"));
+        assert!(read(syn::parse_quote!(Commands("Lists", programs = [1]))).is_err(), "a number is not a program");
+        assert!(read(syn::parse_quote!(Commands("Lists", ["/bin/ps"]))).unwrap_err().contains("expected a permission"));
+        assert!(read(syn::parse_quote!(Network("Fetches", programs = ["/bin/ps"]))).unwrap_err().contains("unknown field"));
     }
 }

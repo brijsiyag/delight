@@ -1051,6 +1051,7 @@ dependencies = [
  "delight-manifest",
  "proc-macro2",
  "quote",
+ "serde_json",
  "syn",
 ]
 

@@ -1,6 +1,6 @@
 //! What one plugin may ask of the app: its host object.
 
-use delight_protocol::{DnsApi, HostApi, HttpApi, Theme};
+use delight_protocol::{CommandsApi, DnsApi, HostApi, HttpApi, Theme};
 use delight_runtime::Granted;
 use delight_ui::ActiveTheme as _;
 use embedded_gpui::{ClipboardApi, Ref, shared};
@@ -62,6 +62,10 @@ impl HostApi for HostRoot {
 
     fn dns(&mut self, cx: &mut Context<Self>) -> Option<Ref<DnsApi>> {
         self.granted.dns(cx)
+    }
+
+    fn commands(&mut self, cx: &mut Context<Self>) -> Option<Ref<CommandsApi>> {
+        self.granted.commands(cx)
     }
 
     // TEMPORARY(open_url)

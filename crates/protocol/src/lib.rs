@@ -14,9 +14,14 @@
 //! are unique across the interfaces here and don't clash with type names.
 
 pub use delight_manifest::{
-    MAX_TIP_CHARS, Manifest, Operation, PLUGIN_API_VERSION, PROTOCOL_VERSION, Permission, PermissionRequest,
-    PluginProperties, ProtocolVersion, validate_tip,
+    COMMAND_DIRS, CommandsPermission, MAX_TIP_CHARS, Manifest, NetworkPermission, Operation, PLUGIN_API_VERSION,
+    PROTOCOL_VERSION, Permission, PermissionRequest, PermissionSpec, PluginProperties, ProtocolVersion, validate_tip,
 };
+
+/// Running programs, for plugins with `Commands`.
+mod commands;
+
+pub use commands::*;
 
 /// The Mac's DNS setup, for plugins with `Network`.
 mod dns;
@@ -108,6 +113,10 @@ pub trait HostApi {
     /// The Mac's DNS setup (`dns/`): `None` unless the plugin has the `Network`
     /// permission.
     fn dns(&mut self, cx: &mut gpui::Context<Self>) -> Option<Ref<DnsApi>>;
+
+    /// Running the programs the manifest's `Commands` permission lists (`commands/`):
+    /// `None` unless the plugin has it.
+    fn commands(&mut self, cx: &mut gpui::Context<Self>) -> Option<Ref<CommandsApi>>;
 }
 
 /// What is in the launcher: the typed or pasted text. A struct, so more (such as
@@ -293,7 +302,7 @@ mod tests {
         );
         assert_eq!(
             methods(HostApi::schema()),
-            ["toast", "hide", "remember_input", "current_theme", "clipboard", "http", "open_url", "dns"]
+            ["toast", "hide", "remember_input", "current_theme", "clipboard", "http", "open_url", "dns", "commands"]
         );
     }
 }

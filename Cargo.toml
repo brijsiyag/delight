@@ -104,6 +104,8 @@ tree-sitter-json = "=0.24.8"
 tree-sitter-yaml = "=0.7.2"
 tray-icon = "=0.25.1"
 unicode-segmentation = "=1.13.3"
+# Waiting for a plugin's program to end, for a limited time.
+wait-timeout = "=0.2.1"
 # The versions wasmtime (inside embedded_gpui) uses, with only the features it
 # already enables: reading a plugin's custom section, and writing test components.
 wasm-encoder = "=0.236.1"

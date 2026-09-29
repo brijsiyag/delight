@@ -391,9 +391,12 @@ height / text / icon / padding).
   used; the folder is wiped on each copy); open_url; open_settings (own
   page); add_font (before first use); theme (+ observe); UTC offset; app pid.
 - Host, gated: read_input_file (InputFiles; the path must be one of the
-  *current* input files); read_clipboard (Clipboard); run (Commands: absolute
-  program, args, stdin written then closed, no shell, waited off the main
-  thread; output status / stdout / stderr).
+  *current* input files); read_clipboard (Clipboard); run (Commands: a program
+  the manifest lists, an absolute path directly in /bin, /sbin, /usr/bin or
+  /usr/sbin; any args, stdin written then closed, no shell, empty environment,
+  the plugin's data folder as working folder, killed after 60 s, waited off the
+  main thread; output status / stdout / stderr as text, 16 MiB each). Settings
+  and the install sheet show the listed programs under "Runs commands".
 - set_input, toast, hide and open_settings are deferred: the launcher may be
   mid-update.
 - `export_plugin!` does nothing natively, so a tool's unit tests run on the

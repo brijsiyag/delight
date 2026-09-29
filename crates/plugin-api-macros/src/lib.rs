@@ -34,7 +34,10 @@ use syn::LitStr;
 ///
 /// `id`, `name` and `icon` are required; the version is the crate's own. Each
 /// permission says why the plugin needs it, in at most 100 characters: people read it
-/// next to what the permission allows when they install the plugin.
+/// next to what the permission allows when they install the plugin. `Commands` also
+/// lists the programs the plugin may run, each an absolute path directly in `/bin`,
+/// `/sbin`, `/usr/bin` or `/usr/sbin`: `Commands("Lists processes", programs = ["/bin/ps"])`.
+/// A permission's own data is written by field name, after its reason.
 ///
 /// `tips` are shown now and then in the launcher's empty input, so each says what
 /// someone can type there and what they get: `cal` opens your calendar, `cal <email>`

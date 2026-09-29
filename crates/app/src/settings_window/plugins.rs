@@ -3,7 +3,7 @@
 
 use std::path::Path;
 
-use delight_protocol::{Permission, PermissionRequest};
+use delight_protocol::PermissionRequest;
 use delight_runtime::Plugin;
 use embedded_gpui::Surface;
 use delight_ui::{Button, Disableable as _, Icon, IconName, LogoBadge, Switch, Theme, h_flex, v_flex};
@@ -290,13 +290,9 @@ pub(super) fn permission_rows(permissions: &[PermissionRequest], t: &Theme) -> V
     permissions
         .iter()
         .map(|request| {
-            let (icon, name, explanation) = match request.permission {
-                Permission::Network => (
-                    IconName::Globe,
-                    "Network",
-                    "Can reach the internet and your local network, and take callbacks on this Mac",
-                ),
-            };
+            let spec = request.permission.spec();
+            let (name, explanation) = (spec.title(), spec.describe());
+            let icon = IconName::from_name(spec.icon()).unwrap_or(IconName::Puzzle);
             let tinted = div()
                 .size(px(30.))
                 .flex_shrink_0()

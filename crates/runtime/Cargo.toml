@@ -27,6 +27,7 @@ resolv-conf = { workspace = true }
 system-configuration = { workspace = true }
 rustls = { workspace = true }
 tokio = { workspace = true }
+wait-timeout = { workspace = true }
 wasmparser = { workspace = true }
 wasmtime-wasi = { workspace = true }
 

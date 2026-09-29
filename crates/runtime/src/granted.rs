@@ -1,13 +1,16 @@
 //! What the app hands a plugin beyond its sandbox, as objects, so that holding one is
 //! the authority to use it: its clipboard, and what its permissions grant (HTTP, for
-//! `Network`). A `Network` plugin also has the sandbox's own sockets: see
+//! `Network`, running programs for `Commands`). A `Network` plugin also has the sandbox's own sockets: see
 //! [`plugin_options`](crate::plugin_options).
 
-use delight_manifest::{Manifest, Permission};
-use delight_protocol::{DnsApi, HttpApi};
+use delight_manifest::{CommandsPermission, Manifest, NetworkPermission};
+use std::path::PathBuf;
+
+use delight_protocol::{CommandsApi, DnsApi, HttpApi};
 use embedded_gpui::gpui::{App, AppContext as _, Entity};
 use embedded_gpui::{Clipboard, ClipboardApi, Ref, Registry};
 
+use crate::commands::Commands;
 use crate::dns::Dns;
 // TEMPORARY(network)
 use crate::network::Http;
@@ -30,14 +33,27 @@ pub struct Granted {
     http: Option<Entity<Http>>,
     /// With [`Permission::Network`]: the Mac's DNS setup.
     dns: Option<Entity<Dns>>,
+    /// With [`Permission::Commands`]: the programs the manifest lists.
+    commands: Option<Entity<Commands>>,
 }
 
 impl Granted {
-    pub(crate) fn new(manifest: &Manifest, registry: Registry, clipboard: Entity<Clipboard>, cx: &mut App) -> Self {
+    pub(crate) fn new(
+        manifest: &Manifest,
+        data_dir: PathBuf,
+        registry: Registry,
+        clipboard: Entity<Clipboard>,
+        cx: &mut App,
+    ) -> Self {
         // TEMPORARY(network)
-        let http = manifest.plugin.asks_for(Permission::Network).then(|| cx.new(|_| Http::new(registry.clone())));
-        let dns = manifest.plugin.asks_for(Permission::Network).then(|| cx.new(|_| Dns));
-        Granted { registry, clipboard, http, dns }
+        let network = manifest.plugin.permission::<NetworkPermission>().is_some();
+        let http = network.then(|| cx.new(|_| Http::new(registry.clone())));
+        let dns = network.then(|| cx.new(|_| Dns));
+        let commands = manifest
+            .plugin
+            .permission::<CommandsPermission>()
+            .map(|commands| cx.new(|_| Commands::new(commands.programs.clone(), data_dir)));
+        Granted { registry, clipboard, http, dns, commands }
     }
 
     /// The clipboard, for GPUI's own clipboard calls in the plugin.
@@ -56,5 +72,11 @@ impl Granted {
     pub fn dns(&self, cx: &mut App) -> Option<Ref<DnsApi>> {
         let dns = self.dns.as_ref()?;
         Some(self.registry.share(dns, cx))
+    }
+
+    /// Running the manifest's programs, if the plugin has [`Permission::Commands`].
+    pub fn commands(&self, cx: &mut App) -> Option<Ref<CommandsApi>> {
+        let commands = self.commands.as_ref()?;
+        Some(self.registry.share(commands, cx))
     }
 }

@@ -16,12 +16,17 @@
 //! and whatever a proc macro depends on is built natively for every plugin.
 
 mod manifest;
+mod permission;
 mod section;
 mod version;
 
 pub use manifest::{
-    MAX_REASON_CHARS, MAX_TIP_CHARS, MAX_TIPS, Manifest, Operation, Permission, PermissionRequest, PluginProperties,
-    first_duplicate, validate_id, validate_operations, validate_reason, validate_tip,
+    MAX_REASON_CHARS, MAX_TIP_CHARS, MAX_TIPS, Manifest, Operation, PluginProperties, first_duplicate, validate_id,
+    validate_operations, validate_reason, validate_tip,
+};
+pub use permission::{
+    COMMAND_DIRS, CommandsPermission, MAX_PROGRAMS, NetworkPermission, Permission, PermissionData, PermissionRequest, PermissionSpec,
+    validate_program,
 };
 pub use section::{SECTION, decode_section, encode_operations, encode_properties};
 pub use version::{PLUGIN_API_VERSION, PROTOCOL_VERSION, ProtocolVersion};

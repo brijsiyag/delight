@@ -51,9 +51,10 @@ pub fn reload(cx: &mut App) {
                     broken.push(Broken { source, problem: Problem::SameId, detail });
                     continue;
                 }
-                let options = plugin_options(&manifest, data_dir(&id), text_system.clone());
+                let data = data_dir(&id);
+                let options = plugin_options(&manifest, data.clone(), text_system.clone());
                 let root = move |granted, cx: &mut App| cx.new(|cx| HostRoot::new(id, granted, cx));
-                let start = Plugin::start(source.file.clone(), manifest, options, root, cx);
+                let start = Plugin::start(source.file.clone(), manifest, options, data, root, cx);
                 starting.push((source, start));
             }
             (starting, broken)

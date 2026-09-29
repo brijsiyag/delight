@@ -3,8 +3,10 @@
 
 use std::collections::HashSet;
 
-use anyhow::{Context as _, Result, bail};
+use anyhow::{Result, bail};
 use serde::{Deserialize, Serialize};
+
+use crate::permission::{PermissionData, PermissionRequest};
 
 /// What a plugin is: its properties and the tools it offers.
 #[derive(Clone, Debug, PartialEq)]
@@ -51,7 +53,6 @@ pub const MAX_TIPS: usize = 5;
 pub const MAX_TIP_CHARS: usize = 60;
 /// The longest a permission's reason is, in characters: a sentence.
 pub const MAX_REASON_CHARS: usize = 100;
-
 /// One tool a plugin offers.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Operation {
@@ -69,53 +70,6 @@ pub struct Operation {
     pub tags: Vec<String>,
 }
 
-/// What a plugin may do outside its sandbox. Each is granted when the plugin is
-/// installed, and gates the objects the app hands it.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum Permission {
-    /// Reach the network.
-    Network,
-}
-
-/// A permission a plugin asks for, and why. People see the reason, in the plugin's
-/// words, next to what the permission allows, when they install it and in Settings,
-/// and decide.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(from = "Requested")]
-pub struct PermissionRequest {
-    pub permission: Permission,
-    /// At most [`MAX_REASON_CHARS`] characters. Empty for a plugin built before
-    /// reasons (plugin API 1.5), which doesn't say.
-    pub reason: String,
-}
-
-/// A permission as manifests spell it: with its reason, or, before 1.5, only its name.
-#[derive(Deserialize)]
-#[serde(untagged)]
-enum Requested {
-    WithReason { permission: Permission, reason: String },
-    Bare(Permission),
-}
-
-impl From<Requested> for PermissionRequest {
-    fn from(requested: Requested) -> Self {
-        match requested {
-            Requested::WithReason { permission, reason } => PermissionRequest { permission, reason },
-            Requested::Bare(permission) => PermissionRequest { permission, reason: String::new() },
-        }
-    }
-}
-
-impl std::str::FromStr for Permission {
-    type Err = anyhow::Error;
-
-    /// A permission by its name as the manifest spells it, such as `Network`.
-    fn from_str(name: &str) -> Result<Self> {
-        serde_json::from_value(serde_json::Value::String(name.to_string()))
-            .with_context(|| format!("there is no permission {name:?}"))
-    }
-}
-
 impl Manifest {
     /// The icon to show for `operation`: its own, or else the plugin's.
     pub fn icon_for<'a>(&'a self, operation: &'a Operation) -> &'a str {
@@ -130,9 +84,10 @@ impl Manifest {
 }
 
 impl PluginProperties {
-    /// Whether it asks for `permission`.
-    pub fn asks_for(&self, permission: Permission) -> bool {
-        self.permissions.iter().any(|request| request.permission == permission)
+    /// Its permission of type `P` (`permission::<CommandsPermission>()`), with its own
+    /// data, if it asks for one.
+    pub fn permission<P: PermissionData>(&self) -> Option<&P> {
+        self.permissions.iter().find_map(|request| P::from_permission(&request.permission))
     }
 
     /// Check what the types can't: the id's form, a name, a version, its permissions'
@@ -147,12 +102,14 @@ impl PluginProperties {
         }
         let mut asked = HashSet::new();
         for request in &self.permissions {
-            if !asked.insert(request.permission) {
-                bail!("the plugin asks for {:?} twice", request.permission);
+            let name = request.permission.spec().name();
+            if !asked.insert(name) {
+                bail!("the plugin asks for {name} twice");
             }
             if !request.reason.is_empty() {
                 validate_reason(&request.reason)?;
             }
+            request.permission.spec().validate()?;
         }
         if self.tips.len() > MAX_TIPS {
             bail!("the plugin has {} tips: at most {MAX_TIPS}", self.tips.len());
@@ -247,7 +204,7 @@ pub(crate) fn sample() -> Manifest {
             icon: "<svg/>".into(),
             tags: vec!["json".into()],
             permissions: vec![PermissionRequest {
-                permission: Permission::Network,
+                permission: crate::Permission::network(),
                 reason: "Fetches schemas from the web".into(),
             }],
             tips: vec!["Paste JSON to format it".into()],
@@ -265,6 +222,7 @@ pub(crate) fn sample() -> Manifest {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::permission::{CommandsPermission, NetworkPermission, Permission};
 
     #[test]
     fn an_operation_shows_its_own_icon_or_else_the_plugins() {
@@ -278,14 +236,6 @@ mod tests {
         manifest.operations.push(own.clone());
         assert_eq!(manifest.icon_for(&plain), "<svg/>");
         assert_eq!(manifest.icon_for(&own), "<svg id=\"minify\"/>");
-    }
-
-    #[test]
-    fn permissions_are_spelled_as_in_the_manifest() {
-        assert_eq!(serde_json::to_string(&[Permission::Network]).unwrap(), r#"["Network"]"#);
-        assert!(serde_json::from_str::<Permission>(r#""Files""#).is_err());
-        assert_eq!("Network".parse::<Permission>().unwrap(), Permission::Network);
-        assert!("Files".parse::<Permission>().is_err());
     }
 
     #[test]
@@ -341,22 +291,12 @@ mod tests {
     }
 
     #[test]
-    fn a_permission_comes_with_its_reason_or_before_1_5_without() {
-        let request = PermissionRequest { permission: Permission::Network, reason: "Syncs".into() };
-        let json = r#"{"permission":"Network","reason":"Syncs"}"#;
-        assert_eq!(serde_json::to_string(&request).unwrap(), json);
-        assert_eq!(serde_json::from_str::<PermissionRequest>(json).unwrap(), request);
-        let bare = serde_json::from_str::<PermissionRequest>(r#""Network""#).unwrap();
-        assert_eq!(bare, PermissionRequest { permission: Permission::Network, reason: String::new() });
-    }
-
-    #[test]
     fn validate_checks_the_permissions() {
         let with_reasons = |reasons: &[&str]| {
             let mut manifest = sample();
             manifest.plugin.permissions = reasons
                 .iter()
-                .map(|reason| PermissionRequest { permission: Permission::Network, reason: reason.to_string() })
+                .map(|reason| PermissionRequest { permission: Permission::network(), reason: reason.to_string() })
                 .collect();
             manifest.validate()
         };
@@ -366,7 +306,8 @@ mod tests {
         assert!(with_reasons(&[&"é".repeat(MAX_REASON_CHARS)]).is_ok(), "the limit counts characters");
         assert!(with_reasons(&[&"é".repeat(MAX_REASON_CHARS + 1)]).is_err(), "too long");
         assert!(with_reasons(&["Fetches", "Syncs"]).is_err(), "asked for twice");
-        assert!(sample().plugin.asks_for(Permission::Network));
+        assert!(sample().plugin.permission::<NetworkPermission>().is_some());
+        assert!(sample().plugin.permission::<CommandsPermission>().is_none());
     }
 
     #[test]
@@ -394,5 +335,18 @@ mod tests {
         });
         operations.push(operations[0].clone());
         assert_eq!(first_duplicate(&operations), Some(2));
+    }
+
+    #[test]
+    fn validate_checks_what_a_permission_holds() {
+        let mut manifest = sample();
+        manifest.plugin.permissions.push(PermissionRequest {
+            permission: Permission::commands(["/bin/ps"]),
+            reason: "Lists".into(),
+        });
+        manifest.validate().unwrap();
+        assert_eq!(manifest.plugin.permission::<CommandsPermission>().unwrap().programs, ["/bin/ps"]);
+        manifest.plugin.permissions[1].permission = Permission::commands(["ps"]);
+        assert!(manifest.validate().is_err());
     }
 }

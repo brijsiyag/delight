@@ -8,10 +8,10 @@ use std::cell::Cell;
 use std::path::PathBuf;
 use std::rc::Rc;
 use std::sync::{Arc, Once};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use delight_protocol::{
-    Action, Color, DnsApi, HostApi, HttpApi, Input, Permission, PermissionRequest, Shortcut, Theme, ToolApi, ToolApiCaller as _,
+    Action, Color, CommandsApi, DnsApi, HostApi, HttpApi, Input, Permission, PermissionRequest, Shortcut, Theme, ToolApi, ToolApiCaller as _,
 };
 use delight_runtime::{Candidate, Granted, Plugin, detect_all, plugin_options, read_manifest};
 use embedded_gpui::{ClipboardApi, Ref, Remote, Surface, shared};
@@ -100,6 +100,10 @@ impl HostApi for FakeApp {
         self.granted.as_ref().expect("given as the plugin starts").dns(cx)
     }
 
+    fn commands(&mut self, cx: &mut Context<Self>) -> Option<Ref<CommandsApi>> {
+        self.granted.as_ref().expect("given as the plugin starts").commands(cx)
+    }
+
     // TEMPORARY(open_url): as the app, with its check, but without a browser.
     fn open_url(&mut self, url: String, _cx: &mut Context<Self>) -> gpui::Task<anyhow::Result<()>> {
         let checked = delight_runtime::open_url::openable(&url).map(|url| self.opened.push(url.to_string()));
@@ -130,6 +134,32 @@ fn settle(cx: &mut TestAppContext) {
     cx.executor().run_until_parked();
 }
 
+/// Keep the app and the plugin running (the network's replies come from other
+/// threads) until `found` finds a toast; the toast it found.
+fn wait_for_toast(app: &Entity<FakeApp>, cx: &mut TestAppContext, found: impl Fn(&str) -> bool) -> String {
+    let deadline = Instant::now() + Duration::from_secs(20);
+    loop {
+        cx.executor().run_until_parked();
+        let toasts = app.read_with(cx, |app, _| app.toasts.clone());
+        if let Some(toast) = toasts.iter().find(|toast| found(toast)) {
+            return toast.clone();
+        }
+        assert!(Instant::now() < deadline, "no such toast; the toasts: {toasts:?}");
+        std::thread::sleep(Duration::from_millis(10));
+    }
+}
+
+/// The fixture's tool, with `text` as its input.
+async fn tool_with(plugin: &Plugin, text: &str, cx: &mut TestAppContext) -> Remote<ToolApi> {
+    let surface = cx.new(Surface::new);
+    let tool = cx.update(|cx| plugin.open_tool("echo", &surface, cx));
+    settle(cx);
+    let tool = tool.await.expect("open_tool");
+    cx.update(|cx| drop(tool.on_input_changed(input(text), cx)));
+    settle(cx);
+    tool
+}
+
 /// A fresh data folder for one test's plugin.
 fn data_dir(test: &str) -> PathBuf {
     std::env::temp_dir()
@@ -143,7 +173,7 @@ async fn start(test: &str, cx: &mut TestAppContext) -> (Plugin, Entity<FakeApp>)
     let manifest = read_manifest(&std::fs::read(&wasm).unwrap()).unwrap();
     let options = plugin_options(&manifest, data_dir(test), Arc::new(gpui::NoopTextSystem::new()));
     let app = cx.new(|_| FakeApp::default());
-    let started = cx.update(|cx| Plugin::start(wasm, manifest, options, root_of(&app), cx));
+    let started = cx.update(|cx| Plugin::start(wasm, manifest, options, data_dir(test), root_of(&app), cx));
     settle(cx);
     (started.await.expect("the fixture starts"), app)
 }
@@ -167,7 +197,12 @@ fn the_manifest_is_read_from_the_wasm() {
     assert_eq!(manifest.operations[0].id, "echo");
     assert!(manifest.plugin.icon.starts_with("<svg"));
     let reason = "Nothing: it's here to test how permissions are read".to_string();
-    assert_eq!(manifest.plugin.permissions, [PermissionRequest { permission: Permission::Network, reason }]);
+    let network = PermissionRequest { permission: Permission::network(), reason };
+    let commands = PermissionRequest {
+        permission: Permission::commands(["/bin/echo", "/bin/pwd", "/usr/bin/env", "/bin/cat"]),
+        reason: "Nothing: it's here to test running programs".into(),
+    };
+    assert_eq!(manifest.plugin.permissions, [network, commands]);
 }
 
 #[gpui::test]
@@ -284,7 +319,7 @@ async fn a_plugin_that_overruns_its_turn_is_stopped(cx: &mut TestAppContext) {
     let options = plugin_options(&manifest, data_dir("stops"), Arc::new(gpui::NoopTextSystem::new()))
         .with_turn_budget(Duration::from_millis(200));
     let app = cx.new(|_| FakeApp::default());
-    let started = cx.update(|cx| Plugin::start(wasm, manifest, options, root_of(&app), cx));
+    let started = cx.update(|cx| Plugin::start(wasm, manifest, options, data_dir("stops"), root_of(&app), cx));
     settle(cx);
     let plugin = started.await.unwrap();
 
@@ -348,6 +383,8 @@ async fn the_plugin_reads_the_clipboard(cx: &mut TestAppContext) {
     performed.await.expect("perform_action");
     app.read_with(cx, |app, _| assert_eq!(app.toasts, ["copied elsewhere"]));
 }
+
+mod commands;
 
 // TEMPORARY(network): the app's HTTP for plugins.
 mod network;

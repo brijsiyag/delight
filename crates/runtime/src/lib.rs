@@ -7,6 +7,8 @@
 //!   manifest, with the objects the app hands it ([`Granted`]), and
 //!   [`detect_all`], which asks every plugin at once and ranks the answers.
 
+/// Running programs for plugins with `Commands`.
+mod commands;
 /// The Mac's DNS setup for plugins with `Network`.
 mod dns;
 mod granted;

@@ -30,6 +30,17 @@ macro_rules! icons {
             }
         }
 
+        impl IconName {
+            /// The icon with this [Lucide](https://lucide.dev) file name (`"terminal"`),
+            /// for a name that comes from data, such as a plugin's permission.
+            pub fn from_name(name: &str) -> Option<Self> {
+                match name {
+                    $($file => Some(IconName::$name),)*
+                    _ => None,
+                }
+            }
+        }
+
         const ICONS: &[(&str, &[u8])] = &[
             $((concat!("icons/", $file, ".svg"), include_bytes!(concat!("../assets/icons/", $file, ".svg")))),*
         ];
@@ -58,6 +69,7 @@ icons![
     Settings => "settings",
     Sparkles => "sparkles",
     Sun => "sun",
+    Terminal => "terminal",
     Trash => "trash-2",
     TriangleAlert => "triangle-alert",
     X => "x",
@@ -84,5 +96,7 @@ mod tests {
             assert!(Assets.load(&name.path()).unwrap().is_some(), "{name:?}");
         }
         assert_eq!(Assets.list("icons/").unwrap().len(), ICONS.len());
+        assert_eq!(IconName::from_name("terminal"), Some(IconName::Terminal));
+        assert_eq!(IconName::from_name("nope"), None);
     }
 }

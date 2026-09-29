@@ -10,32 +10,6 @@ use std::time::{Duration, Instant};
 
 use super::*;
 
-/// Keep the app and the plugin running (the network's replies come from other
-/// threads) until `found` finds a toast; the toast it found.
-fn wait_for_toast(app: &Entity<FakeApp>, cx: &mut TestAppContext, found: impl Fn(&str) -> bool) -> String {
-    let deadline = Instant::now() + Duration::from_secs(20);
-    loop {
-        cx.executor().run_until_parked();
-        let toasts = app.read_with(cx, |app, _| app.toasts.clone());
-        if let Some(toast) = toasts.iter().find(|toast| found(toast)) {
-            return toast.clone();
-        }
-        assert!(Instant::now() < deadline, "no such toast; the toasts: {toasts:?}");
-        std::thread::sleep(Duration::from_millis(10));
-    }
-}
-
-/// The fixture's tool, with `text` as its input.
-async fn tool_with(plugin: &Plugin, text: &str, cx: &mut TestAppContext) -> Remote<ToolApi> {
-    let surface = cx.new(Surface::new);
-    let tool = cx.update(|cx| plugin.open_tool("echo", &surface, cx));
-    settle(cx);
-    let tool = tool.await.expect("open_tool");
-    cx.update(|cx| drop(tool.on_input_changed(input(text), cx)));
-    settle(cx);
-    tool
-}
-
 /// An HTTP/1.1 server on a thread: it answers each request with "got {method} {path}
 /// {body} {x-fixture}", in two chunks.
 fn http_server() -> u16 {
@@ -197,7 +171,7 @@ async fn without_network_a_plugin_has_no_http(cx: &mut TestAppContext) {
     manifest.plugin.permissions.clear();
     let options = plugin_options(&manifest, data_dir("no-network"), Arc::new(gpui::NoopTextSystem::new()));
     let app = cx.new(|_| FakeApp::default());
-    let started = cx.update(|cx| Plugin::start(wasm, manifest, options, root_of(&app), cx));
+    let started = cx.update(|cx| Plugin::start(wasm, manifest, options, data_dir("no-network"), root_of(&app), cx));
     settle(cx);
     let plugin = started.await.expect("starts");
     let tool = tool_with(&plugin, "http://127.0.0.1:9/", cx).await;

@@ -286,12 +286,15 @@ fork's `delight` branch.
     `/etc/resolver/` with `resolv-conf`, no program run); not temporary, as
     WASI has nothing for a host's DNS setup. Google Calendar and Logs bring the UTC offset as a host fact,
     and Lucide `add_font` (its icon font: the app shapes plugins' text, so a
-    font a plugin loads itself isn't seen). Process
-    brings the `Commands` permission, as an object in `Granted` that runs
-    only the programs its manifest lists (shown when installing), with a
+    font a plugin loads itself isn't seen). The `Commands` permission
+    (done, its own commit) is an object in `Granted` that runs only the
+    programs its manifest lists (shown when installing), each an absolute
+    path directly in `/bin`, `/sbin`, `/usr/bin` or `/usr/sbin`, with any
+    arguments (not checked: no shell, so `|` and `;` are just text), a
     cleared environment, the plugin's data folder as the working folder,
-    and a time limit, and the app's process id as a host fact (it won't
-    stop Delight). Logs takes an API key on its settings page: ⌘V pastes
+    and a time limit. It is generic, for any plugin, so Process and Port
+    kill use it rather than an API of their own; Process also brings the
+    app's process id as a host fact (it won't stop Delight). Logs takes an API key on its settings page: ⌘V pastes
     it into the field, so its "Paste from clipboard" button can go.
 15. **Secrets, updates, release**: encrypted plugin secrets (one Keychain
     master key), automatic updates, bundling (the built-in plugins go in
@@ -302,9 +305,17 @@ fork's `delight` branch.
 
 Not needed to get the app working; each waits until it is.
 
-- **Compile cache** (**embedded_gpui**): every start compiles each plugin
-  (~250 ms, ~200 MB); wasmtime's own cache (`cache` feature,
-  `PluginOptions::with_compile_cache(dir)`) brings it to ~10 ms.
+- **Compile cache** (**embedded_gpui**, to do): every start compiles each
+  plugin (~250 ms, ~200 MB each); cached, ~10 ms, and 14–25 MB on disk each.
+  Delight can't do it itself: `PluginInstance::new` (`host.rs`) makes its own
+  wasmtime `Config` and `Engine` and loads the file with `Component::from_file`,
+  and wasmtime's cache is off unless `Config::cache` is called (turning on the
+  crate's `cache` feature isn't enough). The change: a
+  `PluginOptions::with_compile_cache(dir)` that hands the folder to wasmtime's
+  own cache (it keys by content and settings and prunes itself), with
+  wasmtime's `cache` feature in embedded_gpui's `Cargo.toml`; Delight then
+  passes `~/Library/Caches/Delight/compiled` in `plugin_options`. Proposed
+  upstream and used once merged (Delight doesn't depend on a fork).
 - **Back to embedded_gpui's `main`**: since 2026-09-29 Delight uses its
   `surfaces-as-roots` branch (`ceb0df8`, not yet merged) and the GPUI it
   names, Zed's `gpui-multi-root-embedded-rebased` (`8c88a5c`: Zed PR #63800,
@@ -325,10 +336,18 @@ Not needed to get the app working; each waits until it is.
   passed to tools with the text, their contents only with an `InputFiles`
   permission. `Input` is a struct so they can join it as a minor protocol
   change. The third-party image plugin waits for this.
-- **Calls to a stopped plugin fail at once** (**embedded_gpui**): today a
-  call made after the stop is dropped and never answered, so the runtime
-  times it out. Failing it instead, as embedded_gpui already does for the
-  calls in flight, is small and upstreamable.
+- **Calls to a stopped plugin fail at once** (**embedded_gpui**, to do): when
+  a plugin stops (a trap: a turn over its budget, out of memory, a panic, too
+  much drawn), embedded_gpui fails the calls in flight (`fail_pending`), but a
+  call made after the stop is recorded as waiting, its request dropped ("plugin
+  worker is gone"), and never answered. Delight's `CALL_TIMEOUT` (3 s) turns
+  that into a stop, so after a plugin stops outside a call (while drawing, say)
+  the next launcher search waits 3 s for it, once; the open tool's calls
+  (`tool_pane.rs`) wait the same. The change: once stopped, every new call, on
+  any object, fails at once with the stop's reason, as the calls in flight do.
+  Small and upstreamable; chosen over a Delight-only check of
+  `PluginHost::stopped()` before each call. `CALL_TIMEOUT` stays, for a plugin
+  that runs but never answers.
 - **Zed's `main`**: see step 2.
 
 ## Watch out for

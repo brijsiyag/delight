@@ -9,7 +9,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::{Context as _, Result, anyhow};
-use delight_manifest::{Manifest, Permission};
+use delight_manifest::{Manifest, NetworkPermission};
 use delight_protocol::{Detection, HostApi, Input, PluginApi, PluginApiCaller as _, ToolApi};
 use embedded_gpui::gpui::{App, Entity, PlatformTextSystem, Task};
 use embedded_gpui::{PluginHost, PluginHostHandle as _, PluginOptions, Remote, Shared, Surface};
@@ -36,7 +36,7 @@ pub fn plugin_options(
     data_dir: PathBuf,
     text_system: Arc<dyn PlatformTextSystem>,
 ) -> PluginOptions {
-    let network = manifest.plugin.asks_for(Permission::Network);
+    let network = manifest.plugin.permission::<NetworkPermission>().is_some();
     PluginOptions::new(text_system).with_wasi(move |wasi| {
         let mounted = std::fs::create_dir_all(&data_dir)
             .map_err(anyhow::Error::from)
@@ -67,11 +67,13 @@ impl Plugin {
     /// Start the plugin in `file`: compile and instantiate it on a background thread,
     /// make the app's root object for this plugin alone with `host_root`, given what
     /// the manifest grants, install it, and connect to the plugin's root. A plugin
-    /// that can't start is an error.
+    /// that can't start is an error. `data_dir` is the plugin's data folder (the one
+    /// `options` mounts), where the programs it may run work.
     pub fn start<H: Shared<HostApi>>(
         file: PathBuf,
         manifest: Manifest,
         options: PluginOptions,
+        data_dir: PathBuf,
         host_root: impl FnOnce(Granted, &mut App) -> Entity<H> + 'static,
         cx: &mut App,
     ) -> Task<Result<Plugin>> {
@@ -79,7 +81,7 @@ impl Plugin {
         cx.spawn(async move |cx| {
             let host = load.await.context("the plugin didn't start")?;
             Ok(cx.update(|cx| {
-                let granted = Granted::new(&manifest, host.registry(cx), host.read(cx).clipboard(), cx);
+                let granted = Granted::new(&manifest, data_dir, host.registry(cx), host.read(cx).clipboard(), cx);
                 let host_root = host_root(granted, cx);
                 host.share_root(&host_root, cx);
                 let root = host.root::<PluginApi>(cx);
