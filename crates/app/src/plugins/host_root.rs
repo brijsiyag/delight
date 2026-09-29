@@ -3,8 +3,8 @@
 use delight_protocol::{HostApi, Theme};
 use delight_runtime::Granted;
 use delight_ui::ActiveTheme as _;
-use embedded_gpui::shared;
-use gpui::{ClipboardItem, Context, Subscription};
+use embedded_gpui::{ClipboardApi, Ref, shared};
+use gpui::{Context, Subscription};
 
 use crate::{history, launcher, settings};
 
@@ -12,9 +12,8 @@ use crate::{history, launcher, settings};
 /// that plugin's.
 pub(super) struct HostRoot {
     plugin_id: String,
-    /// What its permissions let it do, handed out when it asks (nothing yet: see
-    /// `Granted`).
-    _granted: Granted,
+    /// What the app hands it, when it asks.
+    granted: Granted,
     _theme_changes: Subscription,
 }
 
@@ -22,7 +21,7 @@ impl HostRoot {
     pub(super) fn new(plugin_id: String, granted: Granted, cx: &mut Context<Self>) -> Self {
         // The plugin observes this object: tell it when the theme changes.
         let theme_changes = cx.observe_global::<delight_ui::Theme>(|_, cx| cx.notify());
-        Self { plugin_id, _granted: granted, _theme_changes: theme_changes }
+        Self { plugin_id, granted, _theme_changes: theme_changes }
     }
 }
 
@@ -31,10 +30,6 @@ impl HostApi for HostRoot {
     // Deferred: the launcher may be in the middle of an update.
     fn toast(&mut self, message: String, cx: &mut Context<Self>) {
         cx.defer(move |cx| launcher::toast(message.into(), cx));
-    }
-
-    fn copy_text(&mut self, text: String, cx: &mut Context<Self>) {
-        cx.write_to_clipboard(ClipboardItem::new_string(text));
     }
 
     fn hide(&mut self, cx: &mut Context<Self>) {
@@ -53,5 +48,9 @@ impl HostApi for HostRoot {
 
     fn current_theme(&mut self, cx: &mut Context<Self>) -> Theme {
         Theme::from(cx.theme())
+    }
+
+    fn clipboard(&mut self, cx: &mut Context<Self>) -> Ref<ClipboardApi> {
+        self.granted.clipboard(cx)
     }
 }

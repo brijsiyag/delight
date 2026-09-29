@@ -53,32 +53,24 @@ impl<P: Plugin> PluginApi for PluginRoot<P> {
         let Some(operation) = P::Operation::from_id(&operation) else {
             return Task::ready(Err(anyhow!("this plugin has no operation {operation:?}")));
         };
-        let mut tool = None;
-        let opened = open_view(surface, cx, |window, cx| {
-            let opened = self.plugin.open_tool(operation, window, cx);
-            let view = opened.view.clone();
-            tool = Some(opened.tool);
-            cx.new(|_| Filling { view: Some(view) })
-        });
-        let result = match (opened, tool) {
-            (Ok(_), Some(tool)) => {
-                let home = cx.new(|cx| ToolHome::new(tool, cx));
+        let opened = self.plugin.open_tool(operation, cx);
+        let filling = cx.new(|_| Filling { view: Some(opened.view) });
+        let result = match open_view(surface, filling, cx) {
+            Ok(()) => {
+                let home = cx.new(|cx| ToolHome::new(opened.tool, cx));
                 Ok(share(&home, cx))
             }
-            (Err(error), _) => Err(error.context("opening the tool's view")),
-            (Ok(_), None) => Err(anyhow!("the tool's view opened without the tool")),
+            Err(error) => Err(error.context("opening the tool's view")),
         };
         Task::ready(result)
     }
 
     fn open_settings(&mut self, surface: Ref<SurfaceApi>, cx: &mut Context<Self>) -> bool {
-        let mut has_page = false;
-        let opened = open_view(surface, cx, |window, cx| {
-            let page = self.plugin.settings_page(window, cx);
-            has_page = page.is_some();
-            // Without a page the view is empty, and the app drops the surface.
-            cx.new(|_| Filling { view: page })
-        });
+        let page = self.plugin.settings_page(cx);
+        let has_page = page.is_some();
+        // Without a page the view is empty, and the app drops the surface.
+        let filling = cx.new(|_| Filling { view: page });
+        let opened = open_view(surface, filling, cx);
         if let Err(error) = &opened {
             log::error!("opening the settings page: {error:#}");
         }
@@ -86,8 +78,7 @@ impl<P: Plugin> PluginApi for PluginRoot<P> {
     }
 }
 
-/// The window's root view: a tool, or the settings page, filling the space it's
-/// given.
+/// The view on a surface: a tool, or the settings page, filling the space it's given.
 struct Filling {
     view: Option<AnyView>,
 }

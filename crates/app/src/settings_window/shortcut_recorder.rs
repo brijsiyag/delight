@@ -56,7 +56,7 @@ impl ShortcutRecorder {
     fn stop(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         self.error = None;
         self.held = Modifiers::default();
-        window.blur();
+        window.blur(cx);
         cx.notify();
     }
 

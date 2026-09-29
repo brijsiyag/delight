@@ -17,7 +17,8 @@ what the app does.
 
 `crates/app/src/macos.rs` calls AppKit directly for what GPUI can't do
 yet. Each one should go once GPUI offers it; checked against the GPUI
-Delight uses (Zed's `gpui-embedded-in-gpui` branch, commit `7bc1c05`).
+Delight uses (Zed's `gpui-multi-root-embedded-rebased` branch, commit
+`8c88a5c`): it has none of them yet.
 
 | Workaround | Remove when GPUI can |
 |---|---|

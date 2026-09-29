@@ -79,7 +79,7 @@ impl Plugin {
         cx.spawn(async move |cx| {
             let host = load.await.context("the plugin didn't start")?;
             Ok(cx.update(|cx| {
-                let granted = Granted::new(host.registry(cx));
+                let granted = Granted::new(host.registry(cx), host.read(cx).clipboard());
                 let host_root = host_root(granted, cx);
                 host.share_root(&host_root, cx);
                 let root = host.root::<PluginApi>(cx);
@@ -122,7 +122,8 @@ impl Plugin {
         self.call(
             move |root, cx| {
                 let surface = host.share(&surface, cx);
-                root.open_tool(operation, surface, cx)
+                // Answered with the tool's ref, once the plugin has opened it.
+                root.open_tool(operation, surface, cx).into_future()
             },
             cx,
         )

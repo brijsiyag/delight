@@ -1,7 +1,7 @@
 //! The plugin Delight's headless tests drive: one tool that shows the input, with
 //! actions that depend on it.
 
-use delight_plugin_api::gpui::{AnyView, App, AppContext as _, Context, IntoElement, Render, Window, div};
+use delight_plugin_api::gpui::{AnyView, App, AppContext as _, ClipboardItem, Context, IntoElement, Render, Window, div};
 use delight_plugin_api::gpui::{Hsla, ParentElement as _, Styled as _, prelude::FluentBuilder as _};
 use delight_plugin_api::{
     Action, AnyTool, Detection, Input, Operations, Plugin, Shortcut, Tool, host, plugin, theme,
@@ -43,18 +43,13 @@ impl Plugin for Fixture {
         vec![Detection::new(FixtureOperation::Echo, 1.0)]
     }
 
-    fn open_tool(
-        &mut self,
-        operation: FixtureOperation,
-        _window: &mut Window,
-        cx: &mut App,
-    ) -> AnyTool {
+    fn open_tool(&mut self, operation: FixtureOperation, cx: &mut App) -> AnyTool {
         match operation {
             FixtureOperation::Echo => cx.new(|_| Echo::default()).into(),
         }
     }
 
-    fn settings_page(&mut self, _window: &mut Window, cx: &mut App) -> Option<AnyView> {
+    fn settings_page(&mut self, cx: &mut App) -> Option<AnyView> {
         Some(cx.new(|_| FixtureSettings).into())
     }
 }
@@ -98,13 +93,18 @@ impl Tool for Echo {
     fn perform_action(&mut self, action: &str, cx: &mut Context<Self>) {
         match action {
             "copy" => {
-                host(cx).copy_text(self.text.clone(), cx);
+                cx.write_to_clipboard(ClipboardItem::new_string(self.text.clone()));
                 host(cx).toast("Copied", cx);
                 host(cx).remember_input(FixtureOperation::Echo, self.text.clone(), cx);
             }
             "clear" => {
                 self.text.clear();
                 cx.notify();
+            }
+            // Not in the footer: the tests perform it to see what the plugin can read.
+            "read-clipboard" => {
+                let text = cx.read_from_clipboard().and_then(|item| item.text());
+                host(cx).toast(text.unwrap_or_else(|| "nothing".into()), cx);
             }
             _ => {}
         }

@@ -4,8 +4,8 @@
 use delight_plugin_api::{Action, Input, Shortcut, Tool, host};
 use delight_ui::{ActiveTheme, IconButton, IconName, Selectable, h_flex, v_flex};
 use gpui::{
-    App, Context, Hsla, ImageSource, IntoElement, ParentElement, Render, SharedString, Styled, Task, Window, div,
-    img, prelude::FluentBuilder, px, rgb, size,
+    App, ClipboardItem, Context, Hsla, ImageSource, IntoElement, ParentElement, Render, SharedString, Styled, Task,
+    Window, div, img, prelude::FluentBuilder, px, rgb, size,
 };
 
 use super::checkerboard::Checkerboard;
@@ -69,10 +69,8 @@ impl Tool for SvgView {
             return;
         };
         if action == "copy_data_uri" {
-            let data_uri = rendered.data_uri.clone();
-            let host = host(cx);
-            host.copy_text(data_uri, cx);
-            host.toast("Copy data URI — copied to clipboard", cx);
+            cx.write_to_clipboard(ClipboardItem::new_string(rendered.data_uri.clone()));
+            host(cx).toast("Copy data URI — copied to clipboard", cx);
         }
     }
 }

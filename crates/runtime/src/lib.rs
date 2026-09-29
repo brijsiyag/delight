@@ -4,7 +4,7 @@
 //!   of it;
 //! - [`rank`]: which tools fit an input, from what every plugin detected;
 //! - [`Plugin`]: a started plugin, in the sandbox [`plugin_options`] sets up from its
-//!   manifest, with the objects its permissions grant ([`Granted`]), and
+//!   manifest, with the objects the app hands it ([`Granted`]), and
 //!   [`detect_all`], which asks every plugin at once and ranks the answers.
 
 mod granted;

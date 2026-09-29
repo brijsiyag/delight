@@ -103,12 +103,14 @@ mod tests {
 
     #[test]
     fn optional_fields_default() {
-        let manifest = decode_section(
-            b"{\"major\":1,\"minor\":0}\n\
-              {\"id\":\"a\",\"name\":\"A\",\"version\":\"1\",\"icon\":\"<svg/>\"}\n\
-              [{\"id\":\"x\",\"title\":\"X\"}]",
-        )
-        .unwrap();
+        // The oldest minor of this major: fields added since default.
+        let section = format!(
+            "{{\"major\":{},\"minor\":0}}\n\
+             {{\"id\":\"a\",\"name\":\"A\",\"version\":\"1\",\"icon\":\"<svg/>\"}}\n\
+             [{{\"id\":\"x\",\"title\":\"X\"}}]",
+            PROTOCOL_VERSION.major
+        );
+        let manifest = decode_section(section.as_bytes()).unwrap();
         assert_eq!(manifest.plugin.description, "");
         assert!(manifest.plugin.permissions.is_empty());
         assert!(manifest.operations[0].tags.is_empty());

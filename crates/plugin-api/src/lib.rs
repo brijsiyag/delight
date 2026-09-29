@@ -7,7 +7,7 @@
 //! re-exported here, so a plugin builds against the same GPUI as the app.
 //!
 //! ```ignore
-//! use delight_plugin_api::gpui::{App, AppContext as _, Window};
+//! use delight_plugin_api::gpui::{App, AppContext as _};
 //! use delight_plugin_api::{AnyTool, Detection, Input, Operations, Plugin, plugin};
 //!
 //! #[plugin(id = "dev.delight.json", name = "JSON", icon = "assets/icon.svg")]
@@ -25,7 +25,7 @@
 //!     fn detect(&mut self, input: &Input, _cx: &mut App) -> Vec<Detection<JsonOperation>> {
 //!         vec![Detection::new(JsonOperation::Format, 0.9)]
 //!     }
-//!     fn open_tool(&mut self, operation: JsonOperation, _: &mut Window, cx: &mut App) -> AnyTool {
+//!     fn open_tool(&mut self, operation: JsonOperation, cx: &mut App) -> AnyTool {
 //!         match operation {
 //!             JsonOperation::Format => cx.new(|cx| Formatter::new(cx)).into(),
 //!         }
@@ -49,7 +49,7 @@ pub use embedded_gpui::gpui;
 pub use host::{Host, host, theme};
 pub use tool::AnyTool;
 
-use gpui::{AnyView, App, AssetSource, Context, Render, Window};
+use gpui::{AnyView, App, AssetSource, Context, Render};
 
 /// A plugin. Its type also carries [`#[plugin(...)]`](plugin), which makes it the
 /// component's entry point.
@@ -64,17 +64,15 @@ pub trait Plugin: Sized + 'static {
     /// change of the input, so keep it quick.
     fn detect(&mut self, input: &Input, cx: &mut App) -> Vec<Detection<Self::Operation>>;
 
-    /// Build the tool for `operation` in the window it will draw in:
-    /// `cx.new(|cx| MyTool::new(cx)).into()`. The app opens each tool once and keeps
-    /// it.
-    fn open_tool(&mut self, operation: Self::Operation, window: &mut Window, cx: &mut App)
-    -> AnyTool;
+    /// Build the tool for `operation`: `cx.new(|cx| MyTool::new(cx)).into()`. The app
+    /// opens each tool once and keeps it.
+    fn open_tool(&mut self, operation: Self::Operation, cx: &mut App) -> AnyTool;
 
-    /// The plugin's settings page, shown in its page of Delight's settings window: a
-    /// view in the window it draws in. `None` by default, for a plugin without
-    /// settings. It keeps what it saves itself, such as in its data folder (`/data`).
-    fn settings_page(&mut self, window: &mut Window, cx: &mut App) -> Option<AnyView> {
-        let _ = (window, cx);
+    /// The plugin's settings page, shown in its page of Delight's settings window.
+    /// `None` by default, for a plugin without settings. It keeps what it saves
+    /// itself, such as in its data folder (`/data`).
+    fn settings_page(&mut self, cx: &mut App) -> Option<AnyView> {
+        let _ = cx;
         None
     }
 
@@ -126,8 +124,8 @@ pub trait Tool: Render {
     /// asks again then.
     fn list_actions(&self, cx: &App) -> Vec<Action>;
 
-    /// Run the action with this id, doing the work through [`host`] (copying,
-    /// toasting, hiding).
+    /// Run the action with this id, doing the work itself: copying with GPUI's
+    /// `cx.write_to_clipboard`, toasting and hiding through [`host`].
     fn perform_action(&mut self, action: &str, cx: &mut Context<Self>);
 }
 

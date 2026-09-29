@@ -23,9 +23,9 @@ These were settled in the previous attempt (see its
    Install…, or dropping it in the plugins folder). No CLI, no plugin
    manager, no SDK kit, no rebuild-on-update.
 4. Permissions declared by the plugin gate everything outside its sandbox:
-   `Network`, `Commands`, `Clipboard` (reading; copying needs none), each
-   with the plugin's reason for it. Settings shows them; installing asks to
-   confirm them.
+   `Network`, `Commands`, each with the plugin's reason for it. Settings
+   shows them; installing asks to confirm them. The clipboard needs none:
+   every plugin reads and writes it (⌘V pastes in its text fields).
 5. No Delight HTTP API: the network is WASI's `wasi:http` and
    `wasi:sockets`, and plugins use `wstd`.
 6. GPUI is not forked: it is used directly from Zed's repository by the
@@ -77,9 +77,10 @@ These were settled in the previous attempt (see its
 - **Fewer fork changes.** Network sockets and the data folder need none
   (upstream `PluginOptions::with_wasi` covers them); guest I/O is first
   tried in the plugin API (below).
-- **GPUI stays on the branch embedded_gpui uses**
-  (`gpui-embedded-in-gpui`, commit `7bc1c05`) instead of Zed's `main`, so
-  the fork needs no port. Porting is left for later (step 2).
+- **GPUI is the one embedded_gpui names** instead of Zed's `main`, so
+  nothing needs a port: Zed's `gpui-multi-root-embedded-rebased` (commit
+  `8c88a5c`) since 2026-09-29, `gpui-embedded-in-gpui` (`7bc1c05`) before
+  (step 2; Later, back to embedded_gpui's `main`).
 
 ## Layout
 
@@ -96,7 +97,7 @@ delight-umbrella/
 │  │  └─ app/               delight-app: the macOS app
 │  ├─ plugins/              built-in plugins: their own workspace, wasm32-wasip2
 │  ├─ tests/                the headless test crate; fixture/ is its plugin (own workspace)
-│  ├─ xtask/                WASI SDK download, building built-ins, bundling, signing, version checks
+│  ├─ xtask/                building and distributing the app: bundling, signing, version checks (step 15)
 │  └─ docs/
 ├─ embedded_gpui/           the fork, branch `delight`: where embedded_gpui changes are made
 └─ wstd/                    only if upstream won't take the reactor change (step 13)
@@ -112,7 +113,7 @@ Built-in plugins live in their own workspace because they only build for
 crates they share (`manifest`, `protocol`, `plugin-api`, `ui`) stay members of the root one.
 Every workspace (root, `plugins/`, embedded_gpui, third-party plugins) names GPUI
 exactly as embedded_gpui does, `git = "https://github.com/zed-industries/zed.git",
-branch = "gpui-embedded-in-gpui"` (plus `version = "=0.2.2"`), or Cargo links
+branch = "gpui-multi-root-embedded-rebased"` (plus `version = "=0.2.2"`), or Cargo links
 two GPUIs: a `rev` for the same commit counts as a different source. Each
 workspace's `Cargo.lock` pins the commit.
 
@@ -175,7 +176,10 @@ fork's `delight` branch.
    or the branch is deleted (its one change merged into `main` as #60574,
    so the commit is on no other branch). The port was tried and is small:
    Rust 1.98.1, and compile fixes only (`paint_image` bounds, atlas key by
-   value, `PaddedBool32`, new `Platform`/`PlatformWindow` items).
+   value, `PaddedBool32`, new `Platform`/`PlatformWindow` items). On
+   2026-09-29 Delight moved with embedded_gpui's `surfaces-as-roots` to the
+   GPUI it names (see Later): one compile fix in the app (`Window::blur`
+   takes `cx`).
 3. **No embedded_gpui changes to start with.** Built-ins load from files,
    so loading from bytes isn't needed. The compile cache and keyboard focus
    into a tool wait (see Later).
@@ -234,13 +238,12 @@ fork's `delight` branch.
     `delight-ui` in plugins (its wasm build, its theme from `theme(cx)`,
     its icons through `Plugin::assets`); and the SVG tool, which needs no C
     (copying as PNG waits for `copy_file`). Then, after step 12 (settings
-    and installing plugins come first): the WASI SDK xtask (tree-sitter is
-    C), an xtask building `plugins/`, syntax highlighting, and the JSON and
-    YAML tools.
+    and installing plugins come first): the WASI SDK (tree-sitter is C),
+    syntax highlighting, and the JSON and YAML tools.
 12. **Settings window and permissions**, a new design rather than the
     previous attempt's two tabs: an 800×580 window with a sidebar, like
     System Settings (General, each plugin as its own entry, plugins that
-    don't load, Install Plugin…). In four parts: the settings file and the
+    don't load, Install Plugin…). In three parts: the settings file and the
     General page (the shortcut, hiding, pasting on open, appearance, the
     input history, open at login), opened from the tray, ⌘, and the
     footer's ⚙. Then the plugin pages: their tools, each with its own switch
@@ -252,9 +255,8 @@ fork's `delight` branch.
     what the permission allows; and `Granted`, the objects the manifest's
     permissions grant, which the app's root object for the plugin hands out
     when asked (so a plugin without the permission gets none). It has none
-    yet: the gated capabilities come with the plugins that need them (step
-    14). Then `add_font` and host facts, among them the Mac's DNS resolvers
-    (which server answers which domain, VPNs' included) for the DNS tool.
+    yet: the gated capabilities, `add_font` and the host facts come with the
+    plugins that need them (step 14).
 13. **Network**: sockets through `with_wasi` for plugins with `Network`;
     **embedded_gpui**: link `wasi:http` with an outgoing sender whose TLS uses the
     macOS trust store (`rustls-platform-verifier`; bundled roots fail
@@ -267,13 +269,19 @@ fork's `delight` branch.
     if that is refused or slow.
 14. **DNS tool**, then port the third-party plugins in
     `~/Desktop/delight-plugins` (the image plugin waits for pasted files,
-    see Later). DNS runs no programs: it asks the Mac's resolvers itself
-    over WASI sockets (`hickory-proto` for the messages; `Network`). Process
+    see Later). Each brings the host capabilities it needs. DNS runs no
+    programs: it asks the Mac's resolvers itself over WASI sockets
+    (`hickory-proto` for the messages; `Network`), and the app tells it
+    which they are, as a host fact (which server answers which domain, VPNs'
+    included). Google Calendar and Logs bring the UTC offset as a host fact,
+    and Lucide `add_font` (its icon font: the app shapes plugins' text, so a
+    font a plugin loads itself isn't seen). Process
     brings the `Commands` permission, as an object in `Granted` that runs
     only the programs its manifest lists (shown when installing), with a
     cleared environment, the plugin's data folder as the working folder,
-    and a time limit. Logs brings `Clipboard` (reading it, for its settings
-    page's "Paste from clipboard" key button).
+    and a time limit, and the app's process id as a host fact (it won't
+    stop Delight). Logs takes an API key on its settings page: ⌘V pastes
+    it into the field, so its "Paste from clipboard" button can go.
 15. **Secrets, updates, release**: encrypted plugin secrets (one Keychain
     master key), automatic updates, bundling (the built-in plugins go in
     `Contents/Resources/plugins`), signing, notarisation, the DMG, version
@@ -286,9 +294,24 @@ Not needed to get the app working; each waits until it is.
 - **Compile cache** (**embedded_gpui**): every start compiles each plugin
   (~250 ms, ~200 MB); wasmtime's own cache (`cache` feature,
   `PluginOptions::with_compile_cache(dir)`) brings it to ~10 ms.
-- **Keyboard focus into a tool** (**embedded_gpui**: `Surface: Focusable`):
-  a surface takes focus only when clicked. Until then tools work through
-  the input and their footer actions.
+- **Back to embedded_gpui's `main`**: since 2026-09-29 Delight uses its
+  `surfaces-as-roots` branch (`ceb0df8`, not yet merged) and the GPUI it
+  names, Zed's `gpui-multi-root-embedded-rebased` (`8c88a5c`: Zed PR #63800,
+  a view tree, plus `Window::attach_root`). #63800 was closed unmerged on
+  2026-09-25, so both branches may be reworked or deleted: move `rev` to
+  embedded_gpui's `main` once the branch is merged there, and name GPUI as
+  it does then. What Delight took from it (plugin API 2.0): plugins use
+  GPUI's own clipboard calls, through embedded_gpui's clipboard object the
+  app hands out (`HostApi::clipboard`: reading and writing, so ⌘V pastes in
+  a plugin's text field), instead of `HostApi::copy_text`; `open_view` takes a finished
+  view, so `Plugin::open_tool` and `settings_page` have no window. It also
+  brings overlays (a plugin's tooltips and popovers, drawn above the app),
+  IME and dead keys in plugins, and a stopped plugin's surface saying why.
+- **Keyboard focus into a tool**: with `surfaces-as-roots` a surface is a
+  tab stop, and Tab crosses into it and out. The launcher's Tab takes the
+  grey completion, so which key moves into the tool is to decide; until
+  then a surface takes focus when clicked, and tools work through the
+  input and their footer actions.
 - **Pasted files**: Finder files pasted into the input, shown as tags and
   passed to tools with the text, their contents only with an `InputFiles`
   permission. `Input` is a struct so they can join it as a minor protocol

@@ -29,13 +29,6 @@ impl Host {
         }
     }
 
-    /// Put `text` on the clipboard.
-    pub fn copy_text(&self, text: impl Into<String>, cx: &mut App) {
-        if let Some(remote) = &self.remote {
-            drop(remote.copy_text(text.into(), cx));
-        }
-    }
-
     /// Hide the launcher.
     pub fn hide(&self, cx: &mut App) {
         if let Some(remote) = &self.remote {
@@ -72,9 +65,16 @@ impl Global for HostRoot {}
 
 #[cfg(target_arch = "wasm32")]
 impl HostRoot {
-    /// Keep the app's root object, and follow its theme: the app notifies the object
-    /// when its theme changes, and once when observing starts.
+    /// Keep the app's root object, follow its theme (the app notifies the object when
+    /// its theme changes, and once when observing starts), and give GPUI the app's
+    /// clipboard, so its clipboard calls reach the Mac's.
     pub(crate) fn connect(remote: Remote<HostApi>, cx: &mut App) {
+        let clipboard = remote.clipboard(cx);
+        cx.spawn(async move |cx| match clipboard.await {
+            Ok(clipboard) => cx.update(|cx| embedded_gpui::use_clipboard(clipboard, cx)),
+            Err(error) => log::error!("connecting the clipboard: {error:#}"),
+        })
+        .detach();
         let observing = remote.observe(cx, ask_for_theme);
         cx.set_global(HostRoot { remote, _observing: observing });
     }

@@ -18,6 +18,7 @@ pub use delight_manifest::{
     ProtocolVersion,
 };
 
+use embedded_gpui::ClipboardApi;
 use embedded_gpui::surface::SurfaceApi;
 use embedded_gpui::{Ref, data, interface};
 
@@ -63,11 +64,6 @@ pub trait HostApi {
     /// Show `message` in the launcher's footer for a moment.
     fn toast(&mut self, message: String, cx: &mut gpui::Context<Self>);
 
-    /// Put `text` on the clipboard.
-    // TODO: migrate plugins to GPUI's own `cx.write_to_clipboard` and remove this
-    // method, once embedded_gpui's plugin platform forwards clipboard writes to
-    // the host (today it drops them). An embedded_gpui change.
-    fn copy_text(&mut self, text: String, cx: &mut gpui::Context<Self>);
 
     /// Hide the launcher.
     fn hide(&mut self, cx: &mut gpui::Context<Self>);
@@ -81,6 +77,12 @@ pub trait HostApi {
     /// The app's theme now, for the plugin to draw with. This object notifies when
     /// it changes (light and dark), so a plugin observes it and asks again.
     fn current_theme(&mut self, cx: &mut gpui::Context<Self>) -> Theme;
+
+    /// The clipboard, for GPUI's own `cx.write_to_clipboard` and
+    /// `cx.read_from_clipboard` in the plugin (embedded_gpui's `use_clipboard`), so a
+    /// plugin copies, and ⌘V pastes in its text fields. Every plugin has it: it
+    /// needs no permission.
+    fn clipboard(&mut self, cx: &mut gpui::Context<Self>) -> Ref<ClipboardApi>;
 }
 
 /// What is in the launcher: the typed or pasted text. A struct, so more (such as
@@ -266,7 +268,7 @@ mod tests {
         );
         assert_eq!(
             methods(HostApi::schema()),
-            ["toast", "copy_text", "hide", "remember_input", "current_theme"]
+            ["toast", "hide", "remember_input", "current_theme", "clipboard"]
         );
     }
 }

@@ -14,8 +14,8 @@ use delight_protocol::{
     Action, Color, HostApi, Input, Permission, PermissionRequest, Shortcut, Theme, ToolApi, ToolApiCaller as _,
 };
 use delight_runtime::{Candidate, Granted, Plugin, detect_all, plugin_options, read_manifest};
-use embedded_gpui::{Remote, Surface, shared};
-use gpui::{App, AppContext as _, Context, Entity, TestAppContext};
+use embedded_gpui::{ClipboardApi, Ref, Remote, Surface, shared};
+use gpui::{App, AppContext as _, ClipboardItem, Context, Entity, TestAppContext};
 
 /// Builds the fixture once per test run and returns its `.wasm`.
 fn fixture() -> PathBuf {
@@ -39,8 +39,9 @@ fn fixture() -> PathBuf {
 /// The app's root object for the plugin, recording what the plugin asks of it.
 #[derive(Default)]
 struct FakeApp {
+    /// What the app hands the plugin, as the app has it: given as the plugin starts.
+    granted: Option<Granted>,
     toasts: Vec<String>,
-    copied: Vec<String>,
     hides: usize,
     /// (operation, text) pairs.
     remembered: Vec<(String, String)>,
@@ -52,10 +53,6 @@ struct FakeApp {
 impl HostApi for FakeApp {
     fn toast(&mut self, message: String, _cx: &mut Context<Self>) {
         self.toasts.push(message);
-    }
-
-    fn copy_text(&mut self, text: String, _cx: &mut Context<Self>) {
-        self.copied.push(text);
     }
 
     fn hide(&mut self, _cx: &mut Context<Self>) {
@@ -88,12 +85,24 @@ impl HostApi for FakeApp {
             radius: 8.,
         }
     }
+
+    fn clipboard(&mut self, cx: &mut Context<Self>) -> Ref<ClipboardApi> {
+        self.granted.as_ref().expect("given as the plugin starts").clipboard(cx)
+    }
 }
 
-/// `app` as the root `Plugin::start` makes: it has nothing to grant.
+/// `app` as the root `Plugin::start` makes, given what the app hands the plugin.
 fn root_of(app: &Entity<FakeApp>) -> impl FnOnce(Granted, &mut App) -> Entity<FakeApp> + 'static {
     let app = app.clone();
-    move |_granted, _| app
+    move |granted, cx| {
+        app.update(cx, |app, _| app.granted = Some(granted));
+        app
+    }
+}
+
+/// The text on the (test) clipboard.
+fn clipboard_text(cx: &mut TestAppContext) -> Option<String> {
+    cx.read_from_clipboard().and_then(|item| item.text())
 }
 
 /// Run everything queued, including the plugin's turns and the timers they set.
@@ -216,12 +225,14 @@ async fn its_tool_takes_input_and_offers_actions(cx: &mut TestAppContext) {
     assert_eq!(offered[0].shortcut, Shortcut::Keystroke("cmd-enter".into()));
     assert_eq!(offered[1].shortcut, Shortcut::ClickOnly);
 
-    // Performing Copy reaches the app's root object.
+    // Performing Copy puts the text on the clipboard, through GPUI's own
+    // `write_to_clipboard` in the plugin, and reaches the app's root object.
     let performed = cx.update(|cx| tool.perform_action("copy".into(), cx));
     settle(cx);
     performed.await.expect("perform_action");
+    settle(cx);
+    assert_eq!(clipboard_text(cx).as_deref(), Some("hi"));
     app.read_with(cx, |app, _| {
-        assert_eq!(app.copied, ["hi"]);
         assert_eq!(app.toasts, ["Copied"]);
         assert_eq!(app.remembered, [("echo".to_string(), "hi".to_string())]);
         assert_eq!(app.hides, 0);
@@ -295,4 +306,22 @@ async fn its_settings_page_opens_on_a_surface(cx: &mut TestAppContext) {
         surface.read_with(cx, |surface, _| surface.view().is_some()),
         "it's drawn on the surface"
     );
+}
+
+#[gpui::test]
+async fn the_plugin_reads_the_clipboard(cx: &mut TestAppContext) {
+    // What's on the clipboard when the plugin starts, which it reads then; after that
+    // embedded_gpui's surface looks again before each ⌘ key it forwards (⌘V).
+    cx.write_to_clipboard(ClipboardItem::new_string("copied elsewhere".into()));
+    let (plugin, app) = start("clipboard", cx).await;
+    let surface = cx.new(Surface::new);
+    let tool = cx.update(|cx| plugin.open_tool("echo", &surface, cx));
+    settle(cx);
+    let tool = tool.await.expect("open_tool");
+
+    // The fixture toasts what GPUI's `read_from_clipboard` gives it.
+    let performed = cx.update(|cx| tool.perform_action("read-clipboard".into(), cx));
+    settle(cx);
+    performed.await.expect("perform_action");
+    app.read_with(cx, |app, _| assert_eq!(app.toasts, ["copied elsewhere"]));
 }

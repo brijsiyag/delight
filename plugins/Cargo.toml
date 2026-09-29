@@ -23,7 +23,7 @@ delight-ui = { path = "../crates/ui" }
 # Named exactly as embedded_gpui (and the root workspace) names it, so it's the
 # same GPUI the plugin API is built on; any other spelling brings in a second one.
 # Cargo.lock pins the commit.
-gpui = { git = "https://github.com/zed-industries/zed.git", branch = "gpui-embedded-in-gpui", version = "=0.2.2", default-features = false }
+gpui = { git = "https://github.com/zed-industries/zed.git", branch = "gpui-multi-root-embedded-rebased", version = "=0.2.2", default-features = false }
 # The version GPUI links.
 base64 = "=0.22.1"
 # The version GPUI links, with no features of its own.

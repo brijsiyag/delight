@@ -12,7 +12,7 @@ mod render;
 mod view;
 
 use delight_plugin_api::{AnyTool, Detection, Input, Operations, Plugin, plugin};
-use gpui::{App, AppContext as _, AssetSource, Window};
+use gpui::{App, AppContext as _, AssetSource};
 
 #[plugin(
     id = "delight.svg",
@@ -51,7 +51,7 @@ impl Plugin for Svg {
         confidence(&input.text).map(|confidence| Detection::new(SvgOperation::Preview, confidence)).into_iter().collect()
     }
 
-    fn open_tool(&mut self, operation: SvgOperation, _: &mut Window, cx: &mut App) -> AnyTool {
+    fn open_tool(&mut self, operation: SvgOperation, cx: &mut App) -> AnyTool {
         match operation {
             SvgOperation::Preview => cx.new(|_| view::SvgView::default()).into(),
         }
