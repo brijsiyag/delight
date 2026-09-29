@@ -64,7 +64,7 @@ pub use http;
 // TEMPORARY(network)
 #[cfg(feature = "grpc")]
 pub use tonic;
-pub use host::{Host, host, settings_changed, theme};
+pub use host::{Confirm, Host, WindowOptions, host, settings_changed, theme};
 pub use tool::AnyTool;
 
 use gpui::{AnyView, App, AssetSource, Context, Render};
@@ -180,6 +180,10 @@ pub trait Tool: Render {
     /// Run `action`, one it offered, doing the work itself: copying with GPUI's
     /// `cx.write_to_clipboard`, toasting and hiding through [`host`].
     fn perform_action(&mut self, action: Self::Action, cx: &mut Context<Self>);
+
+    /// The user clicked somewhere else in the launcher (its input, the footer, the list). A
+    /// click there never reaches the tool's view, so this is how a menu it holds open closes.
+    fn on_focus_lost(&mut self, _cx: &mut Context<Self>) {}
 }
 
 /// A tool's footer actions (its [`Tool::Action`]). Derive it for a fieldless enum, one

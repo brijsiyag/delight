@@ -210,12 +210,18 @@ impl TextEditor {
     }
 
     pub(super) fn undo(&mut self, _: &Undo, _: &mut Window, cx: &mut Context<Self>) {
+        if self.read_only {
+            return;
+        }
         if let Some(edit) = self.history.undo() {
             self.apply_history(edit, cx);
         }
     }
 
     pub(super) fn redo(&mut self, _: &Redo, _: &mut Window, cx: &mut Context<Self>) {
+        if self.read_only {
+            return;
+        }
         if let Some(edit) = self.history.redo() {
             self.apply_history(edit, cx);
         }

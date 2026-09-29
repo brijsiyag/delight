@@ -36,6 +36,36 @@ async fn a_plugin_opens_its_settings_page(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
+async fn a_plugin_asks_the_user_to_confirm_and_hears_the_answer(cx: &mut TestAppContext) {
+    cx.executor().allow_parking();
+    let (plugin, app) = start("confirm", cx).await;
+    let tool = tool_with(&plugin, "", cx).await;
+    for (answer, heard) in [(true, "confirmed"), (false, "cancelled")] {
+        app.update(cx, |app, _| {
+            app.confirm_answer = answer;
+            app.toasts.clear();
+        });
+        cx.update(|cx| drop(tool.perform_action("Confirm".into(), cx)));
+        assert_eq!(wait_for_toast(&app, cx, |toast| !toast.is_empty()), heard);
+    }
+    let asked = app.read_with(cx, |app, _| app.confirmations.clone());
+    assert_eq!(asked.len(), 2);
+    assert_eq!(asked[0], ("Remove it?".to_string(), "It cannot be undone.".to_string(), "Remove".to_string(), true));
+}
+
+#[gpui::test]
+async fn a_plugin_opens_a_window_of_its_own_and_draws_in_it(cx: &mut TestAppContext) {
+    cx.executor().allow_parking();
+    let (plugin, app) = start("open-window", cx).await;
+    let tool = tool_with(&plugin, "", cx).await;
+    cx.update(|cx| drop(tool.perform_action("OpenWindow".into(), cx)));
+    let toast = wait_for_toast(&app, cx, |toast| !toast.is_empty());
+    assert_eq!(toast, "window ok");
+    let windows = app.read_with(cx, |app, _| app.windows.clone());
+    assert_eq!(windows, [("fixture".to_string(), "Fixture window".to_string(), 500., 400.)]);
+}
+
+#[gpui::test]
 async fn a_plugin_saves_and_reads_its_settings_as_its_own_type(cx: &mut TestAppContext) {
     cx.executor().allow_parking();
     let (plugin, app) = start("settings-typed", cx).await;

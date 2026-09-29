@@ -31,6 +31,15 @@ pub const PLUGIN_API_VERSION: &str = env!("CARGO_PKG_VERSION");
 /// 0.2 adds an action's style (`Action::style`: normal, primary or attention), which an older
 /// plugin doesn't send (it is normal). The Rust `Action` gained the field, so a plugin builds its
 /// actions with `Action::new`.
+///
+/// 0.3 lets a plugin open a window of its own (`HostApi::open_window`, `PluginApi::open_window_view`,
+/// `host(cx).open_window`).
+///
+/// 0.4 tells a tool when a click lands elsewhere in the launcher (`ToolApi::focus_lost`,
+/// `Tool::on_focus_lost`), so it can close a menu.
+///
+/// 0.5 lets a plugin ask the user to confirm something with the system's alert (`HostApi::confirm`,
+/// `host(cx).confirm`).
 pub const PROTOCOL_VERSION: ProtocolVersion = ProtocolVersion {
     major: number(env!("CARGO_PKG_VERSION_MAJOR")),
     minor: number(env!("CARGO_PKG_VERSION_MINOR")),

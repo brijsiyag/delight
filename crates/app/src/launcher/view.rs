@@ -18,7 +18,7 @@ use super::{
     FocusTool, FocusTools, Launcher, NewerCompletion, OlderCompletion, OpenSettings, SelectNext, SelectPrevious,
     SelectTool, TOOL_CONTEXT, TOOL_LIST_CONTEXT, hide, history_search,
 };
-use crate::{macos, plugins, settings_window};
+use crate::{macos, plugin_windows, plugins, settings_window};
 
 const LIST_WIDTH: f32 = 200.;
 const FOOTER_HEIGHT: f32 = 44.;
@@ -76,6 +76,8 @@ impl Render for Launcher {
             .on_action(cx.listener(|this, _: &history_search::Confirm, window, cx| this.confirm_history(None, window, cx)))
             .on_action(cx.listener(|this, _: &history_search::Cancel, window, cx| this.close_history(window, cx)))
             .on_key_down(cx.listener(Self::on_key_down))
+            // A click anywhere in it brings it in front of the plugins' windows.
+            .capture_any_mouse_down(|_, window, cx| plugin_windows::raise(window, cx))
             .child(self.render_bar(&t, cx));
         if let Some(search) = &self.history {
             return root.child(Divider::horizontal()).child(self.render_history(search, &t, cx));
@@ -250,6 +252,14 @@ impl Launcher {
                     .flex_1()
                     .min_h(px(0.))
                     .overflow_hidden()
+                    // A click elsewhere in the launcher never reaches the plugin's view: tell the tool,
+                    // so it can close its menus.
+                    .on_mouse_down_out(cx.listener(|this, _, _, cx| {
+                        if let Some(pane) = this.selected_pane(cx) {
+                            let pane = pane.clone();
+                            pane.update(cx, |pane, cx| pane.focus_lost(cx));
+                        }
+                    }))
                     .child(surface);
                 detail.child(tool)
             }

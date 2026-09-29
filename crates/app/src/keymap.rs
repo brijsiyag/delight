@@ -16,6 +16,7 @@ use delight_ui::editor::actions::CONTEXT as EDITOR;
 use gpui::{App, KeyBinding, NoAction};
 
 use crate::Quit;
+use crate::plugin_windows;
 use crate::settings_window::{self, CONTEXT as SETTINGS};
 use crate::launcher::{
     self, CONTEXT as LAUNCHER, HISTORY_SEARCH_CONTEXT, SelectTool, TOOL_CONTEXT as TOOL, TOOL_LIST_CONTEXT as TOOL_LIST,
@@ -50,6 +51,8 @@ pub fn init(cx: &mut App) {
         KeyBinding::new("ctrl-r", history::Search, launcher),
         KeyBinding::new("cmd-,", launcher::OpenSettings, launcher),
         KeyBinding::new("cmd-w", settings_window::CloseSettings, Some(SETTINGS)),
+        KeyBinding::new("cmd-w", plugin_windows::Close, Some(plugin_windows::CONTEXT)),
+        KeyBinding::new("escape", plugin_windows::Close, Some(plugin_windows::CONTEXT)),
         KeyBinding::new("escape", settings_window::CloseSettings, Some(SETTINGS)),
         // While the input shows a completion, or is empty: ⌃N and ⌃P complete with the
         // next (older) and previous (newer) remembered input.

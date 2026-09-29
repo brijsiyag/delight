@@ -7,7 +7,7 @@ use gpui::{
 };
 
 use super::{BAR_HEIGHT, BAR_RADIUS, BAR_WIDTH, Launcher};
-use crate::{history, macos, settings};
+use crate::{history, macos, plugin_windows, settings};
 
 /// Where the bar sits: this far down the screen, centred across it.
 const FROM_TOP: f32 = 0.22;
@@ -98,6 +98,8 @@ pub fn show(cx: &mut App) {
     // window is key: earlier focus doesn't stick.
     cx.spawn(async move |cx| {
         native.present();
+        // The windows that hid with it come back, in front of it, as they were.
+        cx.update(plugin_windows::restore_hidden);
         handle
             .update(cx, |launcher, window, cx| {
                 window.focus(&launcher.input.focus_handle(cx), cx);
@@ -116,6 +118,8 @@ pub fn show(cx: &mut App) {
 /// Hide the launcher, keeping its state for the next time it shows, and its input
 /// for the next launch.
 pub fn hide(cx: &mut App) {
+    // The windows plugins opened go with it, and come back with it.
+    plugin_windows::hide_all(cx);
     let Some(handle) = handle(cx) else { return };
     let native = handle.update(cx, |launcher, window, cx| {
         launcher.close_history(window, cx);
@@ -126,6 +130,64 @@ pub fn hide(cx: &mut App) {
         cx.spawn(async move |_| native.hide()).detach();
     }
 }
+
+/// Where the launcher window is on screen.
+pub fn bounds(cx: &mut App) -> Option<Bounds<Pixels>> {
+    handle(cx)?.update(cx, |_, window, _| window.bounds()).ok()
+}
+
+/// The launcher window's level (how far in front it floats), for the windows of plugins to
+/// match.
+pub fn level(cx: &mut App) -> Option<isize> {
+    let handle = handle(cx)?;
+    handle.update(cx, |_, window, _| macos::NativeWindow::of(window).map(|native| native.level())).ok().flatten()
+}
+
+/// The keyboard moved between windows, so far: bumped whenever a window of the launcher's group
+/// gets it, to cancel a hide that was waiting to see where it went.
+#[derive(Default)]
+struct FocusMoves(u64);
+
+impl Global for FocusMoves {}
+
+/// A window of the launcher or of a plugin got the keyboard: no hide waiting for it to go
+/// elsewhere applies now.
+pub fn focus_gained(cx: &mut App) {
+    cx.default_global::<FocusMoves>().0 += 1;
+}
+
+/// A window of the launcher or of a plugin lost the keyboard. If it went to something else (another
+/// app, Settings), the launcher and the plugins' windows all hide, when that is on; if it went to
+/// one of them, nothing does. Judged a moment later, as the keyboard passes from one window to
+/// the other in two steps: only if no window of the group got it meanwhile, and none has it now
+/// (asked of AppKit, which knows before GPUI does).
+pub fn focus_left(cx: &mut App) {
+    // An alert a plugin asked for has the keyboard: that is not leaving.
+    if !settings::get(cx).hide_on_blur || crate::dialogs::is_showing(cx) {
+        return;
+    }
+    let moves = cx.default_global::<FocusMoves>().0;
+    cx.spawn(async move |cx| {
+        cx.background_executor().timer(FOCUS_SETTLE).await;
+        cx.update(|cx| {
+            if cx.default_global::<FocusMoves>().0 != moves || crate::dialogs::is_showing(cx) {
+                return;
+            }
+            let launcher = handle(cx);
+            let visible = launcher.and_then(|handle| handle.update(cx, |_, window, _| macos::is_window_visible(window)).ok()).unwrap_or(false);
+            let launcher_has_keyboard = launcher
+                .and_then(|handle| handle.update(cx, |_, window, _| macos::NativeWindow::of(window).is_some_and(|native| native.is_key())).ok())
+                .unwrap_or(false);
+            if visible && !launcher_has_keyboard && !plugin_windows::has_keyboard(cx) {
+                hide(cx);
+            }
+        });
+    })
+    .detach();
+}
+
+/// How long the keyboard may be in neither the launcher nor a plugin's window before they hide.
+const FOCUS_SETTLE: std::time::Duration = std::time::Duration::from_millis(150);
 
 /// Keep the input to bring back at the next launch, if the history is on.
 fn save_input(cx: &mut App) {

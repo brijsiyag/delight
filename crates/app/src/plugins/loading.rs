@@ -24,6 +24,8 @@ pub fn load(text_system: Arc<dyn PlatformTextSystem>, cx: &mut App) {
 /// it (and comes last).
 pub fn reload(cx: &mut App) {
     let Some(text_system) = cx.global::<Plugins>().text_system.clone() else { return };
+    // The plugins start again: what they drew in their windows is gone.
+    crate::plugin_windows::close_all(cx);
     cx.global_mut::<Plugins>().loading = true;
     cx.refresh_windows();
     let (builtins, installed) = (builtins_dir(), plugins_dir());

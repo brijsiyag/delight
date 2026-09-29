@@ -7,7 +7,7 @@ use embedded_gpui::{ClipboardApi, Ref, shared};
 use anyhow::Result;
 use gpui::{Context, Subscription, Task};
 
-use crate::{history, launcher, plugin_settings, secrets, settings, settings_window};
+use crate::{dialogs, history, launcher, plugin_settings, plugin_windows, secrets, settings, settings_window};
 
 /// What one plugin may ask of the app. Each plugin has its own, so every call is
 /// that plugin's.
@@ -97,6 +97,33 @@ impl HostApi for HostRoot {
     fn show_settings(&mut self, cx: &mut Context<Self>) {
         let plugin_id = self.plugin_id.clone();
         cx.defer(move |cx| settings_window::open_plugin(plugin_id, cx));
+    }
+
+    fn open_window(&mut self, key: String, title: String, width: f32, height: f32, cx: &mut Context<Self>) -> Task<Result<bool>> {
+        let plugin_id = self.plugin_id.clone();
+        // Deferred: the launcher may be in the middle of an update, and the window takes the focus.
+        let (sender, receiver) = futures::channel::oneshot::channel();
+        cx.defer(move |cx| {
+            let opened = plugin_windows::open(&plugin_id, key, title, width, height, cx);
+            cx.spawn(async move |_| {
+                let _ = sender.send(opened.await);
+            })
+            .detach();
+        });
+        cx.spawn(async move |_, _| Ok(receiver.await.unwrap_or(false)))
+    }
+
+    fn confirm(&mut self, title: String, message: String, continue_label: String, destructive: bool, cx: &mut Context<Self>) -> Task<Result<bool>> {
+        // Deferred: the alert is shown outside this update, on the window that has the keyboard.
+        let (sender, receiver) = futures::channel::oneshot::channel();
+        cx.defer(move |cx| {
+            let chosen = dialogs::confirm(title, message, continue_label, destructive, cx);
+            cx.spawn(async move |_| {
+                let _ = sender.send(chosen.await);
+            })
+            .detach();
+        });
+        cx.spawn(async move |_, _| Ok(receiver.await.unwrap_or(false)))
     }
 
     // TEMPORARY(open_url)

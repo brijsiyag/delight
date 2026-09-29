@@ -5,7 +5,7 @@ use std::ops::Range;
 
 use gpui::{
     AppContext, Context, CursorStyle, Entity, EventEmitter, FocusHandle, Focusable, InteractiveElement, IntoElement, KeyContext,
-    MouseButton, ParentElement, Pixels, Render, ScrollHandle, SharedString, StatefulInteractiveElement, Styled,
+    Hsla, MouseButton, ParentElement, Pixels, Render, ScrollHandle, SharedString, StatefulInteractiveElement, Styled,
     Subscription, Window, div, point, prelude::FluentBuilder, px,
 };
 
@@ -60,6 +60,11 @@ pub struct TextEditor {
     /// While composing: the edit the composition will record when committed.
     pub(super) composing: Option<Edit>,
     pub(super) multiline: bool,
+    /// Text can be selected and copied, not changed.
+    pub(super) read_only: bool,
+    /// Colours for ranges of the text (byte ranges, in order, not overlapping); the rest is drawn in
+    /// the text colour. Any change to the text drops them.
+    pub(super) highlights: Vec<(Range<usize>, Hsla)>,
     pub(super) font: EditorFont,
     pub(super) font_size: Pixels,
     pub(super) line_height: Pixels,
@@ -109,6 +114,8 @@ impl TextEditor {
             marked_range: None,
             composing: None,
             multiline: false,
+            read_only: false,
+            highlights: Vec::new(),
             font: EditorFont::default(),
             font_size: px(13.),
             line_height: px(18.),
@@ -123,6 +130,13 @@ impl TextEditor {
             scroll_x: px(0.),
             _subscriptions: subscriptions,
         }
+    }
+
+    /// Text that is shown to be selected and copied: typing, pasting, cutting and undoing change
+    /// nothing.
+    pub fn read_only(mut self) -> Self {
+        self.read_only = true;
+        self
     }
 
     /// Several lines, soft-wrapped; scrolls past `max_height`.
@@ -154,6 +168,15 @@ impl TextEditor {
         cx.notify();
     }
 
+    /// Colour ranges of the text, as `Range`s of byte offsets at character boundaries, in order and
+    /// not overlapping (a syntax highlight). A change to the text drops them: set them after.
+    pub fn set_highlights(&mut self, highlights: Vec<(Range<usize>, Hsla)>, cx: &mut Context<Self>) {
+        if self.highlights != highlights {
+            self.highlights = highlights;
+            cx.notify();
+        }
+    }
+
     pub fn text(&self) -> &str {
         &self.content
     }
@@ -163,7 +186,8 @@ impl TextEditor {
         let text = text.into();
         if text != self.content {
             self.history.break_group();
-            self.replace(0..self.content.len(), &text, EditKind::Other, cx);
+            // The program sets the text of a read-only editor; the user can't change it.
+            self.apply_replace(0..self.content.len(), &text, EditKind::Other, cx);
         }
     }
 
@@ -204,6 +228,14 @@ impl TextEditor {
     /// The one place text changes (apart from IME composition): replaces
     /// `range` with `new_text`, records it for undo, puts the cursor after it.
     pub(super) fn replace(&mut self, range: Range<usize>, new_text: &str, kind: EditKind, cx: &mut Context<Self>) {
+        if self.read_only {
+            return;
+        }
+        self.apply_replace(range, new_text, kind, cx);
+    }
+
+    /// [`Self::replace`] without the read-only check: for the program's own changes.
+    fn apply_replace(&mut self, range: Range<usize>, new_text: &str, kind: EditKind, cx: &mut Context<Self>) {
         let range = text::clamp(&self.content, range);
         let new_text =
             if self.multiline { new_text.replace("\r\n", "\n") } else { new_text.replace(['\r', '\n'], " ") };
@@ -233,6 +265,7 @@ impl TextEditor {
 
     /// After any change to the text.
     pub(super) fn changed(&mut self, cx: &mut Context<Self>) {
+        self.highlights.clear();
         self.completion = None;
         self.goal_x = None;
         self.autoscroll = true;

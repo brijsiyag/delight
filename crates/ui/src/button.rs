@@ -21,8 +21,7 @@ pub enum ButtonVariant {
     Secondary,
     /// Borderless, accent-coloured label (AppKit "borderless" / link style).
     Text,
-    /// Borderless like `Text`, but in the warning colour on a tint of it: something needs
-    /// doing first.
+    /// Borderless like `Text`, but on a tint of the accent colour: something needs doing first.
     Attention,
 }
 
@@ -50,10 +49,10 @@ impl ButtonVariant {
                 keycap: KeycapStyle::Accent,
             },
             ButtonVariant::Attention => Colors {
-                bg: Some(t.tint(t.warning)),
-                fg: t.warning,
-                hover: t.warning.opacity(0.28),
-                keycap: KeycapStyle::Plain,
+                bg: Some(t.tint(t.accent)),
+                fg: t.accent,
+                hover: t.accent.opacity(0.28),
+                keycap: KeycapStyle::Accent,
             },
         }
     }

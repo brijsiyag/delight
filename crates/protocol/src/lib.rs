@@ -67,6 +67,10 @@ pub trait PluginApi {
     /// Draw the content of the section with this id on `surface`, inside its card:
     /// `false` if there is no such section.
     fn open_settings_section(&mut self, id: String, surface: Ref<SurfaceApi>, cx: &mut gpui::Context<Self>) -> bool;
+
+    /// Fill the surface of a window the plugin asked the app for ([`HostApi::open_window`]) with the
+    /// view it made for `key`: whether it did.
+    fn open_window_view(&mut self, key: String, surface: Ref<SurfaceApi>, cx: &mut gpui::Context<Self>) -> bool;
 }
 
 /// One open tool, homed in the plugin. Its home notifies (`cx.notify`) when its
@@ -83,6 +87,10 @@ pub trait ToolApi {
     /// Run the action with this id. The tool does the work itself (copying,
     /// toasting) through its [`HostApi`].
     fn perform_action(&mut self, action: String, cx: &mut gpui::Context<Self>);
+
+    /// The user clicked somewhere else in the launcher (its input, the footer, the list): the
+    /// tool closes what it holds open that only a click can close, such as a menu.
+    fn focus_lost(&mut self, cx: &mut gpui::Context<Self>);
 }
 
 /// The app's root object for one plugin: what a plugin reaches in the app.
@@ -163,6 +171,19 @@ pub trait HostApi {
     /// Open the settings window on this plugin's own page (its settings, if it has
     /// them). Deferred: the launcher may be mid-update.
     fn show_settings(&mut self, cx: &mut gpui::Context<Self>);
+
+    /// Open a window of the plugin's own: a normal window, resizable and closed by its user, that
+    /// stays when the launcher hides. The app makes it and asks the plugin to draw in it
+    /// ([`PluginApi::open_window_view`]). A window with the same `key` that is open comes to the
+    /// front instead. Whether it is open now; not when the plugin has too many open already.
+    async fn open_window(&mut self, key: String, title: String, width: f32, height: f32, cx: &mut gpui::Context<Self>) -> bool;
+
+    /// Ask the user to confirm something with the system's own alert (macOS's `NSAlert`): `title`
+    /// as its message, `message` under it, and two buttons, `continue_label` and Cancel. A
+    /// `destructive` one is styled as a warning and has Cancel as its default button, so a stray
+    /// ↵ doesn't confirm. Whether the user chose to continue; `false` too when the app can't show
+    /// the alert (another is open, or nothing of the app is on screen).
+    async fn confirm(&mut self, title: String, message: String, continue_label: String, destructive: bool, cx: &mut gpui::Context<Self>) -> bool;
 }
 
 /// One section of a plugin's settings: a titled card in the settings window. The plugin
@@ -279,7 +300,8 @@ pub enum ActionStyle {
     Normal,
     /// The main thing to do here: a filled button.
     Primary,
-    /// Something needs doing before the rest can be trusted (results gone stale): it stands out.
+    /// Something needs doing before the rest can be trusted (results gone stale): it stands out,
+    /// on a tint of the accent colour.
     Attention,
 }
 
@@ -391,15 +413,15 @@ mod tests {
         };
         assert_eq!(
             methods(PluginApi::schema()),
-            ["detect", "open_tool", "settings_sections", "open_settings_section"]
+            ["detect", "open_tool", "settings_sections", "open_settings_section", "open_window_view"]
         );
         assert_eq!(
             methods(ToolApi::schema()),
-            ["on_input_changed", "list_actions", "perform_action"]
+            ["on_input_changed", "list_actions", "perform_action", "focus_lost"]
         );
         assert_eq!(
             methods(HostApi::schema()),
-            ["toast", "hide", "remember_input", "current_theme", "clipboard", "http", "open_url", "dns", "commands", "secret", "set_secret", "set_launcher_input", "settings", "set_settings", "utc_offset_seconds", "show_settings"]
+            ["toast", "hide", "remember_input", "current_theme", "clipboard", "http", "open_url", "dns", "commands", "secret", "set_secret", "set_launcher_input", "settings", "set_settings", "utc_offset_seconds", "show_settings", "open_window", "confirm"]
         );
     }
 }

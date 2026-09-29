@@ -4,6 +4,7 @@
 //! and hidden with a global hotkey, which lists the plugins' tools that fit its
 //! input.
 
+mod dialogs;
 mod files;
 mod history;
 mod plugin_settings;
@@ -13,6 +14,7 @@ mod keymap;
 mod launcher;
 mod login;
 mod macos;
+mod plugin_windows;
 mod plugins;
 mod settings;
 mod settings_window;
@@ -34,8 +36,12 @@ fn app_dir() -> PathBuf {
     dirs::data_dir().unwrap_or_else(std::env::temp_dir).join("Delight")
 }
 
-fn main() {
+fn init_logging() {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
+}
+
+fn main() {
+    init_logging();
 
     let _instance = match single_instance::acquire(&app_dir().join("delight.lock")) {
         Ok(Acquired::Locked(lock)) => lock,

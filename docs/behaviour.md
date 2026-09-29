@@ -55,6 +55,13 @@ that code was organised. Where the rewrite changes something on purpose,
 - Esc hides (deferred). Losing activation while visible hides if "Hide when
   focus is lost" is on (default on).
 - At launch the window is made and styled but not shown: the hotkey or "Open Delight" in the menu bar shows it.
+- **Plugin windows** (`host(cx).open_window`): a normal, resizable window with a plugin's view in it,
+  four at most from one plugin; asking for the key of one that is open brings it forward. ⌘W,
+  Esc and ✕ close it. The launcher and the plugins' windows are one group for focus: while the
+  keyboard is in any of them nothing hides; when it goes to something else (another app,
+  Settings) and "Hide when focus is lost" is on, the launcher and all the windows go off screen
+  (not closed), and the hotkey brings back the launcher and every window that hid, where they were.
+  Esc or the hotkey on the launcher hides the windows with it. Reloading the plugins closes them.
 - **GPUI deadlock (fixed upstream)**: a window becoming key while the app
   is inactive makes AppKit report `isKeyWindow == NO` inside
   `windowDidBecomeKey:`, and GPUI then calls `resignKeyWindow`. crates.io

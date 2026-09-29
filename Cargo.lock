@@ -1717,7 +1717,7 @@ dependencies = [
 
 [[package]]
 name = "delight-manifest"
-version = "0.2.0"
+version = "0.5.0"
 dependencies = [
  "anyhow",
  "serde",
@@ -1726,7 +1726,7 @@ dependencies = [
 
 [[package]]
 name = "delight-plugin-api"
-version = "0.2.0"
+version = "0.5.0"
 dependencies = [
  "anyhow",
  "bytes",
@@ -1746,7 +1746,7 @@ dependencies = [
 
 [[package]]
 name = "delight-plugin-api-macros"
-version = "0.2.0"
+version = "0.5.0"
 dependencies = [
  "anyhow",
  "darling",
@@ -1759,7 +1759,7 @@ dependencies = [
 
 [[package]]
 name = "delight-protocol"
-version = "0.2.0"
+version = "0.5.0"
 dependencies = [
  "anyhow",
  "base64 0.22.1",

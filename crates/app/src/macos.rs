@@ -235,6 +235,37 @@ impl NativeWindow {
         self.window.makeKeyWindow();
     }
 
+    /// Whether the window has the keyboard.
+    pub fn is_key(&self) -> bool {
+        self.window.isKeyWindow()
+    }
+
+    /// Bring the window in front of the others at its level, when it is clicked. Call it outside
+    /// a GPUI update, like [`Self::present`]: AppKit calls back into GPUI.
+    pub fn raise(&self) {
+        self.window.orderFront(None);
+    }
+
+    /// How far in front of others the window sits (AppKit's window level).
+    pub fn level(&self) -> isize {
+        self.window.level()
+    }
+
+    pub fn set_level(&self, level: isize) {
+        self.window.setLevel(level);
+    }
+
+    /// Take the window off screen without closing it, leaving the keyboard and the app in front
+    /// alone: a plugin's window, hidden with the launcher.
+    pub fn order_out(&self) {
+        self.window.orderOut(None);
+    }
+
+    /// Put a window hidden with [`Self::order_out`] back where it was, behind the key window.
+    pub fn order_front(&self) {
+        self.window.orderFrontRegardless();
+    }
+
     /// Hide without closing, so all state survives. If the launcher had the keyboard
     /// (hidden by Esc or the hotkey), the app that was in front before comes back;
     /// not if another app was clicked.

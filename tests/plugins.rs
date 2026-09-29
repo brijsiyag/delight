@@ -57,6 +57,15 @@ struct FakeApp {
     secrets: std::collections::HashMap<String, String>,
     /// How many times the plugin asked for its settings page.
     settings_shown: usize,
+    /// The windows the plugin asked for: (key, title, width, height).
+    windows: Vec<(String, String, f32, f32)>,
+    /// The plugin itself, to ask it to draw in them; the surfaces they draw on.
+    plugin: Option<Plugin>,
+    window_surfaces: Vec<Entity<Surface>>,
+    /// The alerts the plugin asked for: (title, message, continue label, destructive); what the
+    /// user answers to them.
+    confirmations: Vec<(String, String, String, bool)>,
+    confirm_answer: bool,
 }
 
 #[shared]
@@ -142,6 +151,22 @@ impl HostApi for FakeApp {
         self.settings_shown += 1;
     }
 
+    // As the app does it, without an alert: the user answers what the test says.
+    fn confirm(&mut self, title: String, message: String, continue_label: String, destructive: bool, _cx: &mut Context<Self>) -> gpui::Task<anyhow::Result<bool>> {
+        self.confirmations.push((title, message, continue_label, destructive));
+        gpui::Task::ready(Ok(self.confirm_answer))
+    }
+
+    // As the app does it, without a window: a surface for the plugin to draw on.
+    fn open_window(&mut self, key: String, title: String, width: f32, height: f32, cx: &mut Context<Self>) -> gpui::Task<anyhow::Result<bool>> {
+        self.windows.push((key.clone(), title, width, height));
+        let surface = cx.new(Surface::new);
+        self.window_surfaces.push(surface.clone());
+        let Some(plugin) = self.plugin.clone() else { return gpui::Task::ready(Ok(false)) };
+        let drawn = plugin.open_window_view(&key, &surface, cx);
+        cx.spawn(async move |_, _| Ok(drawn.await))
+    }
+
     fn commands(&mut self, cx: &mut Context<Self>) -> Option<Ref<CommandsApi>> {
         self.granted.as_ref().expect("given as the plugin starts").commands(cx)
     }
@@ -217,7 +242,9 @@ async fn start(test: &str, cx: &mut TestAppContext) -> (Plugin, Entity<FakeApp>)
     let app = cx.new(|_| FakeApp::default());
     let started = cx.update(|cx| Plugin::start(wasm, manifest, options, data_dir(test), root_of(&app), cx));
     settle(cx);
-    (started.await.expect("the fixture starts"), app)
+    let started = started.await.expect("the fixture starts");
+    app.update(cx, |app, _| app.plugin = Some(started.clone()));
+    (started, app)
 }
 
 fn input(text: &str) -> Input {

@@ -79,6 +79,20 @@ impl<P: Plugin> PluginApi for PluginRoot<P> {
             .collect()
     }
 
+    fn open_window_view(&mut self, key: String, surface: Ref<SurfaceApi>, cx: &mut Context<Self>) -> bool {
+        let Some(view) = cx.default_global::<crate::host::PendingWindows>().0.remove(&key) else {
+            return false;
+        };
+        let filling = cx.new(|_| Filling { view: Some(view) });
+        match open_view(surface, filling, cx) {
+            Ok(()) => true,
+            Err(error) => {
+                log::error!("opening the window {key:?}: {error:#}");
+                false
+            }
+        }
+    }
+
     fn open_settings_section(&mut self, id: String, surface: Ref<SurfaceApi>, cx: &mut Context<Self>) -> bool {
         let Some(section) = self.plugin.settings_sections(cx).into_iter().find(|section| section.id == id) else {
             return false;
@@ -140,6 +154,10 @@ impl ToolApi for ToolHome {
 
     fn perform_action(&mut self, action: String, cx: &mut Context<Self>) {
         self.tool.perform_action(&action, cx);
+    }
+
+    fn focus_lost(&mut self, cx: &mut Context<Self>) {
+        self.tool.focus_lost(cx);
     }
 }
 

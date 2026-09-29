@@ -8,6 +8,8 @@ use gpui::{App, AppContext as _, Context, Entity, Subscription, Task};
 
 pub struct ToolPane {
     pub surface: Entity<Surface>,
+    /// Asked whether it stopped before every call: a stopped plugin's boundary is torn down.
+    plugin: Plugin,
     /// Once the plugin has opened the tool.
     tool: Option<Remote<ToolApi>>,
     /// The latest input, sent once the tool is there.
@@ -30,6 +32,7 @@ impl ToolPane {
         });
         Self {
             surface,
+            plugin: plugin.clone(),
             tool: None,
             input: None,
             actions: Vec::new(),
@@ -39,6 +42,9 @@ impl ToolPane {
     }
 
     fn attach(&mut self, tool: Remote<ToolApi>, cx: &mut Context<Self>) {
+        if self.plugin.stopped().is_some() {
+            return;
+        }
         if let Some(input) = self.input.clone() {
             drop(tool.on_input_changed(input, cx));
         }
@@ -56,7 +62,7 @@ impl ToolPane {
         if self.input.as_ref() == Some(&input) {
             return;
         }
-        if let Some(tool) = &self.tool {
+        if let Some(tool) = self.tool.as_ref().filter(|_| self.plugin.stopped().is_none()) {
             drop(tool.on_input_changed(input.clone(), cx));
         }
         self.input = Some(input);
@@ -67,13 +73,20 @@ impl ToolPane {
     }
 
     pub fn perform(&self, action: &str, cx: &mut App) {
-        if let Some(tool) = &self.tool {
+        if let Some(tool) = self.tool.as_ref().filter(|_| self.plugin.stopped().is_none()) {
             drop(tool.perform_action(action.to_string(), cx));
         }
     }
 
+    /// The user clicked elsewhere in the launcher: the tool closes its menus.
+    pub fn focus_lost(&self, cx: &mut Context<Self>) {
+        if let Some(tool) = self.tool.as_ref().filter(|_| self.plugin.stopped().is_none()) {
+            drop(tool.focus_lost(cx));
+        }
+    }
+
     fn list_actions(&mut self, cx: &mut Context<Self>) {
-        let Some(tool) = &self.tool else { return };
+        let Some(tool) = self.tool.as_ref().filter(|_| self.plugin.stopped().is_none()) else { return };
         let listed = tool.list_actions(cx);
         cx.spawn(async move |this, cx| {
             let Ok(actions) = listed.await else { return };

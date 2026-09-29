@@ -71,7 +71,7 @@ impl EntityInputHandler for TextEditor {
         _: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if self.composing.is_none() && matches!(new_text, "\n" | "\r") {
+        if self.read_only || (self.composing.is_none() && matches!(new_text, "\n" | "\r")) {
             return;
         }
         let range = self.target(range_utf16.as_ref());
@@ -99,6 +99,9 @@ impl EntityInputHandler for TextEditor {
         _: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        if self.read_only {
+            return;
+        }
         let range = self.target(range_utf16.as_ref());
         if self.composing.is_none() {
             self.composing = Some(Edit {

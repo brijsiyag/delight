@@ -6,7 +6,9 @@ use delight_protocol::{HostApi, HostApiCaller as _, Theme};
 use embedded_gpui::Remote;
 
 use crate::Operations;
-use crate::gpui::{App, Global, Subscription, Task};
+use std::collections::HashMap;
+
+use crate::gpui::{AnyView, App, Global, Subscription, Task};
 
 /// The app, as a plugin reaches it: `host(cx).toast("Copied", cx)`. Calls don't
 /// wait for the app. Natively (in a plugin's unit tests) they do nothing.
@@ -124,6 +126,43 @@ impl Host {
         }
     }
 
+    /// Open a window of the plugin's own with `view` in it: a normal window the user resizes and
+    /// closes (✕, ⌘W, Esc), that stays when the launcher hides. A window with the same
+    /// [`WindowOptions::key`] that is open comes to the front instead, and `view` is dropped. An
+    /// error when the plugin has too many open (close one first), and natively.
+    pub fn open_window(&self, options: WindowOptions, view: impl Into<AnyView>, cx: &mut App) -> Task<Result<()>> {
+        let Some(remote) = &self.remote else {
+            return Task::ready(Err(anyhow!("windows are Delight's: a plugin has them only in Delight")));
+        };
+        let WindowOptions { key, title, width, height } = options;
+        // The app asks for the view once it has made the window: keep it until then.
+        cx.default_global::<PendingWindows>().0.insert(key.clone(), view.into());
+        let asked = remote.open_window(key.clone(), title, width, height, cx);
+        cx.spawn(async move |cx| {
+            let opened = asked.await;
+            // Taken by now if the window was made; if it wasn't, or already was, it goes.
+            cx.update(|cx| cx.default_global::<PendingWindows>().0.remove(&key));
+            match opened {
+                Ok(true) => Ok(()),
+                Ok(false) => Err(anyhow!("Delight has no room for another window from this plugin: close one first")),
+                Err(error) => Err(error),
+            }
+        })
+    }
+
+    /// Ask the user to confirm something with the system's own alert (macOS's): `Ok(true)` if they
+    /// chose to continue, `Ok(false)` if they cancelled, or the app couldn't show it (another
+    /// alert is open, or nothing of Delight is on screen). Use it before what can't be undone.
+    /// An error natively.
+    pub fn confirm(&self, confirm: Confirm, cx: &mut App) -> Task<Result<bool>> {
+        let Some(remote) = &self.remote else {
+            return Task::ready(Err(anyhow!("alerts are Delight's: a plugin has them only in Delight")));
+        };
+        let Confirm { title, message, continue_label, destructive } = confirm;
+        let asked = remote.confirm(title, message, continue_label, destructive, cx);
+        cx.spawn(async move |_| asked.await)
+    }
+
     /// Remember `text` as an input worth coming back to, for `operation`: the
     /// launcher offers it as a completion while typing and in its history search
     /// (⌃R), and brings this tool up when it's used. Nothing else is remembered.
@@ -133,6 +172,67 @@ impl Host {
         }
     }
 }
+
+/// What to ask the user to confirm ([`Host::confirm`]).
+#[derive(Debug, Clone, PartialEq)]
+pub struct Confirm {
+    /// The question, as the alert's message: "Remove this host?".
+    pub title: String,
+    /// What follows from it, under the question: "Its API key is removed too."
+    pub message: String,
+    /// The button that goes ahead: "Remove". "Continue" by default.
+    pub continue_label: String,
+    /// It can't be undone: the alert warns, and Cancel is the button ↵ presses.
+    pub destructive: bool,
+}
+
+impl Confirm {
+    pub fn new(title: impl Into<String>, message: impl Into<String>) -> Self {
+        Self { title: title.into(), message: message.into(), continue_label: "Continue".into(), destructive: false }
+    }
+
+    pub fn continue_label(mut self, label: impl Into<String>) -> Self {
+        self.continue_label = label.into();
+        self
+    }
+
+    /// What is asked can't be undone.
+    pub fn destructive(mut self) -> Self {
+        self.destructive = true;
+        self
+    }
+}
+
+/// What a window of the plugin's own is like ([`Host::open_window`]).
+#[derive(Debug, Clone, PartialEq)]
+pub struct WindowOptions {
+    /// Which window this is: asking again while it is open shows the open one.
+    pub key: String,
+    pub title: String,
+    /// The size it opens at, in points.
+    pub width: f32,
+    pub height: f32,
+}
+
+impl WindowOptions {
+    /// A window titled `title`, 640 × 480.
+    pub fn new(key: impl Into<String>, title: impl Into<String>) -> Self {
+        Self { key: key.into(), title: title.into(), width: 640., height: 480. }
+    }
+
+    pub fn size(mut self, width: f32, height: f32) -> Self {
+        self.width = width;
+        self.height = height;
+        self
+    }
+}
+
+/// The views of windows asked for and not yet made, by key: the app asks the plugin for
+/// each once its window is there.
+#[derive(Default)]
+pub(crate) struct PendingWindows(pub(crate) HashMap<String, AnyView>);
+
+impl Global for PendingWindows {}
 
 /// The plugin's root object, which the app observes to know when its settings sections
 /// changed: set by the glue when the plugin starts.

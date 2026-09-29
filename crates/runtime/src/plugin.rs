@@ -28,6 +28,9 @@ pub const CALL_TIMEOUT: Duration = Duration::from_secs(3);
 /// {reason}", and a stop's reason starts "plugin stopped: ".
 const STOPPED_BY_EMBEDDED_GPUI: &str = "call failed: plugin stopped";
 
+/// How long a question about a plugin's text field waits for the plugin's answer.
+const INPUT_QUERY_BUDGET: Duration = Duration::from_millis(20);
+
 /// The sandbox a plugin runs in, from what its manifest grants: its data folder
 /// (created if needed) at `/data`, and the network (sockets and name lookups) only
 /// with [`Permission::Network`]. Nothing else outside the sandbox is reachable.
@@ -37,7 +40,11 @@ pub fn plugin_options(
     text_system: Arc<dyn PlatformTextSystem>,
 ) -> PluginOptions {
     let network = manifest.plugin.permission::<NetworkPermission>().is_some();
-    PluginOptions::new(text_system).with_wasi(move |wasi| {
+    // The app asks a plugin's focused text field questions on the main thread (where the cursor is,
+    // for the input method) and waits for the answer this long: the plugin's turn in between may
+    // be a frame's drawing, more than embedded_gpui's default 5 ms, and an unanswered question is
+    // a wrong answer.
+    PluginOptions::new(text_system).with_input_query_budget(INPUT_QUERY_BUDGET).with_wasi(move |wasi| {
         let mounted = std::fs::create_dir_all(&data_dir)
             .map_err(anyhow::Error::from)
             .and_then(|()| wasi.preopened_dir(&data_dir, "/data", DirPerms::all(), FilePerms::all()));
@@ -148,6 +155,22 @@ impl Plugin {
             move |root, cx| {
                 let surface = host.share(&surface, cx);
                 root.open_settings_section(id, surface, cx)
+            },
+            cx,
+        );
+        cx.spawn(async move |_| asked.await.unwrap_or(false))
+    }
+
+    /// Ask the plugin to draw the window it asked for (`host(cx).open_window`), `key`, on `surface`:
+    /// whether it did. A plugin that can't answer (stopped, or without that window) draws nothing.
+    pub fn open_window_view(&self, key: &str, surface: &Entity<Surface>, cx: &mut App) -> Task<bool> {
+        let host = self.host.clone();
+        let surface = surface.clone();
+        let key = key.to_string();
+        let asked = self.call(
+            move |root, cx| {
+                let surface = host.share(&surface, cx);
+                root.open_window_view(key, surface, cx)
             },
             cx,
         );

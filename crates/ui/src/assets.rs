@@ -61,6 +61,7 @@ icons![
     IndentIncrease => "list-indent-increase",
     Info => "info",
     Lightbulb => "lightbulb",
+    Maximize => "maximize-2",
     Moon => "moon",
     Plus => "plus",
     Puzzle => "puzzle",

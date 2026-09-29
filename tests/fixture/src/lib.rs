@@ -9,7 +9,8 @@ mod network;
 use delight_plugin_api::gpui::{App, AppContext as _, ClipboardItem, Context, IntoElement, Render, Window, div};
 use delight_plugin_api::gpui::{Hsla, ParentElement as _, Styled as _, prelude::FluentBuilder as _};
 use delight_plugin_api::{
-    Action, Actions, AnyTool, Detection, Input, Operations, Plugin, SettingsSection, Shortcut, Tool, host, plugin, settings_changed,
+    Action, Actions, AnyTool, Confirm, Detection, Input, Operations, Plugin, SettingsSection, Shortcut, Tool, WindowOptions, host,
+    plugin, settings_changed,
     theme,
 };
 
@@ -109,6 +110,10 @@ enum EchoAction {
     Secrets,
     Facts,
     ShowSettings,
+    /// Ask the user to confirm, destructively; toasts "confirmed" or "cancelled".
+    Confirm,
+    /// Ask the app for a window; toasts "window ok" once it has drawn there, or why not.
+    OpenWindow,
     /// Says its settings sections changed.
     SectionsChanged,
     /// Settings: save, read back, clear; and read only.
@@ -164,6 +169,29 @@ impl Tool for Echo {
             EchoAction::Run => commands::run(&self.text.clone(), cx),
             EchoAction::Secrets => host_facts::secrets(&self.text.clone(), cx),
             EchoAction::Facts => host_facts::facts(cx),
+            EchoAction::Confirm => {
+                let asked = host(cx).confirm(Confirm::new("Remove it?", "It cannot be undone.").continue_label("Remove").destructive(), cx);
+                cx.spawn(async move |_, cx| {
+                    let message = match asked.await {
+                        Ok(true) => "confirmed".to_string(),
+                        Ok(false) => "cancelled".to_string(),
+                        Err(error) => format!("{error:#}"),
+                    };
+                    cx.update(|cx| host(cx).toast(message, cx));
+                })
+                .detach();
+            }
+            EchoAction::OpenWindow => {
+                let opened = host(cx).open_window(WindowOptions::new("fixture", "Fixture window").size(500., 400.), cx.new(|_| FixtureSettings), cx);
+                cx.spawn(async move |_, cx| {
+                    let message = match opened.await {
+                        Ok(()) => "window ok".to_string(),
+                        Err(error) => format!("{error:#}"),
+                    };
+                    cx.update(|cx| host(cx).toast(message, cx));
+                })
+                .detach();
+            }
             EchoAction::ShowSettings => host(cx).open_settings(cx),
             EchoAction::SectionsChanged => settings_changed(cx),
             EchoAction::Settings => host_facts::settings(&self.text.clone(), cx),

@@ -31,6 +31,7 @@ pub(crate) trait DynTool {
     fn on_input_changed(&self, input: &Input, cx: &mut App);
     fn list_actions(&self, cx: &App) -> Vec<Action>;
     fn perform_action(&self, action: &str, cx: &mut App);
+    fn focus_lost(&self, cx: &mut App);
     fn observe(&self, on_notify: Box<dyn FnMut(&mut App)>, cx: &mut App) -> Subscription;
 }
 
@@ -46,6 +47,10 @@ impl<T: Tool> DynTool for Entity<T> {
             .into_iter()
             .map(|action| Action { id: action.id.id().to_string(), label: action.label, shortcut: action.shortcut, style: action.style })
             .collect()
+    }
+
+    fn focus_lost(&self, cx: &mut App) {
+        self.update(cx, |tool, cx| tool.on_focus_lost(cx));
     }
 
     /// The action with the id the app hands back; one the tool doesn't have is

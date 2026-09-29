@@ -11,6 +11,40 @@ use gpui::{
 
 use super::TextEditor;
 
+/// The text runs of the line of `len` bytes that starts at `start` in the text: one for each
+/// stretch of a colour in `highlights`, and of the plain `color` between them.
+fn runs_of(font_family: &SharedString, color: Hsla, start: usize, len: usize, highlights: &[(std::ops::Range<usize>, Hsla)]) -> Vec<TextRun> {
+    let run = |len: usize, color: Hsla| TextRun {
+        len,
+        font: font(font_family.clone()),
+        color,
+        background_color: None,
+        underline: None,
+        strikethrough: None,
+    };
+    let end = start + len;
+    let mut runs = Vec::new();
+    let mut at = start;
+    for (range, colour) in highlights {
+        if range.end <= at {
+            continue;
+        }
+        if range.start >= end {
+            break;
+        }
+        let (from, to) = (range.start.max(at), range.end.min(end));
+        if from > at {
+            runs.push(run(from - at, color));
+        }
+        runs.push(run(to - from, *colour));
+        at = to;
+    }
+    if at < end || runs.is_empty() {
+        runs.push(run(end - at, color));
+    }
+    runs
+}
+
 /// One logical (`\n`-separated) line after wrapping.
 pub struct LineLayout {
     /// Byte offset of the line start in the content.
@@ -93,22 +127,16 @@ impl TextElement {
         font_size: Pixels,
         lh: Pixels,
         wrap: Option<Pixels>,
+        highlights: &[(std::ops::Range<usize>, Hsla)],
         window: &mut Window,
     ) -> (Vec<LineLayout>, Pixels) {
         let mut lines = Vec::new();
         let (mut y, mut start) = (px(0.), 0);
         for line in text.split('\n') {
-            let run = TextRun {
-                len: line.len(),
-                font: font(font_family.clone()),
-                color,
-                background_color: None,
-                underline: None,
-                strikethrough: None,
-            };
+            let runs = runs_of(font_family, color, start, line.len(), highlights);
             let wrapped = window
                 .text_system()
-                .shape_text(SharedString::from(line.to_string()), font_size, &[run], wrap, None)
+                .shape_text(SharedString::from(line.to_string()), font_size, &runs, wrap, None)
                 .ok()
                 .and_then(|mut v| (!v.is_empty()).then(|| v.remove(0)))
                 .unwrap_or_default();
@@ -194,7 +222,7 @@ impl Element for TextElement {
                 gpui::AvailableSpace::Definite(w) => Some(w),
                 _ => None,
             });
-            let (_, height) = Self::shape(&font_family, &text, color, font_size, lh, wrap, window);
+            let (_, height) = Self::shape(&font_family, &text, color, font_size, lh, wrap, &[], window);
             size(wrap.unwrap_or(px(400.)), height)
         });
         (id, ())
@@ -216,7 +244,8 @@ impl Element for TextElement {
             if empty { (editor.placeholder.to_string(), self.placeholder_color) } else { (editor.content.clone(), self.color) };
         let wrap = editor.multiline.then_some(bounds.size.width);
         let (selected, cursor_offset) = (editor.selected_range.clone(), editor.cursor());
-        let (lines, _) = Self::shape(&self.font_family, &text, color, font_size, lh, wrap, window);
+        let colours: &[(std::ops::Range<usize>, Hsla)] = if empty { &[] } else { &editor.highlights };
+        let (lines, _) = Self::shape(&self.font_family, &text, color, font_size, lh, wrap, colours, window);
         let mut layout = Layout { lines, bounds, line_height: lh };
         // A line longer than the field scrolls sideways so the cursor stays in view.
         let scroll_x = if editor.multiline || empty {
@@ -243,7 +272,7 @@ impl Element for TextElement {
             let first_line = completion.split('\n').next().unwrap_or_default().to_string();
             // In an empty editor the layout is the placeholder's: the ghost starts at 0.
             let origin = if empty { point(px(0.), px(0.)) } else { position_for_offset(&layout, editor.content.len())? };
-            let (mut lines, _) = Self::shape(&self.font_family, &first_line, self.placeholder_color, font_size, lh, None, window);
+            let (mut lines, _) = Self::shape(&self.font_family, &first_line, self.placeholder_color, font_size, lh, None, &[], window);
             Some((origin, lines.remove(0).wrapped))
         });
         // A completion of an empty editor is shown instead of the placeholder.
@@ -317,6 +346,19 @@ impl Element for TextElement {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_lines_runs_cover_it_with_the_colours_between_the_plain_stretches() {
+        let (plain, red, blue) = (gpui::hsla(0., 0., 0., 1.), gpui::hsla(0., 1., 0.5, 1.), gpui::hsla(0.6, 1., 0.5, 1.));
+        let family: SharedString = "mono".into();
+        let lens = |runs: Vec<TextRun>| runs.iter().map(|run| (run.len, run.color)).collect::<Vec<_>>();
+        // The line is bytes 10..18; colours before it, across it and past its end.
+        let highlights = [(0..5, red), (12..14, red), (15..30, blue)];
+        assert_eq!(lens(runs_of(&family, plain, 10, 8, &highlights)), [(2, plain), (2, red), (1, plain), (3, blue)]);
+        // No colours, or an empty line: one run of the whole line.
+        assert_eq!(lens(runs_of(&family, plain, 0, 5, &[])), [(5, plain)]);
+        assert_eq!(lens(runs_of(&family, plain, 40, 0, &highlights)), [(0, plain)]);
+    }
 
     #[test]
     fn a_long_line_scrolls_to_keep_the_cursor_in_view() {
