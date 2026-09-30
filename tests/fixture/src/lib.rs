@@ -136,7 +136,7 @@ impl Tool for Echo {
     }
 
     fn list_actions(&self, _cx: &App) -> Vec<Action<EchoAction>> {
-        let mut actions = vec![Action::new(EchoAction::Copy, "Copy", Shortcut::Keystroke("cmd-enter".into()))];
+        let mut actions = vec![Action::new(EchoAction::Copy, "Copy", Shortcut::CmdEnter)];
         if !self.text.is_empty() {
             actions.push(Action::new(EchoAction::Clear, "Clear", Shortcut::ClickOnly));
         }

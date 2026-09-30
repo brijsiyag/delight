@@ -68,13 +68,13 @@ impl Tool for DnsView {
         };
         let mut actions = Vec::new();
         if report.addresses.is_some() {
-            actions.push(Action::new(DnsAction::Addresses, "Copy addresses", Shortcut::Keystroke("enter".into())));
+            actions.push(Action::new(DnsAction::Addresses, "Copy addresses", Shortcut::Enter));
         }
         if report.names.is_some() {
-            actions.push(Action::new(DnsAction::Names, "Copy names", Shortcut::Keystroke("enter".into())));
+            actions.push(Action::new(DnsAction::Names, "Copy names", Shortcut::Enter));
         }
         if report.dig_command.is_some() {
-            actions.push(Action::new(DnsAction::DigCommand, "Copy dig command", Shortcut::Keystroke("cmd-enter".into())));
+            actions.push(Action::new(DnsAction::DigCommand, "Copy dig command", Shortcut::CmdEnter));
         }
         actions
     }

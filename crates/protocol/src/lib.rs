@@ -313,13 +313,37 @@ impl ActionStyle {
 
 /// An action's key. Every action states one, so going without a key is a choice
 /// rather than an oversight.
+///
+/// The launcher gives actions only three kinds of key, so a tool's keys are the ones every tool
+/// has: ↵, ⌘↵ and ⌥1 to ⌥9 (see [`Shortcut::is_allowed`]). A plugin's own keystroke is on the wire
+/// as text for compatibility, but the app answers any other than these by only clicking that action.
 #[data]
 #[derive(PartialEq)]
 pub enum Shortcut {
-    /// A GPUI keystroke such as `cmd-enter`.
+    /// A GPUI keystroke: `enter`, `cmd-enter` or `alt-1` to `alt-9`.
     Keystroke(String),
     /// No key: the action is only clicked.
     ClickOnly,
+}
+
+impl Shortcut {
+    /// ↵, as a keystroke.
+    pub const ENTER: &'static str = "enter";
+    /// ⌘↵, as a keystroke.
+    pub const CMD_ENTER: &'static str = "cmd-enter";
+
+    /// ⌥ and a digit, as a keystroke: `alt-1` to `alt-9`; none for another digit.
+    pub fn option(digit: u8) -> Option<String> {
+        (1..=9).contains(&digit).then(|| format!("alt-{digit}"))
+    }
+
+    /// Whether `keystroke` (GPUI's syntax, any case) is one an action may have: ↵, ⌘↵ or ⌥1 to ⌥9.
+    pub fn is_allowed(keystroke: &str) -> bool {
+        let keystroke = keystroke.to_ascii_lowercase();
+        keystroke == Self::ENTER
+            || keystroke == Self::CMD_ENTER
+            || keystroke.strip_prefix("alt-").and_then(|digit| digit.parse::<u8>().ok()).is_some_and(|digit| Self::option(digit).is_some_and(|option| option == keystroke))
+    }
 }
 
 #[cfg(test)]
@@ -376,6 +400,19 @@ mod tests {
             },
             r#"{"id":"copy","label":"Copy","shortcut":"ClickOnly","style":"Attention"}"#,
         );
+    }
+
+    #[test]
+    fn only_enter_cmd_enter_and_option_1_to_9_are_keys() {
+        for allowed in ["enter", "cmd-enter", "alt-1", "alt-9", "Enter", "ALT-5"] {
+            assert!(Shortcut::is_allowed(allowed), "{allowed}");
+        }
+        for refused in ["", "cmd-k", "cmd-shift-enter", "shift-enter", "alt-0", "alt-10", "alt-01", "alt-a", "alt-enter", "cmd-1", "1", "cmd-shift-c"] {
+            assert!(!Shortcut::is_allowed(refused), "{refused}");
+        }
+        assert_eq!(Shortcut::option(3).as_deref(), Some("alt-3"));
+        assert_eq!(Shortcut::option(0), None);
+        assert_eq!(Shortcut::option(10), None);
     }
 
     #[test]

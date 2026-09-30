@@ -147,10 +147,17 @@ impl Theme {
         self.radius - px(2.)
     }
 
-    /// The launcher's background, painted over its native blur. Mostly opaque, so the
-    /// contrast doesn't depend on what's behind the window.
+    /// The launcher's background around the tool view (the input, the tool list, the footer):
+    /// solid, so nothing behind the window shows through, and a step off the tool view's, so the
+    /// two read as one window. The native blur under it stays for the window's shape and shadow.
     pub fn window_tint(&self) -> Hsla {
-        if self.dark { gray(0.13, 0.88) } else { gray(0.97, 0.86) }
+        if self.dark { gray(0.115, 1.) } else { gray(0.955, 1.) }
+    }
+
+    /// The tool view's background, a step lighter than [`Theme::window_tint`] around it: white in
+    /// the light theme, a lifted dark in the dark one.
+    pub fn tool_background(&self) -> Hsla {
+        if self.dark { gray(0.155, 1.) } else { gray(1., 1.) }
     }
 
     /// Colours for highlighted code: Xcode's, in light or dark.
@@ -378,6 +385,19 @@ mod tests {
         for theme in [Theme::light("Menlo".into()), Theme::dark("SF Mono".into())] {
             assert_eq!(Theme::from(&delight_protocol::Theme::from(&theme)), theme);
         }
+    }
+
+    #[test]
+    fn the_launcher_is_solid_with_the_tool_view_a_step_lighter() {
+        for theme in [Theme::light("Menlo".into()), Theme::dark("Menlo".into())] {
+            let (window, tool) = (theme.window_tint(), theme.tool_background());
+            assert_eq!((window.a, tool.a), (1., 1.), "dark: {}", theme.dark);
+            assert!(tool.l > window.l, "the tool view is lighter (dark: {})", theme.dark);
+        }
+        let light = Theme::light("Menlo".into());
+        assert_eq!(light.tool_background(), gray(1., 1.));
+        assert!(light.window_tint().l < 1., "not white");
+        assert!(Theme::dark("Menlo".into()).tool_background().l < 0.5);
     }
 
     /// Every colour has a real value in both appearances: an unset one would be

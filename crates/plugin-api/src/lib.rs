@@ -55,7 +55,7 @@ pub mod network;
 mod tool;
 
 pub use delight_plugin_api_macros::{Actions, Operations, plugin};
-pub use delight_protocol::{ActionStyle, Color, Command, CommandOutput, DnsResolver, Input, Shortcut, Theme};
+pub use delight_protocol::{ActionStyle, Color, Command, CommandOutput, DnsResolver, Input, Theme};
 pub use embedded_gpui::gpui;
 /// The `http` crate the network's requests and responses are made of.
 // TEMPORARY(network)
@@ -196,9 +196,40 @@ pub trait Actions: Sized + 'static {
     fn from_id(id: &str) -> Option<Self>;
 }
 
-/// A footer action a tool offers: which one, its button's label, and its key. Every
-/// action states a shortcut, so going without a key is a choice rather than an
-/// oversight.
+/// An action's key. Delight gives actions three kinds of key and no others, so every tool's keys
+/// are the same ones and worth remembering: ↵, ⌘↵ and ⌥1 to ⌥9. An action states one (going without
+/// a key is a choice, [`Shortcut::ClickOnly`]); two actions with the same key: the earlier one has it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Shortcut {
+    /// ↵: the main thing to do here.
+    Enter,
+    /// ⌘↵.
+    CmdEnter,
+    /// ⌥ and a digit, 1 to 9. Another number gives the action no key (it is only clicked).
+    Option(u8),
+    /// No key: the action is only clicked.
+    ClickOnly,
+}
+
+impl From<Shortcut> for delight_protocol::Shortcut {
+    fn from(shortcut: Shortcut) -> Self {
+        use delight_protocol::Shortcut as Wire;
+        match shortcut {
+            Shortcut::Enter => Wire::Keystroke(Wire::ENTER.into()),
+            Shortcut::CmdEnter => Wire::Keystroke(Wire::CMD_ENTER.into()),
+            Shortcut::Option(digit) => match Wire::option(digit) {
+                Some(keystroke) => Wire::Keystroke(keystroke),
+                None => {
+                    log::warn!("⌥{digit} isn't a key an action can have (⌥1 to ⌥9 are): it is only clicked");
+                    Wire::ClickOnly
+                }
+            },
+            Shortcut::ClickOnly => Wire::ClickOnly,
+        }
+    }
+}
+
+/// A footer action a tool offers: which one, its button's label, and its key.
 pub struct Action<A> {
     pub id: A,
     pub label: String,

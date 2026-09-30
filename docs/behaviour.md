@@ -179,12 +179,15 @@ that code was organised. Where the rewrite changes something on purpose,
   tool can offer them instead.
 - Right: the tool's first 4 actions as text buttons with keycaps, vertical
   dividers between, then ⚙ (Settings → General).
-- **Action keys**: each action's shortcut is parsed as a GPUI keystroke. It
-  is dropped (the action becomes click-only) if the keymap already binds that
-  keystroke in the current focus context stack, or an earlier action took it.
+- **Action keys**: an action may have only ↵, ⌘↵ or ⌥1 to ⌥9 (`enter`,
+  `cmd-enter`, `alt-1`…`alt-9`), so every tool's keys are the same ones. Any
+  other keystroke a plugin sends is refused (logged): the action becomes
+  click-only. Likewise if the keymap already binds that keystroke in the
+  current focus context stack, or an earlier action took it. The plugin API
+  types them (`Shortcut::Enter`, `CmdEnter`, `Option(1..=9)`, `ClickOnly`).
   The launcher's key-down finds the matching action (same modifiers, key
   case-insensitive), performs it and stops propagation. (Quirk: actions past
-  the 4 shown still answer their keys.) Labels like `⇧⌘↵`.
+  the 4 shown still answer their keys.) Labels like `⌘↵` and `⌥1`.
 
 ## Input history
 

@@ -113,6 +113,7 @@ impl Launcher {
         };
         let icon = icon.size(px(BAR_ICON_SIZE));
         let searching = self.history.is_some();
+
         h_flex()
             .when(searching, |bar| bar.key_context(history_search::CONTEXT))
             .flex_shrink_0()
@@ -211,7 +212,8 @@ impl Launcher {
 
     /// The selected tool: its name, then its own view; with none selected, why.
     fn render_detail(&mut self, t: &Theme, cx: &mut Context<Self>) -> impl IntoElement {
-        let detail = v_flex().id("detail").flex_1().min_w(px(0.)).h_full().gap(px(14.)).px(px(18.)).py(px(14.));
+        // Opaque, unlike the launcher behind it: the tool is read on a solid page.
+        let detail = v_flex().id("detail").flex_1().min_w(px(0.)).h_full().gap(px(14.)).px(px(18.)).py(px(14.)).bg(t.tool_background());
         let plugins = plugins::all(cx);
         let Some(candidate) = self.selected_candidate().copied() else {
             return detail.child(self.render_empty(t));

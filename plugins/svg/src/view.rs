@@ -65,7 +65,7 @@ impl Tool for SvgView {
         let Preview::Ready(_) = &self.preview else {
             return Vec::new();
         };
-        vec![Action::new(SvgAction::CopyDataUri, "Copy data URI", Shortcut::Keystroke("enter".into()))]
+        vec![Action::new(SvgAction::CopyDataUri, "Copy data URI", Shortcut::Enter)]
     }
 
     fn perform_action(&mut self, action: SvgAction, cx: &mut Context<Self>) {

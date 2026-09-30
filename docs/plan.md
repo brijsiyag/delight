@@ -157,7 +157,7 @@ in its step):
   `list_actions()` (observed), `perform_action(action)`.
 - **Data**: manifest (id, name, version, description, author, icon SVG,
   operations (each may have its own icon), permissions, up to 5 tips), input (text),
-  detection, action (id, label, and a shortcut: a keystroke, or explicitly
+  detection, action (id, label, and a shortcut: ↵, ⌘↵, ⌥1 to ⌥9, or explicitly
   click-only), theme, command and its output.
 - `PROTOCOL_VERSION`, written into every plugin by `#[plugin]`.
 

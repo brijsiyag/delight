@@ -109,9 +109,9 @@ impl Tool for JsonView {
         if self.output.text().is_none() {
             return Vec::new();
         }
-        let mut actions = vec![Action::new(JsonAction::Copy, self.copy_label(), Shortcut::Keystroke("enter".into()))];
+        let mut actions = vec![Action::new(JsonAction::Copy, self.copy_label(), Shortcut::Enter)];
         if self.minified.is_some() {
-            actions.push(Action::new(JsonAction::CopyMinified, "Copy minified", Shortcut::Keystroke("cmd-enter".into())));
+            actions.push(Action::new(JsonAction::CopyMinified, "Copy minified", Shortcut::CmdEnter));
         }
         actions
     }

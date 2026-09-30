@@ -251,7 +251,7 @@ impl SettingsWindow {
             .child(Icon::new(IconName::Search).size(px(14.)).color(t.text_muted))
             .child(div().flex_1().min_w(px(0.)).child(self.search.clone()));
         let starting = loaded::loading(cx).then(|| {
-            div().px(px(8.)).py(px(4.)).text_size(px(11.)).text_color(t.text_muted).child("Re/Loading plugins…")
+            div().px(px(8.)).py(px(4.)).text_size(px(11.)).text_color(t.text_muted).child("Loading plugins…")
         });
         let list = v_flex()
             .id("sidebar-entries")
@@ -388,4 +388,3 @@ fn item_with(icon: AnyElement, title: SharedString, lines: Vec<AnyElement>, cont
         .children(control)
         .into_any_element()
 }
-
