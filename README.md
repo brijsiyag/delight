@@ -1,184 +1,233 @@
 # Delight
 
-A macOS launcher whose tools are plugins: WASM components that run their own
-GPUI through embedded_gpui. `docs/plan.md` is the plan, `docs/behaviour.md`
-what the app does, and `docs/plugin-settings.md` how to design a plugin's
-settings.
+A launcher for macOS. Press **⌘⇧Space**, type or paste something, and Delight offers the tools that
+fit it: format the JSON, look up the DNS, preview the SVG, open a service's dashboards. Every tool is
+a **plugin**, so you can add your own.
 
-## Development
+- Built-in tools: **JSON**, **YAML ⇄ JSON**, **SVG preview**, **DNS lookup**.
+- Plugins are single `.wasm` files. Each one shows its own interface and can only do what it asked
+  permission for.
+- macOS, Apple Silicon and Intel. Signed and notarised; updates itself.
 
-- `cargo run -p delight-app` runs the app.
-- The built-in tools are their own workspace, `plugins/`. Build them with
-  `cargo build --release --target wasm32-wasip2` there; the app loads them from
-  `plugins/target/wasm32-wasip2/release` when it runs outside Delight.app.
-- Their C (tree-sitter, for syntax highlighting) needs the WASI SDK: its clang
-  and C library for WebAssembly. Only building plugins that contain C needs it (the
-  JSON and YAML built-ins do; a plugin in pure Rust never does), and the app and its
-  users never do. Fetch the pinned SDK once with `cargo xtask wasi-sdk`: it downloads
-  it (about 170 MB, 600 MB unpacked), checks its SHA-256 against the pin and unpacks it
-  into `target/wasi-sdk`, where `plugins/.cargo/config.toml` points (or set
-  `WASI_SDK_PATH` to your own). It does nothing if that version is already there;
-  `--force` fetches it again, and `--to <folder>` unpacks it elsewhere. `cargo clean`
-  deletes it with the rest of `target/`.
-- Installed plugins are the `.wasm` files in
-  `~/Library/Application Support/Delight/plugins`.
+## Install
 
-## Releasing
+Download `Delight-X.Y.Z.dmg` from the [latest release](https://github.com/brijsiyag/delight/releases/latest),
+drag Delight to Applications and start it. It lives in the menu bar; **⌘⇧Space** shows and hides the
+launcher (change it in Settings → General). Delight checks for updates once a day; *Check for Updates…*
+in the menu bar does it now.
 
-A release is one disk image, `dist/Delight-X.Y.Z.dmg`, plus the update feed
-`dist/appcast.xml`. The disk image is both the first-install download and what Sparkle
-updates from, so nothing else (no loose `.app`, no `.pkg`, no `.zip`) is published. The
-tasks are in `xtask/` (`cargo xtask help`); who signs it, where it is published and what it
-downloads are in `xtask/src/config.rs`.
+To add a plugin: **Settings → Plugins → Install…**, pick the `.wasm`. Delight shows what the plugin
+says it can do (network, running programs) and asks before installing.
 
-### Once, on the Mac that builds releases
+## Using it
 
-1. **The signing certificate.** A *Developer ID Application* certificate for team
-   `S3L4RJ57GY` in the login keychain, with its private key. Check:
-   `security find-identity -v -p codesigning` lists it. (No *Installer* certificate: there is
-   no `.pkg`.)
-2. **Notarisation credentials**, stored under the profile `delight-notary`. `notarytool`
-   asks for an app-specific password from `account.apple.com`:
+- Type or paste. The tools on the left are ranked by how well they fit the input; the best one opens.
+  **⌘1–⌘9** picks a tool, **↓** or **Tab** moves into the list, **→** into the tool.
+- The footer shows the tool's actions and their keys. Every tool uses the same keys: **↵**, **⌘↵**
+  and **⌥1 … ⌥9**.
+- **Tab** accepts a completion from your input history; **⌃R** searches it. Turn it off in
+  Settings → General.
+- **⌘K** clears, **⌘,** opens Settings, **Esc** hides.
+- Where things are stored: `~/Library/Application Support/Delight` (settings, installed plugins,
+  input history, each plugin's data), secrets in the login Keychain, logs in `~/Library/Logs/Delight`
+  (*Open Logs* in the menu bar).
 
-   ```sh
-   xcrun notarytool store-credentials delight-notary --apple-id "APPLE_ID_EMAIL" --team-id S3L4RJ57GY
-   ```
+The full behaviour is in [`docs/behaviour.md`](docs/behaviour.md).
 
-3. **The update-signing key.** Sparkle's private key is in the login keychain under the
-   account `delight`, and its public half is `SUPublicEDKey` in `packaging/macos/Info.plist`.
-   It is the same key as before, and must stay: a new one would stop installed copies
-   updating. To move to another Mac, export it from the old one and import it on the new:
+## How it works
 
-   ```sh
-   dist/Sparkle-2.9.6/bin/generate_keys --account delight -x delight-sparkle.key   # old Mac
-   dist/Sparkle-2.9.6/bin/generate_keys --account delight -f delight-sparkle.key   # new Mac
-   ```
+```text
+Delight.app (native GPUI)
+ ├─ launcher: input → detection → tool list → tool pane → footer actions
+ ├─ settings window
+ └─ runtime: one sandboxed WebAssembly instance per plugin (wasmtime)
+        ▲  a small object protocol (crates/protocol)
+        ▼
+plugin.wasm: its own GPUI, drawn into a surface the launcher shows
+```
 
-   (`cargo xtask sparkle` downloads Sparkle into `dist/` first.) Keep the file safe and
-   delete it after.
-4. **Rust and Xcode.** Both Mac targets, and Xcode's Metal compiler, which GPUI builds with:
+- **The app is generic.** It owns the window, the input, the tool list, the footer, settings, history
+  and updates. It knows nothing about JSON or DNS: **tools draw all of their own UI**.
+- **A plugin is a WebAssembly component** (`wasm32-wasip2`) that runs its own GPUI, through
+  [embedded_gpui](https://github.com/zed-industries/embedded_gpui), and hands the app a view. What it
+  is (id, name, icon, tools, permissions, tips) is stored in the `.wasm` itself, so the app reads it
+  without running the plugin.
+- **Detection.** On every change of the input the app asks each plugin `detect(input)`, which returns
+  the tools that fit with a confidence from 0 to 1. Tools at 0.5 or more are *Recommended*; the
+  highest is selected. Then the app hands the input to the tool (`on_input_changed`), shows its
+  footer actions (`list_actions`) and runs the one you pick (`perform_action`).
+- **Sandbox and permissions.** A plugin sees its own data folder (`/data`) and nothing else. The
+  network and running programs need a permission the plugin declares with a reason, which you see
+  when installing. A plugin that fails is stopped on its own and the others carry on.
+- **Versioning.** Plugins are built against the plugin API and carry its `major.minor`. The app runs
+  a plugin of the same major and a minor no newer than its own; anything else is refused with a
+  message, and needs a rebuild. **Before 1.0 a minor bump can break plugins**, so rebuild your plugins
+  when you update the API.
 
-   ```sh
-   rustup target add aarch64-apple-darwin x86_64-apple-darwin
-   xcodebuild -downloadComponent MetalToolchain
-   ```
+The layout of the code is in [`docs/plan.md`](docs/plan.md).
 
-   The WebAssembly target and the WASI SDK the built-in plugins need are fetched by the
-   tasks (`rust-toolchain.toml`, and `cargo xtask wasi-sdk`).
+## Writing a plugin
 
-### Each release
+A plugin is a Rust `cdylib` crate.
 
-1. **Set the version** in `Cargo.toml` (`workspace.package.version`) and the same in
-   `plugins/Cargo.toml`. The plugin API's version (`crates/manifest/Cargo.toml`) is its own and
-   changes only with the protocol. Commit.
-2. **Check** the versions and the tag agree, before anything is built:
+### Which crates, and why they are git dependencies
 
-   ```sh
-   cargo xtask check-versions vX.Y.Z
-   ```
+Nothing Delight builds on is released on crates.io yet, so everything is taken from git, pinned:
 
-3. **Build the release:**
+| Crate | Where from | Pinned to |
+|---|---|---|
+| `delight-plugin-api`, `delight-ui` | this repository, `github.com/brijsiyag/delight` | a release commit (`rev`) |
+| `gpui` | Zed's `gpui-multi-root-embedded-rebased` branch, `github.com/zed-industries/zed` | the commit in `Cargo.lock` (today `8c88a5c`), `version = "=0.2.2"` |
+| `embedded_gpui` (the layer that lets a plugin run its own GPUI) | `github.com/zed-industries/embedded_gpui` | a commit (today `ceb0df8`), taken in by `delight-plugin-api`, so a plugin never names it |
 
-   ```sh
-   cargo xtask release-macos vX.Y.Z
-   ```
+- **GPUI is the branch's, not crates.io's `gpui`.** Plugins and the app must use exactly the same
+  GPUI, so a plugin names it exactly as above (branch and version), or Cargo links a second copy and
+  the build fails or misbehaves. Copy the `gpui` line from this repository's `Cargo.toml`, and
+  commit your `Cargo.lock`, which pins the commit.
+- **The plugin API's `rev` is the version you build for.** Change it to the commit of a newer release
+  and rebuild to move up; a plugin built for a newer minor than the app is refused.
+- **This is temporary.** Once embedded_gpui is officially released, Delight and its plugin API move
+  to the released crates, and plugins will depend on those versions instead of git commits. The
+  plugin code itself doesn't change; the `Cargo.toml` lines do, and the plugins need rebuilding
+  against that release.
 
-   It runs these stages, each of which can be run alone when something goes wrong:
+```toml
+# Cargo.toml
+[lib]
+crate-type = ["cdylib"]
 
-   | Stage | Does | Leaves |
-   |---|---|---|
-   | `check-versions` | Checks the app, the built-in plugins and the tag agree | nothing |
-   | `bundle-macos` | Builds the built-in plugins (`wasm32-wasip2`) and the app for both architectures, joins them (`lipo`), and assembles `Delight.app`: Sparkle in `Contents/Frameworks`, the plugins in `Contents/Resources/plugins`, `Info.plist` with the version and the build number (commits so far), the icon | `dist/Delight.app`, unsigned. `--native` builds for this Mac only, to try a bundle sooner |
-   | `sign-macos` | Signs Sparkle's parts, then the app, with the Hardened Runtime and `packaging/macos/Delight.entitlements`, and verifies | the app, signed |
-   | `package-macos` | Has Apple notarise the app and staples the ticket to it; puts it in a disk image with a shortcut to Applications; signs, notarises and staples the image; checks Gatekeeper accepts it; has Sparkle write the feed, signed with the update key | `dist/Delight-X.Y.Z.dmg`, `dist/appcast.xml` |
+[dependencies]
+delight-plugin-api = { git = "https://github.com/brijsiyag/delight.git", rev = "<a release commit>" }
+delight-ui = { git = "https://github.com/brijsiyag/delight.git", rev = "<the same commit>" }
+# Named exactly like this (see above), or Cargo links a second GPUI.
+gpui = { git = "https://github.com/zed-industries/zed.git", branch = "gpui-multi-root-embedded-rebased", version = "=0.2.2", default-features = false }
+```
 
-   Notarisation waits for Apple, usually a few minutes.
-4. **Try it.** Open the disk image, drag Delight to Applications, start it, and check: the
-   menu bar icon, the launcher, the built-in tools (JSON, YAML, SVG, DNS), and Settings →
-   General → Updates. A plugin that won't start in a signed build is the first sign the
-   entitlement is missing.
-5. **Publish** (the tag is created with the release), with the two files the task prints:
+Pin dependencies exactly, and copy `rust-toolchain.toml` (Rust 1.95 with the `wasm32-wasip2` target)
+from this repository. Then the plugin is three things:
 
-   ```sh
-   gh release create vX.Y.Z dist/Delight-X.Y.Z.dmg dist/appcast.xml --generate-notes
-   ```
+```rust
+use delight_plugin_api::{Action, Actions, AnyTool, Detection, Input, Operations, Plugin, Shortcut, Tool, host, plugin};
+use gpui::{App, AppContext as _, Context, IntoElement, Render, Window, div, prelude::*};
 
-   Installed copies read `https://github.com/brijsiyag/delight/releases/latest/download/appcast.xml`
-   once a day. That URL follows the *latest* release, so a draft or pre-release isn't seen.
+// 1. The plugin: what it is. Everything here is checked when it compiles.
+#[plugin(
+    id = "dev.example.shout",              // letters, digits, . _ -
+    name = "Shout",
+    description = "Turns text into capitals",
+    author = "You",
+    icon = "assets/icon.svg",              // square, full colour, its own background
+    tips = ["shout <text> makes capitals"] // what to type, not which keys; at most 5, 60 characters each
+)]
+struct Shout;
 
-### Why the entitlement
+// 2. Its tools ("operations"), and how it recognises input for them.
+#[derive(Operations)]
+enum ShoutOperation {
+    #[operation(id = "shout", title = "Shout")]
+    Shout,
+}
 
-Plugins are WebAssembly, which wasmtime compiles to machine code as Delight starts them. The
-Hardened Runtime, which notarisation requires, kills a process that makes memory executable
-unless it has `com.apple.security.cs.allow-unsigned-executable-memory`; `allow-jit` alone is
-not enough. This was tried on a signed test binary: no entitlement and `allow-jit` were
-killed, this one ran. The old `disable-library-validation` entitlement was for plugins that
-were dynamic libraries, and isn't needed (Sparkle is signed again by the team). There is no App
-Sandbox: plugins with the `Commands` permission run system programs.
+impl Plugin for Shout {
+    type Operation = ShoutOperation;
+    fn new(_cx: &mut App) -> Self { Shout }
 
-### Other teams and profiles
+    // Runs on every keystroke: keep it quick.
+    fn detect(&mut self, input: &Input, _cx: &mut App) -> Vec<Detection<ShoutOperation>> {
+        if input.text.starts_with("shout ") { vec![Detection::new(ShoutOperation::Shout, 1.0)] } else { vec![] }
+    }
 
-The tasks use only the team's certificates. To release from another deliberately, set
-`DEVELOPER_TEAM_ID` and `DEVELOPER_ID_APPLICATION` (the certificate's name) together; set
-`NOTARY_PROFILE` if the keychain profile has another name.
+    fn open_tool(&mut self, _op: ShoutOperation, cx: &mut App) -> AnyTool {
+        cx.new(|_| ShoutTool { text: String::new() }).into()
+    }
+}
+
+// 3. A tool: a GPUI view, plus footer actions.
+struct ShoutTool { text: String }
+
+#[derive(Actions)]
+enum ShoutAction { Copy }
+
+impl Tool for ShoutTool {
+    type Action = ShoutAction;
+    fn on_input_changed(&mut self, input: &Input, cx: &mut Context<Self>) {
+        self.text = input.text.trim_start_matches("shout ").to_uppercase();
+        cx.notify();
+    }
+    fn list_actions(&self, _: &App) -> Vec<Action<ShoutAction>> {
+        vec![Action::new(ShoutAction::Copy, "Copy", Shortcut::Enter).primary()]
+    }
+    fn perform_action(&mut self, _: ShoutAction, cx: &mut Context<Self>) {
+        cx.write_to_clipboard(gpui::ClipboardItem::new_string(self.text.clone()));
+        host(cx).toast("Copied", cx);
+        host(cx).hide(cx);
+    }
+}
+
+impl Render for ShoutTool {
+    fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement { div().child(self.text.clone()) }
+}
+```
+
+Build it and install the file from Settings → Plugins → Install…:
+
+```sh
+cargo build --release --target wasm32-wasip2
+# target/wasm32-wasip2/release/<crate_name>.wasm
+```
+
+Working examples: the built-ins in [`plugins/`](plugins) (JSON, YAML, SVG, DNS). Unit-test your logic natively (`cargo test`): the API compiles on the Mac and does nothing there.
+
+### Rules that shape a plugin
+
+- **Action keys are fixed:** `Shortcut::Enter` (↵), `CmdEnter` (⌘↵), `Option(1..=9)` (⌥1–⌥9) or
+  `ClickOnly`. Any other key is refused. The footer shows four actions; a destructive one should
+  never be on plain ↵ (mark it `.attention()` or leave it on a click).
+- **Theme:** use `delight_ui`'s components and theme colours, not your own tokens; they follow
+  light/dark automatically.
+- **Settings:** return sections from `Plugin::settings_sections`; the app draws the card, title and
+  footer and you draw the rows. Heights are declared by you. See
+  [`docs/plugin-settings.md`](docs/plugin-settings.md).
+- **Permissions** are declared in `#[plugin(permissions = [...])]`, each with a reason of at most
+  100 characters: `Network("why")` and `Commands("why", programs = ["/bin/ps"])`. Programs must be an
+  absolute path directly in `/bin`, `/sbin`, `/usr/bin` or `/usr/sbin`.
+
+### What `host(cx)` gives a plugin
+
+| Needs | API |
+|---|---|
+| nothing | `toast`, `hide`, `set_input` (chain tools: puts text in the launcher), `remember_input` (history), `settings` / `set_settings` (a JSON value the app keeps), `secret` / `set_secret` (Keychain-backed), `open_settings`, `open_window` (a window of the plugin's own), `confirm` (the system alert), `utc_offset_seconds`, `theme` |
+| nothing | the **clipboard**, through GPUI's own `cx.read_from_clipboard()` / `cx.write_to_clipboard()`, by design open to every plugin |
+| `Network` | `http`, `listen_http`, gRPC, `dns_resolvers` (see below) |
+| `Commands` | `run` a listed program: no shell, empty environment, 60 s limit |
+| nothing (temporary) | `open_url` (see below) |
 
 ## Temporary host APIs
 
-Some of what plugins get from the app stands in for what embedded_gpui or WASI
-will give them directly; once they do, these are deprecated, then removed. To
-make that easy, each is apart: a folder of its own in each crate, and a marker on
-every line outside it, so `grep -rn "TEMPORARY(<name>)"` lists all of it. New
-APIs of this kind follow the same rule.
+Some of what plugins get from the app stands in for what embedded_gpui or WASI will give them directly.
+Once it does, these are deprecated, then removed, and **plugins that use them must be updated**. Each is
+kept apart in the code and marked, so `grep -rn "TEMPORARY(<name>)"` lists all of it.
 
-- **The network**, `TEMPORARY(network)`. Plugins with the `Network` permission
-  get the app's HTTP: requests with the `http` crate's types
-  (`host(cx).http(…)`), HTTP callbacks on `127.0.0.1` (`host(cx).listen_http(…)`,
-  for a sign-in's redirect), and gRPC with tonic's generated clients
-  (`network::grpc::channel`, the plugin API's `grpc` feature). The app does the
-  HTTP/1.1, HTTP/2 and TLS natively (hyper and rustls, on a small tokio runtime),
-  so plugins don't block and TLS is checked by macOS. They also keep WASI's own
-  sockets. It goes once embedded_gpui links `wasi:http` (with WASI 0.3's async,
-  which drops the reactor problem of wstd #166), and plugins use standard HTTP
-  and gRPC clients. Folders: `crates/protocol/src/network/`,
-  `crates/runtime/src/network/`, `crates/plugin-api/src/network/`,
-  `tests/network.rs`, `tests/fixture/src/network.rs`.
-- **Opening a URL**, `TEMPORARY(open_url)`. `host(cx).open_url(…)` opens a URL
-  with the app macOS has for it: a web page in the browser (a sign-in's),
-  `mailto:` in the mail app, another app's own link; not `file:`. It goes once
-  embedded_gpui forwards GPUI's own `cx.open_url` from plugins (its plugin
-  platform drops it today). Folders: `crates/runtime/src/open_url/`,
-  `crates/plugin-api/src/open_url/`, `tests/open_url.rs`.
+| API | Today | Goes when | Plugins then |
+|---|---|---|---|
+| **The network** (`TEMPORARY(network)`) | `host(cx).http(request, cx)` with the `http` crate's types; `host(cx).listen_http(…)` for a sign-in's redirect on `127.0.0.1`; gRPC via tonic's generated clients (`network::grpc::channel`, the `grpc` feature). The app does HTTP/1.1, HTTP/2 and TLS natively, and macOS checks certificates. WASI's own sockets work too. | embedded_gpui links `wasi:http` (with WASI 0.3's async) | use ordinary HTTP and gRPC clients |
+| **Opening a URL** (`TEMPORARY(open_url)`) | `host(cx).open_url(url, cx)` opens it in the app macOS has for it: a browser, the mail app for `mailto:`. Not `file:`. | embedded_gpui forwards GPUI's own `cx.open_url` from plugins | call `cx.open_url` |
+| **Clipboard freshness** (`TEMPORARY(clipboard)`) | Nothing to call. Delight refreshes a plugin's copy of the clipboard early, so the first paste after copying elsewhere is the latest copy. | embedded_gpui delivers the change before the key | nothing changes |
 
-- **Refreshing the clipboard early**, `TEMPORARY(clipboard)`. A paste in a plugin
-  reads the plugin's own copy of the clipboard, which embedded_gpui refreshes when
-  a ⌘ key reaches the plugin's surface (`host/surface.rs`, `key_down`). It only
-  queues the change, and the key goes out first, so the first paste after copying
-  something elsewhere read the old copy. Delight refreshes the copies ahead of that: when
-  one of its windows gets the keyboard, and on clicks in its windows
-  (`Plugin::refresh_clipboard`, `plugins::refresh_clipboards`). It goes once
-  embedded_gpui delivers the change before the key; remove those and their calls and the
-  test in `tests/plugins.rs`.
+Also expect changes while the protocol is below 1.0 (the current `0.0`): the host API, the action
+model (`Shortcut`, styles) and the settings sections may still change between minor versions. The
+release notes say when a plugin needs rebuilding.
 
-## Workarounds to remove
+## Building the app
 
-`crates/app/src/macos.rs` calls AppKit directly for what GPUI can't do
-yet. Each one should go once GPUI offers it; checked against the GPUI
-Delight uses (Zed's `gpui-multi-root-embedded-rebased` branch, commit
-`8c88a5c`): it has none of them yet.
+```sh
+cargo run -p delight-app                     # run the app
+cd plugins && cargo build --release --target wasm32-wasip2   # the built-in plugins
+```
 
-| Workaround | Remove when GPUI can |
-|---|---|
-| `set_accessory_app`: no Dock icon or app menu | start an app as a menu-bar-only (`Accessory`) app; it always sets `Regular` at launch |
-| `style_floating_panel`: the borderless restyle, and giving the keyboard back to GPUI's view after it | open a borderless window on macOS; with `titlebar: None` it still makes a titled one |
-| `style_floating_panel`: the Liquid Glass or blur backdrop | draw a window background with Liquid Glass, or a blur shaped to the window's own corners (`Blurred` keeps macOS's corner shape) |
-| `style_floating_panel`: `setHidesOnDeactivate(false)` | keep a pop-up window showing when the app deactivates (it's a panel, and panels hide) |
-| `style_floating_panel`: `setHasShadow(true)` | give a window a system shadow |
-| `set_corner_radius`, `rounded_mask` | round a window's corners |
-| `resize_keep_top` | resize a window keeping its top edge, animated (`resize` keeps the bottom edge) |
-| `present`, `hide` | tell which app was in front and give it back the keyboard, and hide one window (`cx.hide()` hides the whole app) |
-| `is_window_visible` | tell whether a window is on screen |
+The details (the WASI SDK the JSON and YAML built-ins need, signing, notarising, the release steps and
+the AppKit workarounds waiting on GPUI) are in [`docs/development.md`](docs/development.md).
 
-`NativeWindow` exists because AppKit calls back into GPUI while a window
-changes, and GPUI drops those callbacks during its own updates ("RefCell
-already borrowed"); the calls above run from spawned tasks for that reason.
-It goes with them.
+## License
+
+MIT
