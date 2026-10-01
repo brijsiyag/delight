@@ -8,7 +8,7 @@ members = ["dns", "json", "svg", "yaml"]
 
 [workspace.package]
 # The built-ins ship with the app: its version.
-version = "0.0.4"
+version = "0.0.5"
 edition = "2024"
 license = "MIT"
 

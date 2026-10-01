@@ -309,7 +309,7 @@ async fn actions(tool: &Remote<ToolApi>, cx: &mut TestAppContext) -> Vec<Action>
 fn the_manifest_is_read_from_the_wasm() {
     let manifest = read_manifest(&std::fs::read(fixture()).unwrap()).unwrap();
     assert_eq!(manifest.plugin.id, "dev.delight.fixture");
-    assert_eq!(manifest.plugin.version, "0.0.4");
+    assert_eq!(manifest.plugin.version, "0.0.5");
     assert_eq!(manifest.operations.len(), 1);
     assert_eq!(manifest.operations[0].id, "echo");
     assert!(manifest.plugin.icon.starts_with("<svg"));

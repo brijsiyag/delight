@@ -1008,7 +1008,7 @@ checksum = "be1e0bca6c3637f992fc1cc7cbc52a78c1ef6db076dbf1059c4323d6a2048376"
 
 [[package]]
 name = "delight-fixture"
-version = "0.0.4"
+version = "0.0.5"
 dependencies = [
  "delight-plugin-api",
  "log",
