@@ -250,7 +250,7 @@ plugin to every release, or the ones left out can't be found.
 
 | Needs | API |
 |---|---|
-| nothing | `toast`, `hide`, `set_input` (chain tools: puts text in the launcher), `remember_input` (history), `settings` / `set_settings` (a JSON value the app keeps), `secret` / `set_secret` (Keychain-backed), `open_settings`, `open_window` (a window of the plugin's own), `confirm` (the system alert), `utc_offset_seconds`, `theme` |
+| nothing | `toast`, `hide`, `set_input` (chain tools: puts text in the launcher), `remember_input` (history), `settings` / `set_settings` (a JSON value the app keeps), `secret` / `set_secret` (Keychain-backed), `open_settings`, `open_window` (a window of the plugin's own; it hides with the launcher unless `WindowOptions::hide_with_launcher(false)`), `hide_window` / `show_window` (take one off screen and back), `confirm` (the system alert), `utc_offset_seconds`, `theme` |
 | nothing | the **clipboard**, through GPUI's own `cx.read_from_clipboard()` / `cx.write_to_clipboard()`, by design open to every plugin |
 | `Network` | `http`, `listen_http`, gRPC, `dns_resolvers` (see below) |
 | `Commands` | `run` a listed program: no shell, empty environment, 60 s limit |

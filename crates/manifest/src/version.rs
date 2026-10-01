@@ -26,8 +26,10 @@ pub const PLUGIN_API_VERSION: &str = env!("CARGO_PKG_VERSION");
 /// UTC offset, `show_settings`, windows of a plugin's own, and the system's confirm alert), the
 /// plugin's tools with their actions (each with a style: normal, primary or attention; a tool is
 /// told when a click lands elsewhere in the launcher), its settings as sections, and where it is
-/// published (the manifest's `update`, which older apps ignore). Before 1.0 a
-/// minor bump may also break what it changes; keep the rules above from 1.0 on.
+/// published (the manifest's `update`, which older apps ignore). 0.1 adds whether a
+/// plugin's window hides with the launcher (`open_window`'s `hide_with_launcher`, which
+/// plugins before it don't send) and `set_window_shown`. Before 1.0 a minor bump may also
+/// break what it changes; keep the rules above from 1.0 on.
 pub const PROTOCOL_VERSION: ProtocolVersion = ProtocolVersion {
     major: number(env!("CARGO_PKG_VERSION_MAJOR")),
     minor: number(env!("CARGO_PKG_VERSION_MINOR")),

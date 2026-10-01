@@ -259,6 +259,7 @@ Delight uses (Zed's `gpui-multi-root-embedded-rebased` branch, commit
 | `set_corner_radius`, `rounded_mask` | round a window's corners |
 | `resize_keep_top` | resize a window keeping its top edge, animated (`resize` keeps the bottom edge) |
 | `present`, `hide` | tell which app was in front and give it back the keyboard, and hide one window (`cx.hide()` hides the whole app) |
+| `enter`, `settle`, `leave` | animate a window's opacity and frame as it shows and hides (the launcher comes and goes as Spotlight does) |
 | `is_window_visible` | tell whether a window is on screen |
 
 `NativeWindow` exists because AppKit calls back into GPUI while a window

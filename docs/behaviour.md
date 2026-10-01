@@ -41,7 +41,16 @@ that code was organised. Where the rewrite changes something on purpose,
 ### Show and hide
 
 - Global hotkey, default ⌘⇧Space, configurable. Each press toggles: visible
-  and active → hide, else show.
+  and active → hide, else show (also while it fades away).
+- It comes and goes as Spotlight does on macOS 26 (measured frame by frame
+  from a 57 fps recording): coming, it fades in over 140 ms (ease in-out)
+  while it narrows from 4% wider than it rests to 0.5% narrower at 158 ms
+  (ease out), then eases back to its width by about 300 ms; its height takes
+  no part (Spotlight's own swing, 10% wider to 1.3% narrower, was too much). Going, it fades out over 120 ms while it grows 8% all round, then
+  goes off screen, and its tool's view goes after that. Spotlight also blurs
+  as it goes, which only a private filter does. Reduce Motion leaves only the
+  fades. A launcher already up (another app has the keyboard) only takes the
+  keyboard back. A resize while it comes or goes starts from where it rests.
 - Show: size first; present outside any GPUI update (AppKit calls back into
   GPUI synchronously): remember the frontmost app if it isn't Delight,
   activate Delight, `orderFrontRegardless` + `makeKeyWindow`; only then focus
@@ -49,9 +58,10 @@ that code was organised. Where the rewrite changes something on purpose,
   so typing replaces the input. The app activates like Raycast/Alfred rather
   than as a non-activating panel, which would leave modifier-only keys going
   to the previous app.
-- Hide: `orderOut` (never close; state survives), close ⌃R search. Re-activate
-  the previous app only if the launcher had the keyboard (not when another
-  app or Settings took focus). Save the input for restore if history is on.
+- Hide: `orderOut` once it has faded (never close; state survives), close ⌃R
+  search. Re-activate the previous app only if the launcher had the keyboard
+  (not when another app or Settings took focus). Save the input for restore if
+  history is on.
 - Esc hides (deferred). Losing activation while visible hides if "Hide when
   focus is lost" is on (default on) and the footer's pin isn't.
 - With that off, a click on the launcher while another app has the keyboard
@@ -59,17 +69,24 @@ that code was organised. Where the rewrite changes something on purpose,
   doesn't, as GPUI makes it a non-activating panel and AppKit keeps that for
   clicks after the borderless restyle.
 - Opening Settings (⌘,, the menu bar, a plugin's `open_settings`) hides the
-  launcher first, `orderOut` without going back to the previous app, and then
-  opens or brings forward the settings window, so it never comes up under the
-  launcher.
+  launcher first, fading as any hide does but without going back to the
+  previous app, and then opens or brings forward the settings window, so it
+  never comes up under the launcher.
 - At launch the window is made and styled but not shown: the hotkey or "Open Delight" in the menu bar shows it.
 - **Plugin windows** (`host(cx).open_window`): a normal, resizable window with a plugin's view in it,
-  four at most from one plugin; asking for the key of one that is open brings it forward. ⌘W,
-  Esc and ✕ close it. The launcher and the plugins' windows are one group for focus: while the
-  keyboard is in any of them nothing hides; when it goes to something else (another app,
-  Settings) and "Hide when focus is lost" is on, the launcher and all the windows go off screen
-  (not closed), and the hotkey brings back the launcher and every window that hid, where they were.
-  Esc or the hotkey on the launcher hides the windows with it. Reloading the plugins closes the windows of the ones that start again.
+  four at most from one plugin; asking for the key of one that is open brings it forward. ⌘W
+  and ✕ close it (Esc is the plugin's, since 2026-10-01). The launcher and the plugins' windows
+  are one group for focus: while the keyboard is in any of them nothing hides; when it goes to
+  something else (another app, Settings) and "Hide when focus is lost" is on, the launcher goes,
+  and so do the windows that hide with it (off screen, not closed); the hotkey brings back the
+  launcher and every window that hid, where they were. Esc or the hotkey on the launcher hides
+  those windows with it. A window hides with the launcher unless the plugin opened it with
+  `WindowOptions::hide_with_launcher(false)` (plugin API 0.1; plugins built before it don't
+  say, and theirs hide with the launcher): that one stays up until its user closes it. A
+  plugin can also take any of its open windows off screen and bring it back
+  (`host(cx).hide_window(key)`, `show_window(key)`): one it hid stays off when the launcher
+  shows again, until it shows it. Reloading the plugins closes the windows of the ones that
+  start again.
 - **Logs**: everything the app logs goes to the console and to a file in `~/Library/Logs/Delight`, one
   `delight-YYYYMMDD-HHMMSS.log` for each run (a new one when a run's file passes 8 MiB), the last six
   kept. The menu bar's "Open Logs": with one file it opens in the Mac's text editor (the app that
@@ -169,7 +186,9 @@ that code was organised. Where the rewrite changes something on purpose,
   In the rewrite, when the plugin has an update (plan step 16), at the right a
   small text button "↻ Update to X" ("Review Update…" when it asks for new
   permissions, "Retry Update" after a failure), which does what its page's
-  button does; "Downloading… 1.2/3.4 MB" while it comes.
+  button does; "Downloading… 1.2/3.4 MB" while it comes. When the last look for
+  one failed: a small red "⚠ Update check failed", which says why while
+  hovered and looks again when clicked.
 - Empty states (Sparkles icon): no candidates → "No tool fits this input" /
   "Plugins in the plugins folder add tools."; candidates but none selected →
   "No strong match" / "Pick a tool on the left, or keep typing."
@@ -296,7 +315,9 @@ Rows of `title (11px detail) … control`:
 6. "Auto-paste clipboard" — "Put the clipboard's text into the input when
    Delight opens".
 
-Footer "Delight {version} · Plugin SDK {version}". With an update known, an
+Footer "Delight {version} · Plugin SDK {version}" (the rewrite: "Plugin API", each
+a link to github.com/brijsiyag/delight, the plugin API's at "Writing a plugin";
+accent on hover, "Open on GitHub"). With an update known, an
 accent row "Delight X is available" + "Update…".
 
 **Shortcut recorder**: 150×28; click to record; held modifiers show live as

@@ -1,6 +1,8 @@
-//! Windows plugins ask for: a normal window with a plugin's view in it, that stays when the
-//! launcher hides and is closed by its user (✕, ⌘W or Esc). The plugin draws in the window's
-//! surface like it does in the launcher's, and there are only a few open from each.
+//! Windows plugins ask for: a normal window with a plugin's view in it, closed by its user (✕ or
+//! ⌘W). It goes off screen when the launcher hides and comes back with it, unless the plugin asked
+//! for one that stays up; the plugin can also take it off screen and bring it back itself. The
+//! plugin draws in the window's surface like it does in the launcher's, and there are only a few
+//! open from each.
 
 use std::collections::HashSet;
 
@@ -13,7 +15,7 @@ use gpui::{
 
 use crate::{plugins, settings_window};
 
-/// The key context of a plugin's window, which ⌘W and Esc close.
+/// The key context of a plugin's window, which ⌘W closes. Esc is the plugin's.
 pub const CONTEXT: &str = "PluginWindow";
 
 actions!(plugin_window, [Close]);
@@ -31,8 +33,19 @@ struct Opened {
     plugin_id: String,
     key: String,
     window: AnyWindowHandle,
-    /// Taken off screen with the launcher: it comes back with it.
-    hidden: bool,
+    /// It goes off screen when the launcher hides, and comes back with it.
+    hides_with_launcher: bool,
+    hidden: Hidden,
+}
+
+/// Why a plugin's window is off screen.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Hidden {
+    No,
+    /// With the launcher: it comes back with it.
+    WithLauncher,
+    /// The plugin took it off screen: it stays off until the plugin brings it back.
+    ByPlugin,
 }
 
 impl Global for Open {}
@@ -48,8 +61,8 @@ impl Render for PluginWindow {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let t = cx.theme().clone();
         // The keyboard starts in the plugin's surface (its text fields take ⌘A and ⌘C), which is the
-        // window's one tab stop and sits inside this key context: ⌘W and Esc close the window from
-        // there. With nothing focused they would reach neither. Once drawn, so the stop exists.
+        // window's one tab stop and sits inside this key context: ⌘W closes the window from there.
+        // With nothing focused it would reach neither. Once drawn, so the stop exists.
         if !std::mem::replace(&mut self.focused, true) {
             cx.defer_in(window, |_, window, cx| window.focus_next(cx));
         }
@@ -87,7 +100,8 @@ fn beside_launcher(size: gpui::Size<Pixels>, open: usize, cx: &mut App) -> Bound
 
 /// Open the plugin's window `key`, or bring it to the front if it is open: whether it is
 /// open now. Not when the plugin has [`MOST_PER_PLUGIN`] open already, or won't draw in it.
-pub fn open(plugin_id: &str, key: String, title: String, width: f32, height: f32, cx: &mut App) -> gpui::Task<bool> {
+/// `hides_with_launcher`: it goes off screen when the launcher hides, and comes back with it.
+pub fn open(plugin_id: &str, key: String, title: String, width: f32, height: f32, hides_with_launcher: bool, cx: &mut App) -> gpui::Task<bool> {
     let existing = cx
         .default_global::<Open>()
         .0
@@ -97,6 +111,11 @@ pub fn open(plugin_id: &str, key: String, title: String, width: f32, height: f32
     if let Some(window) = existing {
         cx.activate(true);
         if window.update(cx, |_, window, _| window.activate_window()).is_ok() {
+            // On screen again, even one the plugin or the launcher had taken off: from here on it
+            // hides with the launcher (or not) as any other.
+            if let Some(open) = cx.default_global::<Open>().0.iter_mut().find(|open| open.window == window) {
+                open.hidden = Hidden::No;
+            }
             return gpui::Task::ready(true);
         }
         forget(plugin_id, &key, cx);
@@ -156,7 +175,13 @@ pub fn open(plugin_id: &str, key: String, title: String, width: f32, height: f32
     if let (Some(level), Some(native)) = (level, native_of(handle.into(), cx)) {
         cx.spawn(async move |_| native.set_level(level)).detach();
     }
-    cx.default_global::<Open>().0.push(Opened { plugin_id: plugin_id.to_string(), key: key.clone(), window: handle.into(), hidden: false });
+    cx.default_global::<Open>().0.push(Opened {
+        plugin_id: plugin_id.to_string(),
+        key: key.clone(),
+        window: handle.into(),
+        hides_with_launcher,
+        hidden: Hidden::No,
+    });
     cx.activate(true);
 
     // The plugin draws in it; if it won't, the window has nothing to show.
@@ -219,15 +244,22 @@ fn native_of(window: AnyWindowHandle, cx: &mut App) -> Option<crate::macos::Nati
     window.update(cx, |_, window, _| crate::macos::NativeWindow::of(window)).ok().flatten()
 }
 
-/// Take the open windows off screen, remembering them: the launcher hid, and they go with it.
+/// Take the windows that hide with the launcher off screen, remembering them: the launcher hid, and
+/// they go with it. Those that stay up until their user closes them stay.
 pub fn hide_all(cx: &mut App) {
-    let windows: Vec<AnyWindowHandle> = cx.default_global::<Open>().0.iter().map(|open| open.window).collect();
+    let windows: Vec<AnyWindowHandle> = cx
+        .default_global::<Open>()
+        .0
+        .iter()
+        .filter(|open| open.hides_with_launcher && open.hidden == Hidden::No)
+        .map(|open| open.window)
+        .collect();
     let mut hiding = Vec::new();
     for window in windows {
         let visible = window.update(cx, |_, window, _| crate::macos::is_window_visible(window)).unwrap_or(false);
         if visible && let Some(native) = native_of(window, cx) {
             if let Some(open) = cx.default_global::<Open>().0.iter_mut().find(|open| open.window == window) {
-                open.hidden = true;
+                open.hidden = Hidden::WithLauncher;
             }
             hiding.push(native);
         }
@@ -236,14 +268,37 @@ pub fn hide_all(cx: &mut App) {
     cx.spawn(async move |_| hiding.iter().for_each(crate::macos::NativeWindow::order_out)).detach();
 }
 
-/// Bring back the windows [`hide_all`] took off screen, where they were.
+/// Bring back the windows [`hide_all`] took off screen, where they were. Those the plugin took off
+/// screen stay off.
 pub fn restore_hidden(cx: &mut App) {
     let mut windows = Vec::new();
     for open in &mut cx.default_global::<Open>().0 {
-        if std::mem::take(&mut open.hidden) {
+        if open.hidden == Hidden::WithLauncher {
+            open.hidden = Hidden::No;
             windows.push(open.window);
         }
     }
     let showing: Vec<_> = windows.into_iter().filter_map(|window| native_of(window, cx)).collect();
     cx.spawn(async move |_| showing.iter().for_each(crate::macos::NativeWindow::order_front)).detach();
+}
+
+/// The plugin takes its window `key` off screen (not `shown`), or brings it back, where it was:
+/// whether it has that window open. Taken off by the plugin, it stays off when the launcher shows
+/// again; brought back, it is up whether the launcher is or not.
+pub fn set_shown(plugin_id: &str, key: &str, shown: bool, cx: &mut App) -> bool {
+    let Some(open) = cx.default_global::<Open>().0.iter_mut().find(|open| open.plugin_id == plugin_id && open.key == key) else {
+        return false;
+    };
+    let was = std::mem::replace(&mut open.hidden, if shown { Hidden::No } else { Hidden::ByPlugin });
+    let window = open.window;
+    // Already where the plugin wants it (off screen with the launcher only becomes off by the
+    // plugin): nothing moves.
+    if (was == Hidden::No) == shown {
+        return true;
+    }
+    if let Some(native) = native_of(window, cx) {
+        // Outside the update: AppKit calls back into GPUI.
+        cx.spawn(async move |_| if shown { native.order_front() } else { native.order_out() }).detach();
+    }
+    true
 }

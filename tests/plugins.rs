@@ -57,8 +57,11 @@ struct FakeApp {
     secrets: std::collections::HashMap<String, String>,
     /// How many times the plugin asked for its settings page.
     settings_shown: usize,
-    /// The windows the plugin asked for: (key, title, width, height).
-    windows: Vec<(String, String, f32, f32)>,
+    /// The windows the plugin asked for: (key, title, width, height, whether it hides with the
+    /// launcher).
+    windows: Vec<(String, String, f32, f32, Option<bool>)>,
+    /// What the plugin asked of its windows' showing: (key, shown).
+    windows_shown: Vec<(String, bool)>,
     /// The plugin itself, to ask it to draw in them; the surfaces they draw on.
     plugin: Option<Plugin>,
     window_surfaces: Vec<Entity<Surface>>,
@@ -158,13 +161,28 @@ impl HostApi for FakeApp {
     }
 
     // As the app does it, without a window: a surface for the plugin to draw on.
-    fn open_window(&mut self, key: String, title: String, width: f32, height: f32, cx: &mut Context<Self>) -> gpui::Task<anyhow::Result<bool>> {
-        self.windows.push((key.clone(), title, width, height));
+    fn open_window(
+        &mut self,
+        key: String,
+        title: String,
+        width: f32,
+        height: f32,
+        hide_with_launcher: Option<bool>,
+        cx: &mut Context<Self>,
+    ) -> gpui::Task<anyhow::Result<bool>> {
+        self.windows.push((key.clone(), title, width, height, hide_with_launcher));
         let surface = cx.new(Surface::new);
         self.window_surfaces.push(surface.clone());
         let Some(plugin) = self.plugin.clone() else { return gpui::Task::ready(Ok(false)) };
         let drawn = plugin.open_window_view(&key, &surface, cx);
         cx.spawn(async move |_, _| Ok(drawn.await))
+    }
+
+    // As the app does it: whether that window is open.
+    fn set_window_shown(&mut self, key: String, shown: bool, _cx: &mut Context<Self>) -> bool {
+        let open = self.windows.iter().any(|window| window.0 == key);
+        self.windows_shown.push((key, shown));
+        open
     }
 
     fn commands(&mut self, cx: &mut Context<Self>) -> Option<Ref<CommandsApi>> {
@@ -291,7 +309,7 @@ async fn actions(tool: &Remote<ToolApi>, cx: &mut TestAppContext) -> Vec<Action>
 fn the_manifest_is_read_from_the_wasm() {
     let manifest = read_manifest(&std::fs::read(fixture()).unwrap()).unwrap();
     assert_eq!(manifest.plugin.id, "dev.delight.fixture");
-    assert_eq!(manifest.plugin.version, "0.0.3");
+    assert_eq!(manifest.plugin.version, "0.0.4");
     assert_eq!(manifest.operations.len(), 1);
     assert_eq!(manifest.operations[0].id, "echo");
     assert!(manifest.plugin.icon.starts_with("<svg"));

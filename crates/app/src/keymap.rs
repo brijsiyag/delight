@@ -54,7 +54,6 @@ pub fn init(cx: &mut App) {
         KeyBinding::new("cmd-,", launcher::OpenSettings, launcher),
         KeyBinding::new("cmd-w", settings_window::CloseSettings, Some(SETTINGS)),
         KeyBinding::new("cmd-w", plugin_windows::Close, Some(plugin_windows::CONTEXT)),
-        KeyBinding::new("escape", plugin_windows::Close, Some(plugin_windows::CONTEXT)),
         KeyBinding::new("escape", settings_window::CloseSettings, Some(SETTINGS)),
         KeyBinding::new("enter", install_window::Confirm, Some(install_window::CONTEXT)),
         KeyBinding::new("escape", install_window::Cancel, Some(install_window::CONTEXT)),

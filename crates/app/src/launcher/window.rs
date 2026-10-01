@@ -76,11 +76,14 @@ fn handle(cx: &App) -> Option<WindowHandle<Launcher>> {
     cx.try_global::<LauncherWindow>().map(|window| window.0)
 }
 
-/// The hotkey: hide the launcher if it's in front, show it otherwise.
+/// The hotkey: hide the launcher if it's in front, show it otherwise (also while it fades away).
 pub fn toggle(cx: &mut App) {
     let Some(handle) = handle(cx) else { return };
     let in_front = handle
-        .update(cx, |_, window, _| macos::is_window_visible(window) && window.is_window_active())
+        .update(cx, |launcher, window, _| {
+            let leaving = launcher.native.as_ref().is_some_and(|native| native.is_leaving());
+            macos::is_window_visible(window) && window.is_window_active() && !leaving
+        })
         .unwrap_or(false);
     if in_front { hide(cx) } else { show(cx) }
 }
@@ -96,9 +99,9 @@ pub fn show(cx: &mut App) {
     });
     let Ok(Some(native)) = native else { return };
     // Present outside this update (see `macos`), then focus the input once the
-    // window is key: earlier focus doesn't stick.
+    // window is key: earlier focus doesn't stick. It comes as Spotlight does.
     cx.spawn(async move |cx| {
-        native.present();
+        let coming = native.enter();
         // The windows that hid with it come back, in front of it, as they were.
         cx.update(plugin_windows::restore_hidden);
         handle
@@ -112,6 +115,8 @@ pub fn show(cx: &mut App) {
                 launcher.input.update(cx, |input, cx| input.select_all_text(cx));
             })
             .ok();
+        cx.background_executor().timer(macos::ENTER_SQUISH).await;
+        native.settle(coming);
     })
     .detach();
 }
@@ -119,32 +124,46 @@ pub fn show(cx: &mut App) {
 /// Hide the launcher, keeping its state for the next time it shows, and its input
 /// for the next launch.
 pub fn hide(cx: &mut App) {
-    if let Some(native) = put_away(cx) {
-        cx.spawn(async move |_| native.hide()).detach();
-    }
+    go(true, |_| {}, cx);
 }
 
 /// Hide the launcher as [`hide`] does, for another of Delight's windows (Settings) to come up in its
-/// place, then run `next`: the launcher is off screen first, and the keyboard stays with Delight
-/// instead of going back to the app that was in front. Hidden already, `next` runs at once.
+/// place, then run `next`: the launcher is gone first, and the keyboard stays with Delight instead
+/// of going back to the app that was in front. Hidden already, `next` runs at once.
 pub fn hide_then(next: impl FnOnce(&mut App) + 'static, cx: &mut App) {
     let visible = handle(cx)
         .and_then(|handle| handle.update(cx, |_, window, _| macos::is_window_visible(window)).ok())
         .unwrap_or(false);
-    match visible.then(|| put_away(cx)).flatten() {
-        Some(native) => cx
-            .spawn(async move |cx| {
-                native.order_out();
-                cx.update(next);
-            })
-            .detach(),
-        None => next(cx),
-    }
+    if visible { go(false, next, cx) } else { next(cx) }
 }
 
-/// What hiding changes besides the window: the plugins' windows go with it, the history search
-/// closes, the tool's view goes, and the input is kept. The window's AppKit side, to take off screen
-/// outside this update.
+/// Hide the launcher as Spotlight goes, then run `next` once it is off screen (not if it came back
+/// meanwhile). `back_to_previous`: whether the app that was in front comes back
+/// (`NativeWindow::hide`).
+fn go(back_to_previous: bool, next: impl FnOnce(&mut App) + 'static, cx: &mut App) {
+    let Some(native) = put_away(cx) else {
+        next(cx);
+        return;
+    };
+    let handle = handle(cx);
+    cx.spawn(async move |cx| {
+        let going = native.leave();
+        cx.background_executor().timer(macos::LEAVE).await;
+        if !native.hide(going, back_to_previous) {
+            return;
+        }
+        // Its tool's view goes once it is off screen: while it fades it still shows.
+        if let Some(handle) = handle {
+            handle.update(cx, |launcher, _, cx| launcher.window_shown(false, cx)).ok();
+        }
+        cx.update(next);
+    })
+    .detach();
+}
+
+/// What hiding changes besides the window and its tool: the plugins' windows go with it, the history
+/// search closes, and the input is kept. The window's AppKit side, to take off screen outside this
+/// update.
 fn put_away(cx: &mut App) -> Option<macos::NativeWindow> {
     // The windows plugins opened go with it, and come back with it.
     plugin_windows::hide_all(cx);
@@ -152,7 +171,6 @@ fn put_away(cx: &mut App) -> Option<macos::NativeWindow> {
         handle
             .update(cx, |launcher, window, cx| {
                 launcher.close_history(window, cx);
-                launcher.window_shown(false, cx);
                 launcher.native.clone()
             })
             .ok()

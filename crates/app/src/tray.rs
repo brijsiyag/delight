@@ -35,7 +35,7 @@ impl Global for Tray {}
 pub fn install(cx: &mut App) -> Result<()> {
     let shortcut = hotkey::current(cx).and_then(|keystroke| accelerator(&keystroke));
     let open = MenuItem::with_id("open", "Open Delight", true, shortcut);
-    let settings = MenuItem::with_id("settings", "Settings", true, None);
+    let settings = MenuItem::with_id("settings", "Settings...", true, None);
     let logs = MenuItem::with_id("logs", "Open Logs", true, None);
     let quit = MenuItem::with_id("quit", "Quit Delight", true, None);
     let separator = PredefinedMenuItem::separator();

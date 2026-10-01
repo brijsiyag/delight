@@ -172,11 +172,27 @@ pub trait HostApi {
     /// them). Deferred: the launcher may be mid-update.
     fn show_settings(&mut self, cx: &mut gpui::Context<Self>);
 
-    /// Open a window of the plugin's own: a normal window, resizable and closed by its user, that
-    /// stays when the launcher hides. The app makes it and asks the plugin to draw in it
-    /// ([`PluginApi::open_window_view`]). A window with the same `key` that is open comes to the
-    /// front instead. Whether it is open now; not when the plugin has too many open already.
-    async fn open_window(&mut self, key: String, title: String, width: f32, height: f32, cx: &mut gpui::Context<Self>) -> bool;
+    /// Open a window of the plugin's own: a normal window, resizable and closed by its user (✕, ⌘W).
+    /// The app makes it and asks the plugin to draw in it ([`PluginApi::open_window_view`]). A
+    /// window with the same `key` that is open comes to the front instead. With
+    /// `hide_with_launcher` it goes off screen when the launcher hides, and comes back with it;
+    /// without, it stays up until its user closes it. `None` (what plugins built before 0.1 send:
+    /// a field they lack decodes as `None`) hides it with the launcher. Whether it is open now; not
+    /// when the plugin has too many open already.
+    async fn open_window(
+        &mut self,
+        key: String,
+        title: String,
+        width: f32,
+        height: f32,
+        hide_with_launcher: Option<bool>,
+        cx: &mut gpui::Context<Self>,
+    ) -> bool;
+
+    /// Take the plugin's open window `key` off screen (not `shown`), or bring it back (`shown`).
+    /// One the plugin took off screen stays off when the launcher shows again, until the plugin
+    /// brings it back. Whether the plugin has a window `key` open. (0.1)
+    fn set_window_shown(&mut self, key: String, shown: bool, cx: &mut gpui::Context<Self>) -> bool;
 
     /// Ask the user to confirm something with the system's own alert (macOS's `NSAlert`): `title`
     /// as its message, `message` under it, and two buttons, `continue_label` and Cancel. A
@@ -458,7 +474,29 @@ mod tests {
         );
         assert_eq!(
             methods(HostApi::schema()),
-            ["toast", "hide", "remember_input", "current_theme", "clipboard", "http", "open_url", "dns", "commands", "secret", "set_secret", "set_launcher_input", "settings", "set_settings", "utc_offset_seconds", "show_settings", "open_window", "confirm"]
+            ["toast", "hide", "remember_input", "current_theme", "clipboard", "http", "open_url", "dns", "commands", "secret", "set_secret", "set_launcher_input", "settings", "set_settings", "utc_offset_seconds", "show_settings", "open_window", "set_window_shown", "confirm"]
         );
+    }
+
+    /// `open_window`'s call as plugins and apps before 0.1 have it.
+    #[derive(Debug, PartialEq, embedded_gpui::serde::Serialize, embedded_gpui::serde::Deserialize)]
+    #[serde(crate = "embedded_gpui::serde")]
+    struct OpenWindowBefore01 {
+        key: String,
+        title: String,
+        width: f32,
+        height: f32,
+    }
+
+    #[test]
+    fn open_window_works_both_ways_with_plugins_and_apps_before_0_1() {
+        // An older plugin's call has no `hide_with_launcher`: it decodes, as `None`.
+        let old = OpenWindowBefore01 { key: "json".into(), title: "JSON".into(), width: 700., height: 480. };
+        let asked: OpenWindow = decode(&encode(&old).unwrap()).unwrap();
+        assert_eq!((asked.key.as_str(), asked.width, asked.hide_with_launcher), ("json", 700., None));
+        // An older app reads a newer plugin's call, leaving out what it doesn't know.
+        let new = OpenWindow { key: "json".into(), title: "JSON".into(), width: 700., height: 480., hide_with_launcher: Some(false) };
+        let read: OpenWindowBefore01 = decode(&encode(&new).unwrap()).unwrap();
+        assert_eq!(read, old);
     }
 }

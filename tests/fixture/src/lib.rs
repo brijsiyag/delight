@@ -114,8 +114,12 @@ enum EchoAction {
     Log,
     /// Ask the user to confirm, destructively; toasts "confirmed" or "cancelled".
     Confirm,
-    /// Ask the app for a window; toasts "window ok" once it has drawn there, or why not.
+    /// Ask the app for a window that stays up when the launcher hides; toasts "window ok" once it
+    /// has drawn there, or why not.
     OpenWindow,
+    /// Takes that window off screen and brings it back, then asks the same of one it doesn't have;
+    /// toasts what became of each.
+    HideWindow,
     /// Says its settings sections changed.
     SectionsChanged,
     /// Spins forever: the turn budget stops the plugin in a call to its tool, not to its root.
@@ -192,13 +196,28 @@ impl Tool for Echo {
                 .detach();
             }
             EchoAction::OpenWindow => {
-                let opened = host(cx).open_window(WindowOptions::new("fixture", "Fixture window").size(500., 400.), cx.new(|_| FixtureSettings), cx);
+                let options = WindowOptions::new("fixture", "Fixture window").size(500., 400.).hide_with_launcher(false);
+                let opened = host(cx).open_window(options, cx.new(|_| FixtureSettings), cx);
                 cx.spawn(async move |_, cx| {
                     let message = match opened.await {
                         Ok(()) => "window ok".to_string(),
                         Err(error) => format!("{error:#}"),
                     };
                     cx.update(|cx| host(cx).toast(message, cx));
+                })
+                .detach();
+            }
+            EchoAction::HideWindow => {
+                let asked = [host(cx).hide_window("fixture", cx), host(cx).show_window("fixture", cx), host(cx).hide_window("none", cx)];
+                cx.spawn(async move |_, cx| {
+                    let mut said = Vec::new();
+                    for answer in asked {
+                        said.push(match answer.await {
+                            Ok(()) => "ok".to_string(),
+                            Err(error) => format!("{error:#}"),
+                        });
+                    }
+                    cx.update(|cx| host(cx).toast(said.join(", "), cx));
                 })
                 .detach();
             }

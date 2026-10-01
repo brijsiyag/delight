@@ -88,11 +88,14 @@ log = "=0.4.33"
 # The versions tray-icon links.
 objc2 = "=0.6.4"
 objc2-app-kit = { version = "=0.3.2", default-features = false, features = [
-    "std", "NSAnimation", "NSAppearance", "NSApplication", "NSBezierPath", "NSColor", "NSEvent",
-    "NSGlassEffectView", "NSGraphics", "NSImage", "NSResponder", "NSRunningApplication", "NSView",
+    "std", "NSAccessibility", "NSAnimation", "NSAnimationContext", "NSAppearance", "NSApplication",
+    "NSBezierPath", "NSColor", "NSEvent", "NSGlassEffectView", "NSGraphics", "NSImage", "NSResponder",
+    "NSRunningApplication", "NSView",
     "NSVisualEffectView", "NSWindow", "NSWorkspace", "libc", "objc2-quartz-core",
 ] }
 objc2-foundation = { version = "=0.3.2", default-features = false, features = ["std", "NSArray", "NSDate", "NSDateFormatter", "NSFormatter", "NSGeometry", "NSString", "NSURL"] }
+# The launcher's coming and going: the curves its animations follow (the version AppKit's links).
+objc2-quartz-core = { version = "=0.3.2", default-features = false, features = ["std", "CAMediaTimingFunction"] }
 # Plugin updates: the feed is XML (the version `plist` already links), plugin versions are
 # SemVer (the version already in the lock).
 quick-xml = { version = "=0.42.0", features = ["serialize"] }

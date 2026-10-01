@@ -6,7 +6,7 @@ use delight_runtime::Plugin;
 use delight_ui::theme::INPUT_LINE_HEIGHT;
 use delight_ui::{
     ActiveTheme, Button, ButtonVariant, Caption, Divider, Icon, IconButton, IconName, Keycap, KeycapStyle, LogoBadge, Sizable as _,
-    Theme, h_flex, keystroke_for, keystroke_label, v_flex,
+    Theme, Tooltip, h_flex, keystroke_for, keystroke_label, v_flex,
 };
 use gpui::{
     AnyElement, App, Context, Div, FocusHandle, Focusable, FontWeight, IntoElement, KeyDownEvent, MouseButton, ParentElement,
@@ -360,11 +360,27 @@ impl Launcher {
 }
 
 /// A newer version of the tool's plugin, as its settings page offers it: a button that installs it,
-/// or how far its download has come.
+/// or how far its download has come. Or, when the last look for one failed, a small error that
+/// says why while hovered and looks again when clicked.
 fn plugin_update(plugin: &Plugin, t: &Theme, cx: &App) -> Option<AnyElement> {
-    use plugins::updates::{self, State};
+    use plugins::updates::{self, Check, State};
     let id = plugin.manifest().plugin.id.clone();
-    let offer = updates::offer(&id, cx)?;
+    let Some(offer) = updates::offer(&id, cx) else {
+        let Some(Check::Failed(why)) = updates::last_check(&id, cx) else { return None };
+        let tooltip = format!("Couldn’t check for updates: {why}\n\nClick to try again.");
+        let failed = h_flex()
+            .id("update-check-failed")
+            .flex_shrink_0()
+            .gap(px(4.))
+            .text_size(t.text_size_small())
+            .text_color(t.error)
+            .cursor_pointer()
+            .tooltip(Tooltip::text(tooltip))
+            .on_click(move |_, _, cx| updates::check(&id, cx))
+            .child(Icon::new(IconName::TriangleAlert).size(px(12.)).color(t.error))
+            .child("Update check failed");
+        return Some(failed.into_any_element());
+    };
     let label = match &offer.state {
         State::Downloading { done, total } => {
             let done = format!("Downloading… {}", plugins::download_size(*done, *total));

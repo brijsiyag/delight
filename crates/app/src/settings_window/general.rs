@@ -1,13 +1,19 @@
 //! The General page: Delight's own settings.
 
 use delight_protocol::PLUGIN_API_VERSION;
-use delight_ui::{Button, SegmentedControl, Switch, Theme, h_flex, row, section, v_flex};
-use gpui::{AnyElement, Context, IntoElement, Keystroke, ParentElement, PromptLevel, Styled, div, px};
+use delight_ui::{Button, SegmentedControl, Switch, Theme, Tooltip, h_flex, row, section, v_flex};
+use gpui::{
+    AnyElement, Context, InteractiveElement as _, IntoElement, Keystroke, ParentElement, PromptLevel, StatefulInteractiveElement as _,
+    Styled, div, px,
+};
 
 use super::shortcut_recorder::Recorded;
 use super::SettingsWindow;
 use crate::settings::{self, Appearance, DEFAULT_LAUNCHER_SHORTCUT, Settings};
 use crate::history;
+
+/// Delight's repository: the page's foot links the app's version and the plugin API's to it.
+const REPOSITORY: &str = "https://github.com/brijsiyag/delight";
 
 const APPEARANCES: [(Appearance, &str); 3] =
     [(Appearance::System, "Auto"), (Appearance::Light, "Light"), (Appearance::Dark, "Dark")];
@@ -102,7 +108,25 @@ impl SettingsWindow {
             let check = Button::new("check-updates", "Check Now").on_click(|_, _, cx| crate::updater::check(cx));
             section("Updates", vec![delight_ui::row_with("Check for updates", detail, check, color)])
         });
-        let versions = format!("Delight {} · Plugin API {PLUGIN_API_VERSION}", env!("CARGO_PKG_VERSION"));
+        // Each opens the repository: the plugin API's at its section for plugin authors.
+        let accent = t.accent;
+        let link = |id: &'static str, text: String, url: String| {
+            div()
+                .id(id)
+                .cursor_pointer()
+                .hover(move |style| style.text_color(accent))
+                .tooltip(Tooltip::text("Open on GitHub"))
+                .on_click(move |_, _, cx| cx.open_url(&url))
+                .child(text)
+        };
+        let versions = h_flex()
+            .justify_center()
+            .gap(px(4.))
+            .text_size(px(11.))
+            .text_color(t.text_muted)
+            .child(link("delight-on-github", format!("Delight {}", env!("CARGO_PKG_VERSION")), REPOSITORY.to_string()))
+            .child("·")
+            .child(link("plugin-api-on-github", format!("Plugin API {PLUGIN_API_VERSION}"), format!("{REPOSITORY}#writing-a-plugin")));
         v_flex()
             .gap(px(18.))
             .child(section("Launcher", launcher))
@@ -110,7 +134,7 @@ impl SettingsWindow {
             .child(section("Input history", history))
             .child(section("System", system))
             .children(updates)
-            .child(div().flex().justify_center().text_size(px(11.)).text_color(t.text_muted).child(versions))
+            .child(versions)
             .into_any_element()
     }
 }

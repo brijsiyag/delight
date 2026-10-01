@@ -9,18 +9,24 @@
 //! callback is one. So what changes a window is a [`NativeWindow`] method, called
 //! from a spawned task, outside any update.
 
+use std::cell::Cell;
+use std::time::Duration;
+
 use gpui::Window;
 use objc2::rc::Retained;
 use objc2::runtime::AnyClass;
 use objc2::{AnyThread, MainThreadMarker, MainThreadOnly, Message, msg_send};
 use objc2_app_kit::{
-    NSAnimatablePropertyContainer, NSAppearance, NSAppearanceNameAqua, NSAppearanceNameDarkAqua, NSApplication,
+    NSAnimatablePropertyContainer, NSAnimationContext, NSAppearance, NSAppearanceNameAqua, NSAppearanceNameDarkAqua, NSApplication,
     NSApplicationActivationOptions, NSApplicationActivationPolicy, NSAutoresizingMaskOptions, NSBezierPath, NSColor,
     NSGlassEffectView, NSImage, NSImageResizingMode, NSRunningApplication, NSView, NSVisualEffectBlendingMode,
     NSVisualEffectMaterial, NSVisualEffectState, NSVisualEffectView, NSWindow, NSWindowOrderingMode,
     NSWindowStyleMask, NSWorkspace,
 };
 use objc2_foundation::{NSEdgeInsets, NSPoint, NSRect, NSSize, NSString};
+use objc2_quartz_core::{
+    CAMediaTimingFunction, CAMediaTimingFunctionName, kCAMediaTimingFunctionEaseInEaseOut, kCAMediaTimingFunctionEaseOut,
+};
 use raw_window_handle::{HasWindowHandle, RawWindowHandle};
 
 fn main_thread() -> Option<MainThreadMarker> {
@@ -80,6 +86,82 @@ thread_local! {
     /// it hides.
     static PREVIOUS_APP: std::cell::RefCell<Option<Retained<NSRunningApplication>>> =
         const { std::cell::RefCell::new(None) };
+
+    /// Each coming of the launcher, and each resize: [`NativeWindow::settle`] eases out only the
+    /// latest coming, and not once the window was resized since.
+    static COMING: Cell<u64> = const { Cell::new(0) };
+    /// Each going of the launcher: [`NativeWindow::hide`] takes it off screen only if it hasn't
+    /// come again, or started going again, since.
+    static GOING: Cell<u64> = const { Cell::new(0) };
+    /// The launcher is fading away (between [`NativeWindow::leave`] and [`NativeWindow::hide`]).
+    static LEAVING: Cell<bool> = const { Cell::new(false) };
+    /// The frame the launcher rests at while its coming or going moves it; `None` while nothing of
+    /// ours moves it.
+    static REST: Cell<Option<NSRect>> = const { Cell::new(None) };
+}
+
+/// The launcher comes and goes as Spotlight does on macOS 26, measured frame by frame from a 57 fps
+/// recording, with a gentler swing: it fades in over 140 ms while it narrows, from 4% wider than it
+/// rests to 0.5% narrower at 158 ms, then eases back out to its width by about 300 ms; its height
+/// takes no part. (Spotlight swings from 10% wider to 1.3% narrower: too much, on 2026-10-01.)
+/// It goes in 120 ms, fading while it grows a little all round. (Spotlight also blurs as it goes:
+/// only a private filter does that.) With Reduce Motion on, it only fades.
+const ENTER_FADE: f64 = 0.14;
+const ENTER_WIDER: f64 = 0.04;
+const ENTER_NARROWER: f64 = 0.005;
+/// From the start of a coming to its narrowest, when [`NativeWindow::settle`] eases it back out.
+pub const ENTER_SQUISH: Duration = Duration::from_millis(158);
+const ENTER_SETTLE: f64 = 0.14;
+const LEAVE_FADE: f64 = 0.12;
+/// How long a going takes before [`NativeWindow::hide`] takes the window off screen: its fade, and a
+/// frame more for AppKit to have finished it.
+pub const LEAVE: Duration = Duration::from_millis(135);
+const LEAVE_GROWTH: f64 = 0.08;
+
+/// Changes made in `change` through a window's `animator()` take `seconds`, along `curve`. With no
+/// seconds they are made at once, and replace an animation of the same values still running (set
+/// directly, a value would be overwritten as that one ends).
+fn animate(seconds: f64, curve: &CAMediaTimingFunctionName, change: impl FnOnce()) {
+    NSAnimationContext::beginGrouping();
+    let context = NSAnimationContext::currentContext();
+    context.setDuration(seconds);
+    context.setTimingFunction(Some(&CAMediaTimingFunction::functionWithName(curve)));
+    change();
+    NSAnimationContext::endGrouping();
+}
+
+/// Slow, fast, slow: a fade.
+fn ease_in_out() -> &'static CAMediaTimingFunctionName {
+    // SAFETY: Core Animation's constant, only read.
+    unsafe { kCAMediaTimingFunctionEaseInEaseOut }
+}
+
+/// Fast, then slowing down to a stop: the narrowing as it comes.
+fn ease_out() -> &'static CAMediaTimingFunctionName {
+    // SAFETY: Core Animation's constant, only read.
+    unsafe { kCAMediaTimingFunctionEaseOut }
+}
+
+/// Whether the user asked macOS for less motion (Accessibility → Display → Reduce motion).
+fn reduce_motion() -> bool {
+    NSWorkspace::sharedWorkspace().accessibilityDisplayShouldReduceMotion()
+}
+
+/// `rect` widened by `wide` of its width and heightened by `tall` of its height (below 0: made
+/// smaller), about its centre.
+fn grown(rect: NSRect, wide: f64, tall: f64) -> NSRect {
+    let (width, height) = (rect.size.width * wide, rect.size.height * tall);
+    NSRect::new(
+        NSPoint::new(rect.origin.x - width / 2., rect.origin.y - height / 2.),
+        NSSize::new(rect.size.width + width, rect.size.height + height),
+    )
+}
+
+fn next(counter: &'static std::thread::LocalKey<Cell<u64>>) -> u64 {
+    counter.with(|counter| {
+        counter.set(counter.get() + 1);
+        counter.get()
+    })
 }
 
 fn new_backdrop(mtm: MainThreadMarker, frame: NSRect) -> (Backdrop, Retained<NSView>) {
@@ -201,16 +283,21 @@ impl NativeWindow {
     /// bottom-left), so the panel grows down from the input bar.
     pub fn resize_keep_top(&self, width: f64, height: f64, animate: bool) {
         let win = &self.window;
-        let frame = win.frame();
+        // While the launcher comes or goes, from where it rests.
+        let frame = REST.get().unwrap_or_else(|| win.frame());
         let chrome = frame.size.height - win.contentRectForFrameRect(frame).size.height;
         let new_height = height + chrome;
         if (new_height - frame.size.height).abs() < 0.5 && (width - frame.size.width).abs() < 0.5 {
             return;
         }
+        // The new size replaces what its coming or going was easing it toward.
+        REST.set(None);
+        next(&COMING);
         let top = frame.origin.y + frame.size.height;
         let x = frame.origin.x + (frame.size.width - width) / 2.;
         let new_frame = NSRect::new(NSPoint::new(x, top - new_height), NSSize::new(width, new_height));
-        if animate {
+        // Off screen, it just takes its size.
+        if animate && win.isVisible() {
             // The animator proxy animates asynchronously (no nested run loop).
             win.animator().setFrame_display(new_frame, true);
         } else {
@@ -233,6 +320,71 @@ impl NativeWindow {
         NSApplication::sharedApplication(mtm).activate();
         self.window.orderFrontRegardless();
         self.window.makeKeyWindow();
+    }
+
+    /// Bring the launcher up as Spotlight comes (see [`ENTER_SQUISH`]): clear and wider than it
+    /// rests, it fades in as it narrows past its width, and [`Self::settle`] eases it back out. It is
+    /// presented as [`Self::present`] does. This coming's number, for [`Self::settle`].
+    pub fn enter(&self) -> u64 {
+        let win = &self.window;
+        // Up already (another app has the keyboard): it only takes it back.
+        if win.isVisible() && !LEAVING.get() {
+            self.present();
+            return next(&COMING);
+        }
+        // A going in progress stops here, and the window starts from where it rests.
+        next(&GOING);
+        LEAVING.set(false);
+        let rest = REST.take().unwrap_or_else(|| win.frame());
+        let coming = next(&COMING);
+        let moving = !reduce_motion();
+        let start = if moving { grown(rest, ENTER_WIDER, 0.) } else { rest };
+        animate(0., ease_in_out(), || {
+            win.animator().setFrame_display(start, true);
+            win.animator().setAlphaValue(0.);
+        });
+        self.present();
+        animate(ENTER_FADE, ease_in_out(), || win.animator().setAlphaValue(1.));
+        if moving {
+            REST.set(Some(rest));
+            animate(ENTER_SQUISH.as_secs_f64(), ease_out(), || win.animator().setFrame_display(grown(rest, -ENTER_NARROWER, 0.), true));
+        }
+        coming
+    }
+
+    /// The end of [`Self::enter`]: from its narrowest, ease the launcher back out to its width, unless
+    /// it came again, was resized or started going since.
+    pub fn settle(&self, coming: u64) {
+        if COMING.get() != coming || LEAVING.get() {
+            return;
+        }
+        if let Some(rest) = REST.take() {
+            animate(ENTER_SETTLE, ease_in_out(), || self.window.animator().setFrame_display(rest, true));
+        }
+    }
+
+    /// Start taking the launcher away as Spotlight goes: it fades while it grows a little all round.
+    /// [`Self::hide`] takes it off screen once that is done ([`LEAVE`]). This going's number.
+    pub fn leave(&self) -> u64 {
+        let win = &self.window;
+        // Going already: the same going.
+        if LEAVING.get() {
+            return GOING.get();
+        }
+        let going = next(&GOING);
+        LEAVING.set(true);
+        let rest = REST.get().unwrap_or_else(|| win.frame());
+        REST.set(Some(rest));
+        animate(LEAVE_FADE, ease_in_out(), || win.animator().setAlphaValue(0.));
+        if !reduce_motion() {
+            animate(LEAVE_FADE, ease_in_out(), || win.animator().setFrame_display(grown(rest, LEAVE_GROWTH, LEAVE_GROWTH), true));
+        }
+        going
+    }
+
+    /// Whether the launcher is fading away: it is gone as far as the hotkey is concerned.
+    pub fn is_leaving(&self) -> bool {
+        LEAVING.get()
     }
 
     /// Whether the window has the keyboard.
@@ -272,17 +424,33 @@ impl NativeWindow {
         self.window.orderFrontRegardless();
     }
 
-    /// Hide without closing, so all state survives. If the launcher had the keyboard
-    /// (hidden by Esc or the hotkey), the app that was in front before comes back;
-    /// not if another app was clicked.
-    pub fn hide(&self) {
+    /// Once [`Self::leave`] is done, take the window off screen without closing it, so all state
+    /// survives, and put it back as it rests for the next time: whether it went (not if it came
+    /// again, or started going again, since). With `back_to_previous`, if the launcher had the
+    /// keyboard (hidden by Esc or the hotkey), the app that was in front before comes back; not if
+    /// another app was clicked, nor when another of Delight's windows takes its place.
+    pub fn hide(&self, going: u64, back_to_previous: bool) -> bool {
+        if GOING.get() != going {
+            return false;
+        }
+        LEAVING.set(false);
         let had_keyboard = self.has_keyboard();
-        self.window.orderOut(None);
-        if let Some(previous) = PREVIOUS_APP.take()
+        let win = &self.window;
+        win.orderOut(None);
+        let rest = REST.take();
+        animate(0., ease_in_out(), || {
+            if let Some(rest) = rest {
+                win.animator().setFrame_display(rest, false);
+            }
+            win.animator().setAlphaValue(1.);
+        });
+        if back_to_previous
+            && let Some(previous) = PREVIOUS_APP.take()
             && had_keyboard
         {
             previous.activateWithOptions(NSApplicationActivationOptions::empty());
         }
+        true
     }
 }
 
