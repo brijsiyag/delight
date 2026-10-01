@@ -23,7 +23,7 @@ use crate::{install_window, launcher, plugin_windows, settings};
 /// The first look waits for the plugins to have started, and for launch to be over.
 const FIRST_CHECK: Duration = Duration::from_secs(30);
 const EVERY: Duration = Duration::from_secs(24 * 60 * 60);
-/// How long what a look found ("It is up to date") shows in place of Check Now.
+/// How long what a look found ("It is up to date") shows in place of when the last look was.
 pub const ANSWER_SHOWN: Duration = Duration::from_secs(5);
 
 /// What the last look at a plugin's location found, when no newer version is offered.
@@ -156,7 +156,7 @@ fn checked(installed: &Manifest, release: Result<Release>, cx: &mut App) {
             updates.checks.insert(id.clone(), Check::UpToDate);
             updates.looked.insert(id.clone(), SystemTime::now());
             updates.offers.remove(&id);
-            // Its page shows that for a moment in place of Check Now, then the button again.
+            // Its page says so for a moment, then when it looked.
             cx.spawn(async move |cx| {
                 cx.background_executor().timer(ANSWER_SHOWN).await;
                 cx.update(|cx| cx.refresh_windows());

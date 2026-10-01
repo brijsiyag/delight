@@ -571,27 +571,27 @@ State (modes, options) is in memory only.
   key in Info.plist.
 - Plugin updates (new in the rewrite; plan step 16), each plugin on its own:
   each installed plugin that names its location has `<location>/<id>.xml`
-  read 30 s after launch and every 24 h, and when its page's Check Now is
+  read 30 s after launch and every 24 h, and when its page's ↻ is
   clicked. Nothing about updates is in General. An installed plugin that
-  names its location has an "Updates" card first on its page, one row: when
-  there is one, "Version X is available", "It keeps its data and settings",
-  [Update]; while it downloads, a progress bar under the version line with
-  "Downloading… 1.2/3.4 MB" (the megabytes so far, a million bytes
-  each, and of how many once the server says), and Update dimmed (it installs
-  as soon as the download is done); "It asks for new permissions: review them
-  to install it" [Review Update…], which opens the install window on the
-  downloaded file; an error [Try Again]. Otherwise "Check for updates" with
-  [Check Now]; under it, when a look last read the manifest since Delight
-  started ("Last checked: Today at 4:34 PM", macOS's medium date and short
-  time, relative, in the user's language and 12/24-hour setting), or why the
-  last look failed, in the error colour; nothing before the first look. While
-  a look runs, "Checking…" takes the button's place, and "It is up to date"
-  (green) does for 5 s after one finds nothing newer. Under
-  that line, always a small checkbox "Update automatically" (updates that
-  ask for no new permissions install on their own), per plugin, on by
-  default. Automatic updates skip a plugin whose tool is shown or whose
-  window is open. The tool's header in the launcher offers the update too
-  (Tool pane).
+  names its location has an "Update" card first on its page, under the
+  description, of one row with a 12 pt line: what the last look found and a
+  button on the left, and at the right a small checkbox "Update
+  automatically" (updates that ask for no new permissions install on their
+  own), per plugin, on by default.
+  With nothing newer: "Last checked: Today at 4:34 PM" (when a look last read
+  the manifest since Delight started; macOS's medium date and short time,
+  relative, in the user's language and 12/24-hour setting), "Not checked
+  yet" before the first, "Checking…" while one runs, "It is up to date"
+  (green) for 5 s after one finds nothing newer, or why it failed (red, cut
+  to the line, all of it in a tooltip); the button is a small ↻ ("Check for
+  updates"). With a newer version: "Version X is available" (accent)
+  [Update]; while it downloads, a thin bar and "Downloading X… 1.2/3.4 MB"
+  (megabytes of a million bytes; of how many once the server says), no
+  button (it installs as soon as the download is done); "Version X asks for
+  new permissions" [Review…], which opens the install window on the
+  downloaded file; "Version X didn't install: why" [Try Again]. Automatic
+  updates skip a plugin whose tool is shown or whose window is open. The
+  tool's header in the launcher offers the update too (Tool pane).
 - Deleting a plugin, or a file that doesn't load, from its page keeps it
   selected until the sidebar no longer lists it (a plugin stops a moment
   later); then the page below it takes its place, or the one above when it

@@ -8,7 +8,8 @@ use delight_protocol::{PermissionRequest, SettingsSection};
 use delight_runtime::Plugin;
 use embedded_gpui::Surface;
 use delight_ui::{
-    Button, Checkbox, Disableable as _, Icon, IconName, LogoBadge, Sizable as _, StyledExt as _, Switch, Theme, h_flex, section, v_flex,
+    Button, Checkbox, Disableable as _, Icon, IconButton, IconName, LogoBadge, Sizable as _, StyledExt as _, Switch, Theme, Tooltip,
+    h_flex, section, v_flex,
 };
 use gpui::{
     AnyElement, App, AppContext as _, ClickEvent, ClipboardItem, Context, Entity, FontWeight, IntoElement, ParentElement,
@@ -211,7 +212,7 @@ impl SettingsWindow {
                 page.child(div().text_color(t.text_muted).clamp_lines(4).child(delight_ui::ellipsize(&manifest.plugin.description, 700)))
             })
             .children(stopped)
-            .children(updates_section(plugin, source, t, cx))
+            .children(update_section(plugin, source, t, cx))
             .child(section("Tools", tools))
             .child(section("Permissions", self.permissions_of(&manifest.plugin.id, &manifest.plugin.permissions, t, cx)))
             // The plugin's own sections, as cards like the ones above: the app draws each
@@ -524,65 +525,62 @@ fn tip_rows(tips: &[String], t: &Theme) -> Vec<AnyElement> {
         .collect()
 }
 
-/// For an installed plugin that names its location, one row: the newer version published there with
-/// the button that installs it, or else what the last look there found with Check Now; and under it,
-/// whether the plugin updates on its own.
-fn updates_section(plugin: &Plugin, source: &Source, t: &Theme, cx: &App) -> Option<AnyElement> {
+/// For an installed plugin that names where it is published, a card of one line: what the last look
+/// there found (for a moment after one, "It is up to date"), or the newer version found and the
+/// button that installs it; the button that looks again; and whether the plugin updates on its own.
+fn update_section(plugin: &Plugin, source: &Source, t: &Theme, cx: &App) -> Option<AnyElement> {
     use plugins::updates::{self, Check, State};
     let properties = &plugin.manifest().plugin;
     if source.built_in || properties.update.is_none() {
         return None;
     }
     let id = properties.id.clone();
-    let status = |detail: String, color| Some(div().text_size(px(11.)).text_color(color).clamp_lines(2).child(detail).into_any_element());
-    let (title, status, button) = match updates::offer(&id, cx) {
+    let text = |text: String, color| div().min_w(px(0.)).truncate().text_color(color).child(text).into_any_element();
+    // An error is cut to the line; all of it shows while hovered.
+    let error = |text: String| {
+        let shown = delight_ui::ellipsize(&delight_ui::one_line(&text), 200);
+        div().id("update-error").min_w(px(0.)).truncate().text_color(t.error).tooltip(Tooltip::text(text)).child(shown).into_any_element()
+    };
+    let (status, button) = match updates::offer(&id, cx) {
         Some(offer) => {
-            let title = format!("Version {} is available", delight_ui::ellipsize(&offer.release.version, 60));
+            let version = delight_ui::ellipsize(&delight_ui::one_line(&offer.release.version), 30);
+            let install = |label: &'static str| {
+                let id = id.clone();
+                Button::new("update-plugin", label).text().small().on_click(move |_, _, cx| updates::update(&id, cx)).into_any_element()
+            };
             match &offer.state {
                 // How far it has come: a bar, and how much of it.
                 State::Downloading { done, total } => {
                     let done = h_flex()
-                        .gap(px(10.))
-                        .items_center()
-                        .child(div().w(px(180.)).child(delight_ui::progress_bar(plugins::download_fraction(*done, *total), t.accent, t)))
-                        .child(div().text_size(px(11.)).text_color(t.text_muted).child(format!("Downloading… {}", plugins::download_size(*done, *total))))
-                        .into_any_element();
-                    (title, Some(done), Button::new("update-plugin", "Update").primary().disabled(true).into_any_element())
+                        .gap(px(8.))
+                        .child(div().w(px(120.)).child(delight_ui::progress_bar(plugins::download_fraction(*done, *total), t.accent, t)))
+                        .child(div().flex_shrink_0().text_color(t.text_muted).child(format!("Downloading {version}… {}", plugins::download_size(*done, *total))));
+                    (done.into_any_element(), None)
                 }
-                state => {
-                    let (detail, color, label) = match state {
-                        State::AsksForMore => ("It asks for new permissions: review them to install it".to_string(), t.warning, "Review Update…"),
-                        State::Failed(why) => (delight_ui::ellipsize(&delight_ui::one_line(why), 200), t.error, "Try Again"),
-                        _ => ("It keeps its data and settings".to_string(), t.text_muted, "Update"),
-                    };
-                    let id = id.clone();
-                    let button = Button::new("update-plugin", label).primary().on_click(move |_, _, cx| updates::update(&id, cx));
-                    (title, status(detail, color), button.into_any_element())
-                }
+                State::Ready => (text(format!("Version {version} is available"), t.accent), Some(install("Update"))),
+                State::AsksForMore => (text(format!("Version {version} asks for new permissions"), t.warning), Some(install("Review…"))),
+                State::Failed(why) => (error(format!("Version {version} didn’t install: {why}")), Some(install("Try Again"))),
             }
         }
         None => {
             let check = updates::last_check(&id, cx);
             let looked = updates::last_looked(&id, cx);
-            // Under the title: why the last look failed, or else when one last read what is published
-            // (nothing before the first).
-            let status = match (&check, looked) {
-                (Some(Check::Failed(why)), _) => status(delight_ui::ellipsize(&delight_ui::one_line(why), 200), t.error),
-                (_, Some(at)) => status(format!("Last checked: {}", crate::macos::date_and_time(at)), t.text_muted),
-                (_, None) => None,
-            };
-            // A look in progress, and for a moment what it found, in the button's place.
-            let answer = |text: &'static str, color| div().flex_shrink_0().text_size(px(12.)).text_color(color).child(text).into_any_element();
             let just_looked = looked.is_some_and(|at| at.elapsed().is_ok_and(|since| since < updates::ANSWER_SHOWN));
-            let control = match check {
-                Some(Check::Checking) => answer("Checking…", t.text_muted),
-                Some(Check::UpToDate) if just_looked => answer("It is up to date", t.success),
-                _ => {
-                    let id = id.clone();
-                    Button::new("check-plugin-update", "Check Now").on_click(move |_, _, cx| updates::check(&id, cx)).into_any_element()
-                }
+            let status = match (&check, looked) {
+                (Some(Check::Checking), _) => text("Checking…".to_string(), t.text_muted),
+                (Some(Check::Failed(why)), _) => error(format!("Couldn’t check for updates: {why}")),
+                // For a moment after a look, what it found; then when it was.
+                (Some(Check::UpToDate), Some(_)) if just_looked => text("It is up to date".to_string(), t.success),
+                (_, Some(at)) => text(format!("Last checked: {}", crate::macos::date_and_time(at)), t.text_muted),
+                (_, None) => text("Not checked yet".to_string(), t.text_muted),
             };
-            ("Check for updates".to_string(), status, control)
+            let id = id.clone();
+            let again = IconButton::new("check-plugin-update", IconName::RefreshCw)
+                .small()
+                .tooltip("Check for updates")
+                .disabled(matches!(check, Some(Check::Checking)))
+                .on_click(move |_, _, cx| updates::check(&id, cx));
+            (status, Some(again.into_any_element()))
         }
     };
     // Updates that ask for no new permissions install on their own.
@@ -591,21 +589,16 @@ fn updates_section(plugin: &Plugin, source: &Source, t: &Theme, cx: &App) -> Opt
         .label("Update automatically")
         .checked(settings::get(cx).updates_automatically(&id))
         .on_change(move |on, _, cx| settings::update(cx, |settings| settings.set_updates_automatically(&id, *on)));
-    let row = h_flex()
-        .items_center()
-        .gap(px(12.))
+    // What was found and its button on the left, the checkbox at the right.
+    let line = h_flex()
+        .h(px(delight_ui::ROW_HEIGHT))
         .px(px(14.))
-        .py(px(10.))
-        .child(
-            v_flex()
-                .flex_1()
-                .min_w(px(0.))
-                .child(div().truncate().child(title))
-                .children(status.map(|status| div().mt(px(2.)).child(status)))
-                .child(h_flex().mt(px(8.)).child(automatic)),
-        )
-        .child(button);
-    Some(section("Updates", vec![row.into_any_element()]).into_any_element())
+        .gap(px(12.))
+        .justify_between()
+        .text_size(px(12.))
+        .child(h_flex().min_w(px(0.)).gap(px(6.)).child(status).children(button))
+        .child(automatic);
+    Some(section("Update", vec![line.into_any_element()]).into_any_element())
 }
 
 /// An error on its tint.
