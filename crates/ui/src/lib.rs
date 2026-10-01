@@ -10,6 +10,7 @@
 mod assets;
 mod badge;
 mod button;
+mod checkbox;
 #[cfg(feature = "code")]
 pub mod code;
 #[cfg(feature = "code")]
@@ -29,6 +30,7 @@ mod tooltip;
 pub use assets::{Assets, IconName, LOGO_SVG};
 pub use badge::LogoBadge;
 pub use button::{Button, ButtonVariant, IconButton};
+pub use checkbox::Checkbox;
 pub use editor::{EditorEvent, EditorFont, TextEditor};
 pub use group::{Caption, Divider, Group, ROW_DETAIL_HEIGHT, ROW_HEIGHT, Rows, row, row_with, rows_height, section};
 pub use icon::Icon;

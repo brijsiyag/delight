@@ -7,7 +7,10 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use delight_runtime::updates::{self, Link, Release, is_newer};
-use delight_ui::{Button, Caption, Disableable as _, Group, Icon, IconName, StyledExt as _, Theme, ellipsize, h_flex, one_line, progress_bar, v_flex};
+use delight_ui::{
+    Button, Caption, Checkbox, Disableable as _, Group, Icon, IconName, StyledExt as _, Theme, ellipsize, h_flex, one_line, progress_bar,
+    v_flex,
+};
 use futures::StreamExt as _;
 use gpui::{AnyElement, Context, FontWeight, Hsla, IntoElement, ParentElement, Styled, Task, Window, div, prelude::*, px};
 
@@ -60,9 +63,10 @@ impl Choice {
 
 enum Download {
     Not,
-    /// How much of it has come, 0 to 1 (0 while its size isn't known).
-    Going(f32),
-    Done(PathBuf),
+    /// How many bytes of it have come, and how many there are once the server says.
+    Going(u64, Option<u64>),
+    /// Its file, and how big it is.
+    Done { file: PathBuf, size: u64 },
     Failed(String),
 }
 
@@ -171,11 +175,11 @@ impl InstallWindow {
         let Step::Link(page) = &self.step else { return Next::Nothing };
         let Found::Plugins { choices, .. } = &page.found else { return Next::Nothing };
         let picked: Vec<&Choice> = choices.iter().filter(|choice| choice.picked).collect();
-        if choices.iter().any(|choice| matches!(choice.download, Download::Going(_))) {
+        if choices.iter().any(|choice| matches!(choice.download, Download::Going(..))) {
             Next::Downloading
         } else if picked.is_empty() {
             Next::Nothing
-        } else if picked.iter().all(|choice| matches!(choice.download, Download::Done(_))) {
+        } else if picked.iter().all(|choice| matches!(choice.download, Download::Done { .. })) {
             Next::Review(picked.len())
         } else {
             Next::Download
@@ -190,9 +194,9 @@ impl InstallWindow {
         let wanted: Vec<(usize, Release)> = choices
             .iter_mut()
             .enumerate()
-            .filter(|(_, choice)| choice.picked && !matches!(choice.download, Download::Done(_)))
+            .filter(|(_, choice)| choice.picked && !matches!(choice.download, Download::Done { .. }))
             .map(|(index, choice)| {
-                choice.download = Download::Going(0.);
+                choice.download = Download::Going(0, None);
                 (index, choice.release.clone())
             })
             .collect();
@@ -225,8 +229,12 @@ impl InstallWindow {
     fn download_moved(&mut self, index: usize, moved: Moved, cx: &mut Context<Self>) {
         let Some(choice) = self.choices_mut().and_then(|choices| choices.get_mut(index)) else { return };
         choice.download = match moved {
-            Moved::Progress(done, total) => Download::Going(total.filter(|total| *total > 0).map_or(0., |total| (done as f32 / total as f32).min(1.))),
-            Moved::Finished(Ok(file)) => Download::Done(file),
+            Moved::Progress(done, total) => Download::Going(done, total),
+            Moved::Finished(Ok(file)) => {
+                // The last progress was the whole file.
+                let size = if let Download::Going(done, _) = choice.download { done } else { 0 };
+                Download::Done { file, size }
+            }
             Moved::Finished(Err(why)) => Download::Failed(why),
         };
         cx.notify();
@@ -239,7 +247,7 @@ impl InstallWindow {
             .iter()
             .filter(|choice| choice.picked)
             .filter_map(|choice| match &choice.download {
-                Download::Done(file) => Some(file.clone()),
+                Download::Done { file, .. } => Some(file.clone()),
                 _ => None,
             })
             .collect();
@@ -401,38 +409,34 @@ fn pill(text: &'static str, color: Hsla, background: Hsla) -> impl IntoElement {
 
 /// One plugin at the link, as a line of a checklist (a link carries no logos, so no row has one): its
 /// checkbox, its name with its version and what it does under them, and on the right whether it is
-/// an update or installed (its percentage while it downloads, a red cross if that failed), with a
-/// bar under the text while it downloads, green once it has. The checkbox and
-/// the status line up with the name. The first and last rows round their hover at the card's corners.
+/// an update or installed (how many megabytes have come while it downloads, its size once it has, a
+/// red cross if that failed), with a bar under the text while it downloads, green once it has. The checkbox and the
+/// status line up with the name. The first and last rows round their hover at the card's corners.
 fn choice_row(index: usize, last: bool, choice: &Choice, t: &Theme, cx: &mut Context<InstallWindow>) -> AnyElement {
     let release = &choice.release;
     let pickable = choice.pickable();
-    let checkbox = div()
-        .size(px(16.))
-        .flex_shrink_0()
-        .rounded(px(4.))
-        .flex()
-        .items_center()
-        .justify_center()
-        .when(choice.picked, |checkbox| checkbox.bg(t.accent).child(Icon::new(IconName::Check).size(px(12.)).color(t.accent_text)))
-        .when(!choice.picked, |checkbox| checkbox.bg(t.surface).border_1().border_color(t.border));
+    // The row takes the clicks.
+    let checkbox = Checkbox::new(("pick", index)).checked(choice.picked);
     let version = match &choice.installed {
         Some(installed) if pickable => format!("{} → {}", ellipsize(&one_line(installed), 30), ellipsize(&one_line(&release.version), 30)),
         _ => ellipsize(&one_line(&release.version), 30),
     };
     let status = match (&choice.download, &choice.installed) {
-        (Download::Going(fraction), _) => {
-            Some(div().text_size(px(11.5)).text_color(t.text_muted).child(format!("{}%", (fraction * 100.).round() as u32)).into_any_element())
+        (Download::Going(done, total), _) => {
+            Some(div().text_size(px(11.5)).text_color(t.text_muted).child(plugins::download_size(*done, *total)).into_any_element())
+        }
+        // Downloaded: its bar turns green, and the file's size takes the place of how much had come.
+        (Download::Done { size, .. }, _) => {
+            Some(div().text_size(px(11.5)).text_color(t.text_muted).child(plugins::megabytes(*size)).into_any_element())
         }
         (Download::Failed(_), _) => Some(Icon::new(IconName::CircleX).size(px(16.)).color(t.error).into_any_element()),
-        // Downloaded: its bar turns green, and the row says what it said before.
-        (Download::Not | Download::Done(_), Some(_)) if pickable => Some(pill("Update", t.accent, t.tint(t.accent)).into_any_element()),
-        (Download::Not | Download::Done(_), Some(_)) => Some(pill("Installed", t.text_muted, t.fill).into_any_element()),
-        (Download::Not | Download::Done(_), None) => None,
+        (Download::Not, Some(_)) if pickable => Some(pill("Update", t.accent, t.tint(t.accent)).into_any_element()),
+        (Download::Not, Some(_)) => Some(pill("Installed", t.text_muted, t.fill).into_any_element()),
+        (Download::Not, None) => None,
     };
     let progress = match &choice.download {
-        Download::Going(fraction) => Some(div().pt(px(6.)).child(progress_bar(*fraction, t.accent, t))),
-        Download::Done(_) => Some(div().pt(px(6.)).child(progress_bar(1., t.success, t))),
+        Download::Going(done, total) => Some(div().pt(px(6.)).child(progress_bar(plugins::download_fraction(*done, *total), t.accent, t))),
+        Download::Done { .. } => Some(div().pt(px(6.)).child(progress_bar(1., t.success, t))),
         Download::Not | Download::Failed(_) => None,
     };
     let failed = match &choice.download {

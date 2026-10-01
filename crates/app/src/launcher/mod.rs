@@ -36,7 +36,8 @@ use gpui::{
 
 pub use history_search::CONTEXT as HISTORY_SEARCH_CONTEXT;
 pub use window::{
-    bounds, focus_gained, focus_left, hide, level, open, plugins_loaded, refresh, set_input, show, shows_plugin, toast, toggle,
+    bounds, focus_gained, focus_left, hide, hide_then, level, open, plugins_loaded, refresh, set_input, show, shows_plugin, toast,
+    toggle,
 };
 
 use crate::macos::{self, NativeWindow};
@@ -177,6 +178,9 @@ pub struct Launcher {
     shown_tool: Option<ToolIds>,
     /// The launcher window is hidden: no tool's view is shown.
     window_hidden: bool,
+    /// The footer's pin is on: the launcher stays up while another app is used, until it is next
+    /// hidden (Esc, the shortcut). The "Hide when another app is used" setting is left as it is.
+    pinned: bool,
     /// Replacing it cancels the detection before.
     detecting: Option<Task<()>>,
     toast: Option<SharedString>,
@@ -238,6 +242,7 @@ impl Launcher {
             panes: HashMap::new(),
             shown_tool: None,
             window_hidden: false,
+            pinned: false,
             detecting: None,
             toast: None,
             toast_timer: None,
@@ -301,7 +306,7 @@ impl Launcher {
     fn on_input_event(&mut self, event: &EditorEvent, cx: &mut Context<Self>) {
         match event {
             EditorEvent::Changed => self.input_changed(cx),
-            // Tab took the completion (`Changed` follows): bring its tool up.
+            // The whole completion was taken (`Changed` follows): bring its tool up.
             EditorEvent::CompletionAccepted => self.prefer_tool = self.completion_tool.take(),
             EditorEvent::Focus | EditorEvent::Blur => {}
         }
@@ -575,6 +580,16 @@ impl Launcher {
     /// The launcher window hid, or shows again: its tool's view goes, and comes back, with it.
     pub(super) fn window_shown(&mut self, shown: bool, cx: &mut Context<Self>) {
         self.window_hidden = !shown;
+        // A pin lasts until the launcher hides.
+        if !shown {
+            self.pinned = false;
+        }
+        cx.notify();
+    }
+
+    /// The footer's pin: keep the launcher up while another app is used, or stop.
+    fn toggle_pin(&mut self, cx: &mut Context<Self>) {
+        self.pinned = !self.pinned;
         cx.notify();
     }
 

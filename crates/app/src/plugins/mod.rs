@@ -22,7 +22,7 @@ use std::time::SystemTime;
 use delight_runtime::Plugin;
 use gpui::{App, Global, PlatformTextSystem, Task};
 
-pub use install::{delete, delete_file, download, inspect, install};
+pub use install::{delete, delete_file, download, download_fraction, download_size, inspect, install, megabytes};
 use install::save_download;
 pub use loading::{forget_file, load, restart};
 

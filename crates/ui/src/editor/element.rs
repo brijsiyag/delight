@@ -266,7 +266,7 @@ impl Element for TextElement {
             Some(fill(Bounds::new(bounds.origin + point(p.x, p.y + inset), size(px(2.), lh - inset * 2.)), self.cursor_color))
         });
         // The completion continues the text where it ends (its first line; Tab
-        // inserts all of it). It isn't part of the layout, so clicks and IME
+        // or → inserts all of it). It isn't part of the layout, so clicks and IME
         // offsets never land in it.
         let ghost = editor.visible_completion().and_then(|completion| {
             let first_line = completion.split('\n').next().unwrap_or_default().to_string();

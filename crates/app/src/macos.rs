@@ -240,6 +240,12 @@ impl NativeWindow {
         self.window.isKeyWindow()
     }
 
+    /// Whether keys go to the window: it is key, and Delight is the active app.
+    pub fn has_keyboard(&self) -> bool {
+        let Some(mtm) = main_thread() else { return false };
+        self.window.isKeyWindow() && NSApplication::sharedApplication(mtm).isActive()
+    }
+
     /// Bring the window in front of the others at its level, when it is clicked. Call it outside
     /// a GPUI update, like [`Self::present`]: AppKit calls back into GPUI.
     pub fn raise(&self) {
@@ -256,7 +262,7 @@ impl NativeWindow {
     }
 
     /// Take the window off screen without closing it, leaving the keyboard and the app in front
-    /// alone: a plugin's window, hidden with the launcher.
+    /// alone: a plugin's window, hidden with the launcher, or the launcher giving way to Settings.
     pub fn order_out(&self) {
         self.window.orderOut(None);
     }
@@ -270,8 +276,7 @@ impl NativeWindow {
     /// (hidden by Esc or the hotkey), the app that was in front before comes back;
     /// not if another app was clicked.
     pub fn hide(&self) {
-        let Some(mtm) = main_thread() else { return };
-        let had_keyboard = self.window.isKeyWindow() && NSApplication::sharedApplication(mtm).isActive();
+        let had_keyboard = self.has_keyboard();
         self.window.orderOut(None);
         if let Some(previous) = PREVIOUS_APP.take()
             && had_keyboard
@@ -279,6 +284,26 @@ impl NativeWindow {
             previous.activateWithOptions(NSApplicationActivationOptions::empty());
         }
     }
+}
+
+thread_local! {
+    /// Made once: making a date formatter is slow, and a page draws its dates on every frame.
+    static DATE_FORMATTER: Retained<objc2_foundation::NSDateFormatter> = {
+        use objc2_foundation::{NSDateFormatter, NSDateFormatterStyle};
+        let formatter = NSDateFormatter::new();
+        formatter.setDateStyle(NSDateFormatterStyle::MediumStyle);
+        formatter.setTimeStyle(NSDateFormatterStyle::ShortStyle);
+        formatter.setDoesRelativeDateFormatting(true);
+        formatter
+    };
+}
+
+/// `time` as macOS writes a date and time, in the user's language and settings (12 or 24 hours),
+/// as a word when it can: "Today at 4:34 PM", "Yesterday at 09:12", "29 Sep 2026 at 16:34".
+pub fn date_and_time(time: std::time::SystemTime) -> String {
+    let seconds = time.duration_since(std::time::UNIX_EPOCH).map_or(0., |since| since.as_secs_f64());
+    let date = objc2_foundation::NSDate::dateWithTimeIntervalSince1970(seconds);
+    DATE_FORMATTER.with(|formatter| formatter.stringFromDate(&date).to_string())
 }
 
 /// Show `path` in Finder: a folder is opened, a file is selected in its folder.

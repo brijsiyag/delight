@@ -53,7 +53,15 @@ that code was organised. Where the rewrite changes something on purpose,
   the previous app only if the launcher had the keyboard (not when another
   app or Settings took focus). Save the input for restore if history is on.
 - Esc hides (deferred). Losing activation while visible hides if "Hide when
-  focus is lost" is on (default on).
+  focus is lost" is on (default on) and the footer's pin isn't.
+- With that off, a click on the launcher while another app has the keyboard
+  presents it again, as the hotkey does (so Esc and typing reach it): macOS
+  doesn't, as GPUI makes it a non-activating panel and AppKit keeps that for
+  clicks after the borderless restyle.
+- Opening Settings (⌘,, the menu bar, a plugin's `open_settings`) hides the
+  launcher first, `orderOut` without going back to the previous app, and then
+  opens or brings forward the settings window, so it never comes up under the
+  launcher.
 - At launch the window is made and styled but not shown: the hotkey or "Open Delight" in the menu bar shows it.
 - **Plugin windows** (`host(cx).open_window`): a normal, resizable window with a plugin's view in it,
   four at most from one plugin; asking for the key of one that is open brings it forward. ⌘W,
@@ -158,6 +166,10 @@ that code was organised. Where the rewrite changes something on purpose,
 
 - Header: logo badge 20, title (semibold), plugin name in tertiary colour if
   it differs from the title, ⚙ if the plugin has settings (opens its page).
+  In the rewrite, when the plugin has an update (plan step 16), at the right a
+  small text button "↻ Update to X" ("Review Update…" when it asks for new
+  permissions, "Retry Update" after a failure), which does what its page's
+  button does; "Downloading… 1.2/3.4 MB" while it comes.
 - Empty states (Sparkles icon): no candidates → "No tool fits this input" /
   "Plugins in the plugins folder add tools."; candidates but none selected →
   "No strong match" / "Pick a tool on the left, or keep typing."
@@ -183,7 +195,14 @@ that code was organised. Where the rewrite changes something on purpose,
   statistics there (size, lines, chars, words); the rewrite drops them, and a
   tool can offer them instead.
 - Right: the tool's first 4 actions as text buttons with keycaps, vertical
-  dividers between, then ⚙ (Settings → General).
+  dividers between, then a pin (Lucide `pin`), only while "Hide when another
+  app is used" is on, in the muted icon colour with no background but the
+  hover's: on (the pin's head filled, `pin-filled`), the launcher and the plugins'
+  windows stay up while another app is used, until the launcher is next
+  hidden (Esc, the hotkey, opening Settings), which turns the pin off. The
+  setting itself doesn't change. (The previous attempt had ⚙ there,
+  Settings → General; the rewrite replaced it on 2026-10-01: ⌘, and the menu
+  bar open Settings.)
 - **Action keys**: an action may have only ↵, ⌘↵ or ⌥1 to ⌥9 (`enter`,
   `cmd-enter`, `alt-1`…`alt-9`), so every tool's keys are the same ones. Any
   other keystroke a plugin sends is refused (logged): the action becomes
@@ -212,7 +231,9 @@ that code was organised. Where the rewrite changes something on purpose,
   and case-sensitively starting with the text, deduped, newest first; the nth
   is shown, first line only, greyed after the cursor, only when the cursor is
   at the end, nothing selected, non-empty, no IME composing. Any edit clears
-  it. Tab accepts (and prefers that entry's tool). ⌃N older / ⌃P newer, only
+  it. Tab or → accepts all of it (and prefers that entry's tool); ⌥Tab or ⌥→
+  its next word, with the spaces or punctuation before it, and the rest stays
+  shown (the last word prefers the tool too). ⌃N older / ⌃P newer, only
   if such a completion exists; otherwise they are ↓/↑. In the empty input
   nothing shows by itself, but ⌃N or ⌃P shows the newest remembered input
   (instead of the tip) and then steps older / newer; any edit ends it. Must stay under 5 ms
@@ -259,8 +280,8 @@ binding wins in a context); not user-configurable.
 - Toolbar tabs General (Settings icon) and Plugins (Puzzle icon): 72px wide,
   18px icon, 11px label, selected accent on `fill_strong`. Body scrolls,
   padding 20/18. Switching tab drops a plugin page.
-- Opened from the tray, ⌘, in the launcher, the footer ⚙, a tool header or
-  plugin row ⚙, or a plugin's `open_settings` (its page).
+- Opened from the tray, ⌘, in the launcher, a tool header or plugin row ⚙,
+  or a plugin's `open_settings` (its page).
 
 ### General
 
@@ -552,18 +573,29 @@ State (modes, options) is in memory only.
   each installed plugin that names its location has `<location>/<id>.xml`
   read 30 s after launch and every 24 h, and when its page's Check Now is
   clicked. Nothing about updates is in General. An installed plugin that
-  names its location has an "Updates" card first on its page: when there is
-  one, "Version X is available", "It keeps its data and settings",
+  names its location has an "Updates" card first on its page, one row: when
+  there is one, "Version X is available", "It keeps its data and settings",
   [Update]; while it downloads, a progress bar under the version line with
-  "Downloading… N%", and Update dimmed (it installs as soon as the download
-  is done); "It asks for new permissions: review them to
-  install it" [Review Update…], which opens the install window on the
-  downloaded file; an error [Try Again]. Otherwise "Check for updates"
-  (Checked at launch and once a day / Checking… / It is up to date / why the
-  manifest couldn't be read, in the error colour) with [Check Now]. Then
-  always "Update automatically" ("Updates that ask for no new permissions
-  install on their own"), a switch per plugin, on by default. Automatic
-  updates skip a plugin whose tool is shown or whose window is open.
+  "Downloading… 1.2/3.4 MB" (the megabytes so far, a million bytes
+  each, and of how many once the server says), and Update dimmed (it installs
+  as soon as the download is done); "It asks for new permissions: review them
+  to install it" [Review Update…], which opens the install window on the
+  downloaded file; an error [Try Again]. Otherwise "Check for updates" with
+  [Check Now]; under it, when a look last read the manifest since Delight
+  started ("Last checked: Today at 4:34 PM", macOS's medium date and short
+  time, relative, in the user's language and 12/24-hour setting), or why the
+  last look failed, in the error colour; nothing before the first look. While
+  a look runs, "Checking…" takes the button's place, and "It is up to date"
+  (green) does for 5 s after one finds nothing newer. Under
+  that line, always a small checkbox "Update automatically" (updates that
+  ask for no new permissions install on their own), per plugin, on by
+  default. Automatic updates skip a plugin whose tool is shown or whose
+  window is open. The tool's header in the launcher offers the update too
+  (Tool pane).
+- Deleting a plugin, or a file that doesn't load, from its page keeps it
+  selected until the sidebar no longer lists it (a plugin stops a moment
+  later); then the page below it takes its place, or the one above when it
+  was last. Picking another page meanwhile cancels that.
 - Installing (new in the rewrite; plan step 16): under the sidebar's list, a
   small split button, 24 pt tall with a hairline border: "+ Install Plugin"
   opens the macOS file picker (several `.wasm` files), and its chevron opens a
@@ -586,8 +618,9 @@ State (modes, options) is in memory only.
   warning, "Couldn’t use this link" and why, and the field's border is red.
   The footer has "N selected" on the left, then [Cancel, Download]: Download
   fetches the picked plugins one after another, each row with a thin progress
-  bar under it and its percentage at the right (the bar green when done, the
-  pill back; a red cross and why if it failed); the button says "Downloading…"
+  bar under it and the megabytes so far at the right, "1.2/3.4 MB"
+  (the bar green when done, and the file's size, "3.4 MB", in its place; a
+  red cross and why if it failed); the button says "Downloading…"
   meanwhile, then "Review N Plugins…" ("Review Plugin…" for one), not
   "Install": it shows each one as a picked file, "1 of N", installed only on
   its own Install.

@@ -192,6 +192,20 @@ impl TextEditor {
         }
     }
 
+    /// Inserts the completion's next word, with the spaces or punctuation before it (bound only
+    /// while one shows). Whoever set the completion sets the rest of it again on `Changed`.
+    pub(super) fn accept_completion_word(&mut self, _: &AcceptCompletionWord, _: &mut Window, cx: &mut Context<Self>) {
+        if let Some(completion) = self.visible_completion() {
+            let word = &completion[..text::word_right(&completion, 0)];
+            // The last word takes the completion as Tab does.
+            if word.len() == completion.len() {
+                cx.emit(super::EditorEvent::CompletionAccepted);
+            }
+            let end = self.content.len();
+            self.replace(end..end, word, EditKind::Other, cx);
+        }
+    }
+
     /// A new line keeping the line's indentation (bound only in a multi-line
     /// editor: `Editor && multiline`).
     pub(super) fn newline(&mut self, _: &Newline, _: &mut Window, cx: &mut Context<Self>) {

@@ -119,18 +119,61 @@ pub fn show(cx: &mut App) {
 /// Hide the launcher, keeping its state for the next time it shows, and its input
 /// for the next launch.
 pub fn hide(cx: &mut App) {
-    // The windows plugins opened go with it, and come back with it.
-    plugin_windows::hide_all(cx);
-    let Some(handle) = handle(cx) else { return };
-    let native = handle.update(cx, |launcher, window, cx| {
-        launcher.close_history(window, cx);
-        launcher.window_shown(false, cx);
-        launcher.native.clone()
-    });
-    save_input(cx);
-    if let Ok(Some(native)) = native {
+    if let Some(native) = put_away(cx) {
         cx.spawn(async move |_| native.hide()).detach();
     }
+}
+
+/// Hide the launcher as [`hide`] does, for another of Delight's windows (Settings) to come up in its
+/// place, then run `next`: the launcher is off screen first, and the keyboard stays with Delight
+/// instead of going back to the app that was in front. Hidden already, `next` runs at once.
+pub fn hide_then(next: impl FnOnce(&mut App) + 'static, cx: &mut App) {
+    let visible = handle(cx)
+        .and_then(|handle| handle.update(cx, |_, window, _| macos::is_window_visible(window)).ok())
+        .unwrap_or(false);
+    match visible.then(|| put_away(cx)).flatten() {
+        Some(native) => cx
+            .spawn(async move |cx| {
+                native.order_out();
+                cx.update(next);
+            })
+            .detach(),
+        None => next(cx),
+    }
+}
+
+/// What hiding changes besides the window: the plugins' windows go with it, the history search
+/// closes, the tool's view goes, and the input is kept. The window's AppKit side, to take off screen
+/// outside this update.
+fn put_away(cx: &mut App) -> Option<macos::NativeWindow> {
+    // The windows plugins opened go with it, and come back with it.
+    plugin_windows::hide_all(cx);
+    let native = handle(cx).and_then(|handle| {
+        handle
+            .update(cx, |launcher, window, cx| {
+                launcher.close_history(window, cx);
+                launcher.window_shown(false, cx);
+                launcher.native.clone()
+            })
+            .ok()
+            .flatten()
+    });
+    save_input(cx);
+    native
+}
+
+/// The launcher was clicked. Without the keyboard (it stayed up while another app was used), it takes
+/// it back, as the shortcut gives it: macOS doesn't on its own, since GPUI made the window a panel
+/// that doesn't activate Delight, and AppKit keeps that after the restyle (`macos`).
+pub(super) fn clicked(window: &gpui::Window, cx: &mut App) {
+    let Some(native) = macos::NativeWindow::of(window) else { return };
+    // Outside this update: AppKit calls back into GPUI.
+    cx.spawn(async move |_| {
+        if !native.has_keyboard() {
+            native.present();
+        }
+    })
+    .detach();
 }
 
 /// Where the launcher window is on screen.
@@ -161,20 +204,20 @@ pub fn focus_gained(cx: &mut App) {
 }
 
 /// A window of the launcher or of a plugin lost the keyboard. If it went to something else (another
-/// app, Settings), the launcher and the plugins' windows all hide, when that is on; if it went to
-/// one of them, nothing does. Judged a moment later, as the keyboard passes from one window to
+/// app, Settings), the launcher and the plugins' windows all hide, when that is on and the launcher
+/// isn't pinned; if it went to one of them, nothing does. Judged a moment later, as the keyboard passes from one window to
 /// the other in two steps: only if no window of the group got it meanwhile, and none has it now
 /// (asked of AppKit, which knows before GPUI does).
 pub fn focus_left(cx: &mut App) {
     // An alert a plugin asked for has the keyboard: that is not leaving.
-    if !settings::get(cx).hide_on_blur || crate::dialogs::is_showing(cx) {
+    if !settings::get(cx).hide_on_blur || pinned(cx) || crate::dialogs::is_showing(cx) {
         return;
     }
     let moves = cx.default_global::<FocusMoves>().0;
     cx.spawn(async move |cx| {
         cx.background_executor().timer(FOCUS_SETTLE).await;
         cx.update(|cx| {
-            if cx.default_global::<FocusMoves>().0 != moves || crate::dialogs::is_showing(cx) {
+            if cx.default_global::<FocusMoves>().0 != moves || pinned(cx) || crate::dialogs::is_showing(cx) {
                 return;
             }
             let launcher = handle(cx);
@@ -188,6 +231,11 @@ pub fn focus_left(cx: &mut App) {
         });
     })
     .detach();
+}
+
+/// Whether the footer's pin keeps the launcher up while another app is used.
+fn pinned(cx: &App) -> bool {
+    handle(cx).and_then(|handle| handle.read(cx).ok()).is_some_and(|launcher| launcher.pinned)
 }
 
 /// How long the keyboard may be in neither the launcher nor a plugin's window before they hide.

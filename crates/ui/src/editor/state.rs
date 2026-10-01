@@ -19,7 +19,8 @@ use crate::ActiveTheme;
 pub enum EditorEvent {
     /// The text changed.
     Changed,
-    /// The user accepted the completion (Tab); `Changed` follows.
+    /// The user took the whole completion (Tab or →, or its last word with ⌥Tab or ⌥→); `Changed`
+    /// follows.
     CompletionAccepted,
     Focus,
     Blur,
@@ -51,7 +52,7 @@ pub struct TextEditor {
     pub(super) focus_handle: FocusHandle,
     pub(super) content: String,
     pub(super) placeholder: SharedString,
-    /// Greyed text after the cursor that Tab inserts (see `set_completion`).
+    /// Greyed text after the cursor that Tab or → inserts (see `set_completion`).
     pub(super) completion: Option<SharedString>,
     pub(super) selected_range: Range<usize>,
     pub(super) selection_reversed: bool,
@@ -192,9 +193,10 @@ impl TextEditor {
     }
 
     /// Shows `completion` greyed after the text: how the input could go on
-    /// (e.g. a remembered input). Tab inserts it. It shows only while the
-    /// cursor is at the end with nothing selected, and any edit clears it:
-    /// set a fresh one on [`EditorEvent::Changed`]. In an empty editor it takes the
+    /// (e.g. a remembered input). Tab or → inserts it, ⌥Tab or ⌥→ its next
+    /// word. It shows only while the cursor is at the end with nothing
+    /// selected, and any edit clears it: set a fresh one on
+    /// [`EditorEvent::Changed`]. In an empty editor it takes the
     /// placeholder's place.
     pub fn set_completion(&mut self, completion: Option<SharedString>, cx: &mut Context<Self>) {
         let completion = completion.filter(|c| !c.is_empty());
@@ -329,7 +331,7 @@ impl TextEditor {
 impl TextEditor {
     /// `Editor`, plus flags the keymap can test:
     /// * `multiline` — ↵ variants insert a line;
-    /// * `showing_completion` — a greyed completion shows (Tab accepts it);
+    /// * `showing_completion` — a greyed completion shows (Tab or → accepts it);
     /// * `empty_input` — there is no text;
     /// * `start_of_input` / `end_of_input` — the cursor is at the very start
     ///   / end with nothing selected (e.g. ↓ at the end moves to the tools).

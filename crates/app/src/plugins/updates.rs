@@ -9,7 +9,7 @@
 
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::time::Duration;
+use std::time::{Duration, SystemTime};
 
 use anyhow::Result;
 use delight_protocol::Manifest;
@@ -23,6 +23,8 @@ use crate::{install_window, launcher, plugin_windows, settings};
 /// The first look waits for the plugins to have started, and for launch to be over.
 const FIRST_CHECK: Duration = Duration::from_secs(30);
 const EVERY: Duration = Duration::from_secs(24 * 60 * 60);
+/// How long what a look found ("It is up to date") shows in place of Check Now.
+pub const ANSWER_SHOWN: Duration = Duration::from_secs(5);
 
 /// What the last look at a plugin's location found, when no newer version is offered.
 #[derive(Clone, Debug, PartialEq)]
@@ -45,8 +47,8 @@ pub struct Offer {
 pub enum State {
     /// Waiting for Update (or, to install on its own, for the plugin to be out of use).
     Ready,
-    /// How much of it has come, 0 to 1 (0 while its size isn't known).
-    Downloading(f32),
+    /// How many bytes of it have come, and how many there are once the server says.
+    Downloading { done: u64, total: Option<u64> },
     /// Found while installing on its own: it asks for new permissions, so it waits for Update.
     AsksForMore,
     /// Why the last try didn't install it.
@@ -57,6 +59,8 @@ pub enum State {
 #[derive(Default)]
 struct Updates {
     checks: HashMap<String, Check>,
+    /// When a look last read what is published (a failed look leaves it as it was).
+    looked: HashMap<String, SystemTime>,
     offers: HashMap<String, Offer>,
     _schedule: Option<Task<()>>,
 }
@@ -82,6 +86,11 @@ pub fn start(cx: &mut App) {
 /// What the last look at this plugin's location found, if it was looked at.
 pub fn last_check(plugin_id: &str, cx: &App) -> Option<Check> {
     cx.try_global::<Updates>()?.checks.get(plugin_id).cloned()
+}
+
+/// When a look at this plugin's location last read what is published there, since Delight started.
+pub fn last_looked(plugin_id: &str, cx: &App) -> Option<SystemTime> {
+    cx.try_global::<Updates>()?.looked.get(plugin_id).copied()
 }
 
 /// The update offered for this plugin, while it is newer than the one running.
@@ -132,9 +141,10 @@ fn checked(installed: &Manifest, release: Result<Release>, cx: &mut App) {
         }
         Ok(release) if release.newer_than(&installed.plugin) => {
             updates.checks.remove(&id);
+            updates.looked.insert(id.clone(), SystemTime::now());
             // The same version keeps its state; a failed one is tried again.
             let state = match updates.offers.get(&id).filter(|offer| offer.release == release).map(|offer| &offer.state) {
-                Some(State::Downloading(done)) => State::Downloading(*done),
+                Some(downloading @ State::Downloading { .. }) => downloading.clone(),
                 Some(State::AsksForMore) => State::AsksForMore,
                 _ => State::Ready,
             };
@@ -144,7 +154,14 @@ fn checked(installed: &Manifest, release: Result<Release>, cx: &mut App) {
         }
         Ok(_) => {
             updates.checks.insert(id.clone(), Check::UpToDate);
+            updates.looked.insert(id.clone(), SystemTime::now());
             updates.offers.remove(&id);
+            // Its page shows that for a moment in place of Check Now, then the button again.
+            cx.spawn(async move |cx| {
+                cx.background_executor().timer(ANSWER_SHOWN).await;
+                cx.update(|cx| cx.refresh_windows());
+            })
+            .detach();
             false
         }
     };
@@ -162,10 +179,10 @@ fn install_update(plugin_id: &str, automatic: bool, cx: &mut App) {
         return;
     };
     let Some(offer) = cx.global_mut::<Updates>().offers.get_mut(plugin_id) else { return };
-    if matches!(offer.state, State::Downloading(_)) {
+    if matches!(offer.state, State::Downloading { .. }) {
         return;
     }
-    offer.state = State::Downloading(0.);
+    offer.state = State::Downloading { done: 0, total: None };
     let release = offer.release.clone();
     cx.refresh_windows();
     let id = plugin_id.to_string();
@@ -183,9 +200,8 @@ fn install_update(plugin_id: &str, automatic: bool, cx: &mut App) {
         while let Some(message) = moved.next().await {
             match message {
                 Moved::Progress(done, total) => cx.update(|cx| {
-                    let fraction = total.filter(|total| *total > 0).map_or(0., |total| (done as f32 / total as f32).min(1.));
                     if let Some(offer) = cx.global_mut::<Updates>().offers.get_mut(&id) {
-                        offer.state = State::Downloading(fraction);
+                        offer.state = State::Downloading { done, total };
                     }
                     cx.refresh_windows();
                 }),

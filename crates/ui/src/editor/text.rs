@@ -135,6 +135,17 @@ mod tests {
     }
 
     #[test]
+    fn a_completion_is_taken_a_word_at_a_time() {
+        // ⌥→ takes up to `word_right` from the completion's start: the spaces or punctuation before
+        // the word come with it, and what is left after the last word is taken whole.
+        assert_eq!(word_right(" bar baz", 0), 4);
+        assert_eq!(word_right("bar baz", 0), 3);
+        assert_eq!(word_right("/v1/users", 0), 3);
+        assert_eq!(word_right(" baz.", 0), 4);
+        assert_eq!(word_right(".", 0), 1);
+    }
+
+    #[test]
     fn dragging_after_a_double_click_selects_whole_words() {
         let text = "one two three";
         let two = word_at(text, 5);

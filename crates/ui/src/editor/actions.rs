@@ -48,6 +48,7 @@ editor_actions! {
     SelectDocEnd => select_doc_end,
     SelectAll => select_all,
     AcceptCompletion => accept_completion,
+    AcceptCompletionWord => accept_completion_word,
     Newline => newline,
     Copy => copy,
     Cut => cut,

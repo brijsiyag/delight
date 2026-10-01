@@ -22,7 +22,7 @@ const TIPS: &[&str] = &[
 /// Tips about the input history, while it's on.
 const HISTORY_TIPS: &[&str] = &[
     "⌃R searches what you typed before",
-    "Tab takes the grey completion",
+    "Tab or → takes the grey completion, ⌥→ one word of it",
     "⌃N and ⌃P step through older and newer completions",
 ];
 

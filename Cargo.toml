@@ -92,7 +92,7 @@ objc2-app-kit = { version = "=0.3.2", default-features = false, features = [
     "NSGlassEffectView", "NSGraphics", "NSImage", "NSResponder", "NSRunningApplication", "NSView",
     "NSVisualEffectView", "NSWindow", "NSWorkspace", "libc", "objc2-quartz-core",
 ] }
-objc2-foundation = { version = "=0.3.2", default-features = false, features = ["std", "NSArray", "NSGeometry", "NSString", "NSURL"] }
+objc2-foundation = { version = "=0.3.2", default-features = false, features = ["std", "NSArray", "NSDate", "NSDateFormatter", "NSFormatter", "NSGeometry", "NSString", "NSURL"] }
 # Plugin updates: the feed is XML (the version `plist` already links), plugin versions are
 # SemVer (the version already in the lock).
 quick-xml = { version = "=0.42.0", features = ["serialize"] }

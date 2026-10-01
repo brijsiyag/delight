@@ -67,7 +67,8 @@ impl SettingsWindow {
             toggle(
                 "input-history",
                 "Remember inputs",
-                Some("The input comes back at launch, and what tools remembered completes what you type"),
+                // One line: a second would fill the row to its edges.
+                Some("The input comes back at launch, and what tools remembered completes it"),
                 current.input_history,
                 |settings, on| settings.input_history = on,
                 t,

@@ -1,6 +1,6 @@
 //! [`Keycap`]: a `⌘1`-style shortcut hint, and how macOS writes keys.
 
-use gpui::{Action, App, FontWeight, IntoElement, Keystroke, Modifiers, ParentElement, RenderOnce, SharedString, Styled, Window, div, px};
+use gpui::{Action, App, FocusHandle, FontWeight, IntoElement, Keystroke, Modifiers, ParentElement, RenderOnce, SharedString, Styled, Window, div, px};
 
 use crate::ActiveTheme;
 
@@ -96,10 +96,13 @@ pub fn keystroke_label(keystroke: &Keystroke) -> String {
     keystroke_keys(keystroke).concat()
 }
 
-/// The keystroke the keymap binds to `action` where the focus is now (the
-/// user's binding over the default), e.g. for a button's shortcut hint.
-pub fn keystroke_for(action: &dyn Action, window: &Window) -> Option<Keystroke> {
-    let binding = window.highest_precedence_binding_for_action(action)?;
+/// The keystroke the keymap binds to `action` for the element that tracks
+/// `focus`, in its key contexts (the user's binding over the default), e.g. for
+/// a button's shortcut hint. Not GPUI's `highest_precedence_binding_for_action`:
+/// that matches what its last frame happened to leave on its context stack,
+/// which changes from frame to frame, so the hint came and went.
+pub fn keystroke_for(action: &dyn Action, focus: &FocusHandle, window: &Window) -> Option<Keystroke> {
+    let binding = window.highest_precedence_binding_for_action_in(action, focus)?;
     // Hints show single keystrokes only.
     match binding.keystrokes() {
         [keystroke] => Some(keystroke.inner().clone()),

@@ -51,6 +51,10 @@ pub fn key_bindings() -> Vec<KeyBinding> {
         KeyBinding::new("ctrl-cmd-space", ShowCharacterPalette, Some(CONTEXT)),
         KeyBinding::new("shift-enter", Newline, Some("Editor && multiline")),
         KeyBinding::new("alt-enter", Newline, Some("Editor && multiline")),
+        // While a completion shows: Tab or → takes all of it, ⌥Tab or ⌥→ its next word.
         KeyBinding::new("tab", AcceptCompletion, Some("Editor && showing_completion")),
+        KeyBinding::new("right", AcceptCompletion, Some("Editor && showing_completion")),
+        KeyBinding::new("alt-tab", AcceptCompletionWord, Some("Editor && showing_completion")),
+        KeyBinding::new("alt-right", AcceptCompletionWord, Some("Editor && showing_completion")),
     ]
 }

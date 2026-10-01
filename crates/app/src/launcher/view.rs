@@ -5,11 +5,11 @@ use delight_protocol::ActionStyle;
 use delight_runtime::Plugin;
 use delight_ui::theme::INPUT_LINE_HEIGHT;
 use delight_ui::{
-    ActiveTheme, Button, ButtonVariant, Caption, Divider, Icon, IconButton, IconName, Keycap, KeycapStyle, LogoBadge, Theme, h_flex,
-    keystroke_for, keystroke_label, v_flex,
+    ActiveTheme, Button, ButtonVariant, Caption, Divider, Icon, IconButton, IconName, Keycap, KeycapStyle, LogoBadge, Sizable as _,
+    Theme, h_flex, keystroke_for, keystroke_label, v_flex,
 };
 use gpui::{
-    AnyElement, Context, Div, FocusHandle, Focusable, FontWeight, IntoElement, KeyDownEvent, MouseButton, ParentElement,
+    AnyElement, App, Context, Div, FocusHandle, Focusable, FontWeight, IntoElement, KeyDownEvent, MouseButton, ParentElement,
     Render, Stateful, Styled, Window, div, prelude::*, px,
 };
 
@@ -18,7 +18,7 @@ use super::{
     FocusTool, FocusTools, Launcher, NewerCompletion, OlderCompletion, OpenSettings, SelectNext, SelectPrevious,
     SelectTool, TOOL_CONTEXT, TOOL_LIST_CONTEXT, ToolIds, find, hide, history_search,
 };
-use crate::{macos, plugin_windows, plugins, settings_window};
+use crate::{macos, plugin_windows, plugins, settings, settings_window};
 
 const LIST_WIDTH: f32 = 200.;
 const FOOTER_HEIGHT: f32 = 44.;
@@ -76,8 +76,12 @@ impl Render for Launcher {
             .on_action(cx.listener(|this, _: &history_search::Confirm, window, cx| this.confirm_history(None, window, cx)))
             .on_action(cx.listener(|this, _: &history_search::Cancel, window, cx| this.close_history(window, cx)))
             .on_key_down(cx.listener(Self::on_key_down))
-            // A click anywhere in it brings it in front of the plugins' windows.
-            .capture_any_mouse_down(|_, window, cx| plugin_windows::raise(window, cx))
+            // A click anywhere in it brings it in front of the plugins' windows, and gives it back the
+            // keyboard if another app took it.
+            .capture_any_mouse_down(|_, window, cx| {
+                plugin_windows::raise(window, cx);
+                super::window::clicked(window, cx);
+            })
             .child(self.render_bar(&t, cx));
         if let Some(search) = &self.history {
             return root.child(Divider::horizontal()).child(self.render_history(search, &t, cx));
@@ -176,7 +180,8 @@ impl Launcher {
             let on_accent = selected && focused;
             let hover = t.fill_subtle();
             // Only the first nine tools have a key (⌘1 to ⌘9): looking one up for each of dozens costs every frame.
-            let keystroke = if i < 9 { keystroke_for(&SelectTool(i + 1), window) } else { None };
+            // They are the launcher's keys, wherever in it the focus is.
+            let keystroke = if i < 9 { keystroke_for(&SelectTool(i + 1), &self.focus_handle, window) } else { None };
             list = list.child(
                 h_flex()
                     .id(("tool", i))
@@ -255,7 +260,8 @@ impl Launcher {
                     .text_color(t.text_faint)
                     .truncate()
                     .children(plugin_name),
-            );
+            )
+            .children(plugin_update(plugin, t, cx));
         let detail = detail.child(header);
         // A plugin that stopped isn't called again: say so instead.
         if let Some(reason) = plugin.stopped() {
@@ -330,11 +336,15 @@ impl Launcher {
             }
             actions = actions.child(button);
         }
-        let actions = actions.child(
-            IconButton::new("settings", IconName::Settings)
-                .tooltip("Settings")
-                .on_click(|_, _, cx| cx.defer(settings_window::open)),
-        );
+        // Only while losing the keyboard would hide the launcher: with that setting off, it stays up anyway.
+        let pin = settings::get(cx).hide_on_blur.then(|| {
+            let tooltip = if self.pinned { "Pinned: stays open until it is hidden" } else { "Keep open while using other apps" };
+            // On, it is filled: the same colour, no tint behind it.
+            IconButton::new("pin", if self.pinned { IconName::PinFilled } else { IconName::Pin })
+                .tooltip(tooltip)
+                .on_click(cx.listener(|this, _, _, cx| this.toggle_pin(cx)))
+        });
+        let actions = actions.children(pin);
         // The footer is a handle for moving the window.
         h_flex()
             .on_mouse_down(MouseButton::Left, |_, window, _| window.start_window_move())
@@ -347,6 +357,25 @@ impl Launcher {
             .child(div().min_w(px(0.)).truncate().children(toast))
             .child(actions)
     }
+}
+
+/// A newer version of the tool's plugin, as its settings page offers it: a button that installs it,
+/// or how far its download has come.
+fn plugin_update(plugin: &Plugin, t: &Theme, cx: &App) -> Option<AnyElement> {
+    use plugins::updates::{self, State};
+    let id = plugin.manifest().plugin.id.clone();
+    let offer = updates::offer(&id, cx)?;
+    let label = match &offer.state {
+        State::Downloading { done, total } => {
+            let done = format!("Downloading… {}", plugins::download_size(*done, *total));
+            return Some(div().flex_shrink_0().text_size(t.text_size_small()).text_color(t.text_muted).child(done).into_any_element());
+        }
+        State::Ready => format!("Update to {}", delight_ui::ellipsize(&delight_ui::one_line(&offer.release.version), 30)),
+        State::AsksForMore => "Review Update…".to_string(),
+        State::Failed(_) => "Retry Update".to_string(),
+    };
+    let button = Button::new("update-plugin", label).text().small().icon(IconName::RefreshCw).on_click(move |_, _, cx| updates::update(&id, cx));
+    Some(button.into_any_element())
 }
 
 /// An operation's title.

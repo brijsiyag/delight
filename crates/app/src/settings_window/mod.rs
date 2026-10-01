@@ -26,7 +26,7 @@ use gpui::{
     prelude::*, px, size,
 };
 
-use crate::hotkey;
+use crate::{hotkey, launcher};
 use crate::plugins::{self as loaded, Broken, Source};
 pub(crate) use plugins::{OpenPermissions, file_name, permission_rows};
 use plugins::SettingsPage;
@@ -72,6 +72,9 @@ pub struct SettingsWindow {
     settings_page: Option<SettingsPage>,
     /// The Install Plugin… button's menu is open.
     install_menu: bool,
+    /// A plugin or a file that doesn't load was deleted from its page: its file, and the page beside
+    /// it. The page stays selected until the sidebar no longer lists it, then that one takes its place.
+    deleted: Option<(PathBuf, Page)>,
     _subscriptions: Vec<Subscription>,
 }
 
@@ -81,11 +84,41 @@ impl Global for OpenSettingsWindow {}
 
 /// Open the settings window, or bring it forward if it's open.
 pub fn open(cx: &mut App) {
+    open_on(None, cx);
+}
+
+/// Open the settings window on a plugin's own page.
+pub fn open_plugin(plugin_id: String, cx: &mut App) {
+    open_on(Some(Page::Plugin(plugin_id)), cx);
+}
+
+/// Open the window, or bring it forward, on `page` if one is given. The launcher hides first, so the
+/// window comes up in its place rather than under it.
+fn open_on(page: Option<Page>, cx: &mut App) {
+    launcher::hide_then(
+        move |cx| {
+            let Some(handle) = show(cx) else { return };
+            if let Some(page) = page {
+                handle
+                    .update(cx, |this, _, cx| {
+                        this.page = page;
+                        this.deleted = None;
+                        cx.notify();
+                    })
+                    .ok();
+            }
+        },
+        cx,
+    );
+}
+
+/// Open the window, or bring it forward if it's open.
+fn show(cx: &mut App) -> Option<WindowHandle<SettingsWindow>> {
     cx.activate(true);
     if let Some(handle) = cx.try_global::<OpenSettingsWindow>().map(|open| open.0)
         && handle.update(cx, |_, window, _| window.activate_window()).is_ok()
     {
-        return;
+        return Some(handle);
     }
     let options = WindowOptions {
         window_bounds: Some(WindowBounds::Windowed(Bounds::centered(None, size(px(WIDTH), px(HEIGHT)), cx))),
@@ -107,21 +140,12 @@ pub fn open(cx: &mut App) {
         Ok(handle) => {
             handle.update(cx, |this, window, cx| window.focus(&this.focus_handle, cx)).ok();
             cx.set_global(OpenSettingsWindow(handle));
+            Some(handle)
         }
-        Err(error) => log::error!("opening the settings: {error:#}"),
-    }
-}
-
-/// Open the settings window on a plugin's own page.
-pub fn open_plugin(plugin_id: String, cx: &mut App) {
-    open(cx);
-    if let Some(handle) = cx.try_global::<OpenSettingsWindow>().map(|open| open.0) {
-        handle
-            .update(cx, |this, _, cx| {
-                this.page = Page::Plugin(plugin_id);
-                cx.notify();
-            })
-            .ok();
+        Err(error) => {
+            log::error!("opening the settings: {error:#}");
+            None
+        }
     }
 }
 
@@ -157,6 +181,7 @@ impl SettingsWindow {
             open_permissions: Default::default(),
             settings_page: None,
             install_menu: false,
+            deleted: None,
             _subscriptions: subscriptions,
         }
     }
@@ -176,7 +201,9 @@ impl SettingsWindow {
         }
     }
 
-    fn render_sidebar(&self, t: &Theme, cx: &mut Context<Self>) -> impl IntoElement {
+    /// The plugins and the files that don't load, built in or installed, as the sidebar lists them
+    /// under General: in its order, those the search leaves.
+    fn listed(&self, built_in: bool, cx: &App) -> Vec<Page> {
         let query = self.search.read(cx).text().trim().to_lowercase();
         let matches = |text: &str| query.is_empty() || text.to_lowercase().contains(&query);
         let plugin_matches = |plugin: &Plugin| {
@@ -186,6 +213,44 @@ impl SettingsWindow {
                 || manifest.operations.iter().any(|operation| matches(&operation.title) || matches(&operation.description))
         };
         let (all, sources, broken) = (loaded::all(cx), loaded::sources(cx), loaded::broken(cx));
+        let running = all
+            .iter()
+            .zip(sources.iter())
+            .filter(|(plugin, source)| source.built_in == built_in && plugin_matches(plugin))
+            .map(|(plugin, _)| Page::Plugin(plugin.manifest().plugin.id.clone()));
+        let files = broken
+            .iter()
+            .filter(|file| file.source.built_in == built_in && matches(&plugins::file_name(&file.source.file)))
+            .map(|file| Page::Broken(file.source.file.clone()));
+        running.chain(files).collect()
+    }
+
+    /// The page beside `page` in the sidebar: the one below it, or else the one above.
+    fn beside(&self, page: &Page, cx: &App) -> Page {
+        let pages: Vec<Page> = std::iter::once(Page::General).chain(self.listed(true, cx)).chain(self.listed(false, cx)).collect();
+        let Some(index) = pages.iter().position(|listed| listed == page) else { return Page::General };
+        pages.get(index + 1).or_else(|| pages.get(index.checked_sub(1)?)).cloned().unwrap_or(Page::General)
+    }
+
+    /// The shown page's plugin or file was deleted, from `file`: keep the page until the sidebar
+    /// no longer lists it (a plugin stops a moment later), so the selection doesn't move first.
+    fn deleted(&mut self, file: PathBuf, cx: &App) {
+        self.deleted = Some((file.clone(), self.beside(&self.page, cx)));
+    }
+
+    /// A deleted plugin or file is no longer listed: the page beside it takes its place, if its page
+    /// is still the one shown.
+    fn follow_deletion(&mut self, cx: &App) {
+        let Some((file, _)) = &self.deleted else { return };
+        let listed = loaded::sources(cx).iter().any(|source| source.file == *file)
+            || loaded::broken(cx).iter().any(|broken| broken.source.file == *file);
+        if !listed && let Some((_, next)) = self.deleted.take() {
+            self.page = next;
+        }
+    }
+
+    fn render_sidebar(&self, t: &Theme, cx: &mut Context<Self>) -> impl IntoElement {
+        let (all, broken) = (loaded::all(cx), loaded::broken(cx));
         let shown = self.page.clone();
         let entry = |id: ElementId, icon: AnyElement, label: String, page: Page, cx: &mut Context<Self>| {
             let selected = shown == page;
@@ -204,6 +269,7 @@ impl SettingsWindow {
                 .child(div().flex_1().min_w(px(0.)).truncate().child(label))
                 .on_click(cx.listener(move |this, _, _, cx| {
                     this.page = page.clone();
+                    this.deleted = None;
                     cx.notify();
                 }))
                 .into_any_element()
@@ -211,20 +277,20 @@ impl SettingsWindow {
         // The plugins, and the files that don't load, built in or installed.
         let group = |built_in: bool, cx: &mut Context<Self>| -> Vec<AnyElement> {
             let mut entries = Vec::new();
-            for (index, (plugin, source)) in all.iter().zip(sources.iter()).enumerate() {
-                if source.built_in == built_in && plugin_matches(plugin) {
-                    let properties = &plugin.manifest().plugin;
-                    let logo = LogoBadge::new(properties.icon.as_bytes()).size(px(18.)).into_any_element();
-                    let page = Page::Plugin(properties.id.clone());
-                    entries.push(entry(("plugin", index).into(), logo, properties.name.clone(), page, cx));
-                }
-            }
-            for (index, file) in broken.iter().enumerate() {
-                let name = plugins::file_name(&file.source.file);
-                if file.source.built_in == built_in && matches(&name) {
-                    let warning = Icon::new(IconName::TriangleAlert).size(px(18.)).color(t.warning).into_any_element();
-                    let page = Page::Broken(file.source.file.clone());
-                    entries.push(entry(("broken", index).into(), warning, name, page, cx));
+            for page in self.listed(built_in, cx) {
+                match &page {
+                    Page::Plugin(id) => {
+                        let Some((index, plugin)) = all.iter().enumerate().find(|(_, plugin)| plugin.manifest().plugin.id == *id) else { continue };
+                        let properties = &plugin.manifest().plugin;
+                        let logo = LogoBadge::new(properties.icon.as_bytes()).size(px(18.)).into_any_element();
+                        entries.push(entry(("plugin", index).into(), logo, properties.name.clone(), page.clone(), cx));
+                    }
+                    Page::Broken(file) => {
+                        let Some(index) = broken.iter().position(|broken| broken.source.file == *file) else { continue };
+                        let warning = Icon::new(IconName::TriangleAlert).size(px(18.)).color(t.warning).into_any_element();
+                        entries.push(entry(("broken", index).into(), warning, plugins::file_name(file), page.clone(), cx));
+                    }
+                    Page::General => {}
                 }
             }
             entries
@@ -296,6 +362,7 @@ impl Focusable for SettingsWindow {
 impl Render for SettingsWindow {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let t = cx.theme().clone();
+        self.follow_deletion(cx);
         let shown = self.shown(cx);
         // A plugin's settings page lives while its page shows.
         if !matches!(shown, Shown::Plugin(..)) {

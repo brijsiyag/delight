@@ -262,7 +262,7 @@ fork's `delight` branch.
     don't load, Install Plugin…). In three parts: the settings file and the
     General page (the shortcut, hiding, pasting on open, appearance, the
     input history, open at login), opened from the tray, ⌘, and the
-    footer's ⚙. Then the plugin pages: their tools, each with its own switch
+    footer's ⚙ (gone since 2026-10-01). Then the plugin pages: their tools, each with its own switch
     (turned-off plugins and tools are stored apart, and a tool runs only
     while both are on), permissions, on and off, delete, show in Finder,
     plugins that don't load, and installing with a sheet that lists the

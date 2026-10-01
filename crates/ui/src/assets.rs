@@ -65,6 +65,9 @@ icons![
     Lightbulb => "lightbulb",
     Maximize => "maximize-2",
     Moon => "moon",
+    Pin => "pin",
+    // Not Lucide's: its pin with the head filled, for a pin that is on.
+    PinFilled => "pin-filled",
     Plus => "plus",
     Puzzle => "puzzle",
     RefreshCw => "refresh-cw",

@@ -20,6 +20,24 @@ pub fn download(location: &str, release: &Release, progress: impl FnMut(u64, Opt
     save_download(&downloaded)
 }
 
+/// How far a download has come, 0 to 1: 0 while its size isn't known.
+pub fn download_fraction(done: u64, total: Option<u64>) -> f32 {
+    total.filter(|total| *total > 0).map_or(0., |total| (done as f32 / total as f32).min(1.))
+}
+
+/// How much of a download has come: "1.2/3.4 MB", or "1.2 MB" while its size isn't known.
+pub fn download_size(done: u64, total: Option<u64>) -> String {
+    match total.filter(|total| *total > 0) {
+        Some(total) => format!("{:.1}/{}", done as f64 / 1_000_000., megabytes(total)),
+        None => megabytes(done),
+    }
+}
+
+/// A size in megabytes as macOS counts them (a million bytes): "3.4 MB".
+pub fn megabytes(bytes: u64) -> String {
+    format!("{:.1} MB", bytes as f64 / 1_000_000.)
+}
+
 /// Keep a downloaded plugin in Delight's caches, where installing copies it from.
 pub(super) fn save_download(downloaded: &Downloaded) -> anyhow::Result<PathBuf> {
     let dir = crate::cache_dir().join("downloaded-plugins");
@@ -93,4 +111,21 @@ pub fn delete_file(file: &Path, cx: &mut App) -> anyhow::Result<()> {
     std::fs::remove_file(file).with_context(|| format!("removing {}", file.display()))?;
     forget_file(file, cx);
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn a_download_says_how_many_megabytes_have_come() {
+        assert_eq!(download_size(1_234_567, Some(3_400_000)), "1.2/3.4 MB");
+        assert_eq!(download_size(0, Some(3_400_000)), "0.0/3.4 MB");
+        assert_eq!(download_size(1_234_567, None), "1.2 MB", "the size isn't known");
+        assert_eq!(download_size(1_234_567, Some(0)), "1.2 MB", "a size of nothing isn't one");
+        assert_eq!(megabytes(3_400_000), "3.4 MB");
+        assert_eq!(download_fraction(500, Some(1000)), 0.5);
+        assert_eq!(download_fraction(500, None), 0.);
+        assert_eq!(download_fraction(2000, Some(1000)), 1., "never past the end");
+    }
 }
