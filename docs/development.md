@@ -126,6 +126,85 @@ The tasks use only the team's certificates. To release from another deliberately
 `DEVELOPER_TEAM_ID` and `DEVELOPER_ID_APPLICATION` (the certificate's name) together; set
 `NOTARY_PROFILE` if the keychain profile has another name.
 
+## The embedded_gpui fork
+
+Since 2026-09-30 Delight (and so every plugin, through the plugin API) uses embedded_gpui from
+the fork, `github.com/brijsiyag/embedded_gpui`, branch `delight`, instead of upstream
+(`zed-industries/embedded_gpui`). The branch is upstream's `surfaces-as-roots` (`ceb0df8`,
+what Delight used before) plus two commits of ours, each small, tested in upstream's own suite,
+and meant to be proposed upstream. It goes back to upstream as soon as upstream has both.
+
+**Why.** A plugin keeps one invisible copy of each Delight window, and every view it draws in
+that window is placed in the copy where its surface is. The launcher shows one tool at a time,
+but all the tools of a plugin that had been opened stayed in its copy, in the same place, one on
+top of the other: the one opened last took the clicks and scrolling meant for the one shown
+(scrolling one tool scrolled another), and every one of them was laid out and drawn on every
+frame, so each tool opened made them all slower. Upstream has no way for a host to take a
+surface out.
+
+**The first commit: hidden surfaces.** The host gets `Surface::set_hidden(bool)`. A hidden surface keeps its last
+picture and tells the plugin its slot is empty, and the plugin's side of embedded_gpui detaches
+the view: it keeps its state but draws nothing and gets no input, until the surface is shown
+again. No new message crosses between the app and a plugin (an empty `resize` is the signal),
+so a plugin that isn't rebuilt behaves as before. The commit has a test in upstream's suite
+(`tests/objects.rs`, `test_hidden_surfaces_take_no_input_and_keep_their_state`) and a note in
+its `DESIGN.md` (invariant 8), and is small enough to propose upstream. Delight uses it in the
+launcher (`Launcher::show_only`): only the selected tool is shown, and none while the launcher
+is hidden.
+
+**The second commit: a compile cache.** Every start compiled each plugin from its `.wasm`
+(~250 ms and ~200 MB each), and Delight couldn't cache it: embedded_gpui makes wasmtime's
+settings itself. The app makes one `CompileCache` (wasmtime's own cache, in a folder) and gives
+every plugin a clone with `PluginOptions::with_compile_cache` (keyed by the component's contents
+and the engine's settings, so a changed plugin compiles again; one worker prunes the folder).
+Delight makes it in `plugins::load`, in `~/Library/Caches/Delight/compiled`. Test: `test_a_compile_cache_keeps_compiled_components`.
+
+**Keeping it up to date.** The branch is two commits on top of upstream: when upstream moves
+(merges `surfaces-as-roots` into `main`, or adds commits), fetch it, rebase `delight` onto it,
+push, and move Delight's `rev`, then rebuild every plugin (the plugin side of embedded_gpui is
+compiled into each `.wasm`).
+
+**Back to upstream.** When upstream has a way to hide a surface and a compile cache (these
+commits or its own), point `embedded_gpui` in the root `Cargo.toml` back at
+`zed-industries/embedded_gpui` and that commit, use upstream's API in `ToolPane::set_shown` and
+`plugins/loading.rs` if it differs, delete this section, and rebuild the plugins. If upstream
+takes one of them first, drop that commit from the branch.
+
+**Waiting on upstream, not forked** (decided 2026-10-01). Three more changes were designed and
+set aside: each is small, but each is one more commit to carry and rebase, so they wait for
+upstream to have them (these designs, proposed there, or its own). Nothing in Delight blocks on
+them. What each is, the fix to propose, and what Delight does once it lands:
+
+- *Off-screen surfaces cost as much as shown ones.* A plugin's settings page draws each section
+  on its own surface and the app scrolls the page. On every scroll frame every card moves, so
+  `Surface` sends every view a resize, the plugin re-places, lays out and draws every view, and
+  the host replays every display list, the off-screen ones included: the cost grows with the
+  sections, not with what shows. Measured headless in a debug build with UI Stress (24 sections,
+  a 7,567 px page): still, 1.3 ms a frame; scrolling, 10.4 ms and 23 surface updates a frame;
+  scrolling with only the on-screen cards placed, 2.5 ms and 1.2. (The measuring test was
+  deleted; it drew the sections in a column headless and timed each frame.) The fix, in
+  `host/surface.rs`: in the canvas of `Surface::render`, `measured` runs and the display list is
+  replayed only when the slot intersects the window's viewport cut by the content mask; off
+  screen, the view keeps the last geometry it got and hears nothing, and coming back it gets its
+  new geometry while the host paints the kept picture at the new place. About ten lines and a
+  test; no wire change. Delight changes nothing when it lands.
+- *The clipboard change reaches the plugin after the key* (`TEMPORARY(clipboard)`, below). The
+  host refreshes its clipboard object on a ⌘ key, but the change becomes an event frame only when
+  GPUI flushes effects after the update, while the key goes out as a synchronous query inside it.
+  The fix: the `key-down` query carries the change (`clipboard: option<option<string>>` on the
+  wit record; `Clipboard::refresh` returns what changed; the guest's `input_query` applies it to
+  the platform's copy before dispatching the key), with a test that ⌘V after copying on the host
+  pastes the new text. A wit change, so every plugin is rebuilt. Delight then removes
+  `TEMPORARY(clipboard)`.
+- *A plugin can't open a URL* (`TEMPORARY(open_url)`, below): the guest platform drops GPUI's
+  `cx.open_url`. The fix, on the clipboard's pattern so the host decides who gets it: a
+  `UrlOpenerApi` object with `open(url)`; a `UrlOpener` entity each host owns that calls GPUI's
+  `cx.open_url` behind a hook the host sets to check the URL first; `use_url_opener` on the
+  guest, whose platform queues the URL and sends it as a call on the next pump; a test that a
+  plugin's `cx.open_url` reaches the host's hook. Delight then removes `TEMPORARY(open_url)`:
+  `HostApi::open_url` becomes a `url_opener` ref (a minor protocol bump), the plugin API wires it
+  like the clipboard, and plugins call `cx.open_url`.
+
 ## Temporary host APIs
 
 Some of what plugins get from the app stands in for what embedded_gpui or WASI

@@ -1,27 +1,28 @@
 //! A plugin's page (its tools, each with its own switch, and its permissions), and the
 //! page of a plugin file that doesn't load.
 
+use std::collections::HashSet;
 use std::path::Path;
 
 use delight_protocol::{PermissionRequest, SettingsSection};
 use delight_runtime::Plugin;
 use embedded_gpui::Surface;
-use delight_ui::{Button, Disableable as _, Icon, IconName, LogoBadge, Switch, Theme, h_flex, section, v_flex};
+use delight_ui::{Button, Disableable as _, Icon, IconName, LogoBadge, StyledExt as _, Switch, Theme, h_flex, section, v_flex};
 use gpui::{
-    AnyElement, App, AppContext as _, ClipboardItem, Context, Entity, FontWeight, IntoElement, ParentElement,
-    PromptLevel, SharedString, Styled, Task, div, prelude::*, px,
+    AnyElement, App, AppContext as _, ClickEvent, ClipboardItem, Context, Entity, FontWeight, IntoElement, ParentElement,
+    PromptLevel, SharedString, Styled, Task, Window, div, prelude::*, px,
 };
 
-use super::{Page, SettingsWindow, item};
+use super::{ITEM_ICON, Page, SettingsWindow, item};
 use crate::plugins::{self, Broken, Source};
 use crate::settings;
 
 /// The shown plugin's own settings: the sections it says it has, each with a surface it
 /// draws its content on. Made when its page first shows, and kept while it shows.
 pub(super) struct SettingsPage {
-    plugin_id: String,
-    /// Which start of the plugins it was asked of.
-    generation: u64,
+    /// The plugin instance it was asked of, and its sections' surfaces are opened on: when the
+    /// plugin starts again (its file changed, an update), the page is asked of the new one.
+    plugin: Plugin,
     /// In the plugin's order. Empty until it has answered, and for a plugin without
     /// settings.
     sections: Vec<SectionSurface>,
@@ -41,12 +42,10 @@ struct SectionSurface {
 
 impl SettingsWindow {
     /// The plugin's settings sections, asked for when its page first shows (and again
-    /// when the plugins have started again, or the plugin says they changed): what the
+    /// when the plugin has started again, or it says they changed): what the
     /// page draws now, each as (title, height, footer, content).
     fn settings_sections(&mut self, plugin: &Plugin, cx: &mut Context<Self>) -> Vec<(String, f32, String, Entity<Surface>)> {
-        let id = plugin.manifest().plugin.id.clone();
-        let generation = plugins::generation(cx);
-        let asked = self.settings_page.as_ref().is_some_and(|page| page.plugin_id == id && page.generation == generation);
+        let asked = self.settings_page.as_ref().is_some_and(|page| page.plugin.same_instance(plugin));
         if !asked {
             if plugin.stopped().is_some() {
                 self.settings_page = None;
@@ -57,7 +56,7 @@ impl SettingsWindow {
                 this.update(cx, |this, cx| this.ask_sections(cx)).ok();
             });
             self.settings_page =
-                Some(SettingsPage { plugin_id: id, generation, sections: Vec::new(), _asking: Vec::new(), _observing: observing });
+                Some(SettingsPage { plugin: plugin.clone(), sections: Vec::new(), _asking: Vec::new(), _observing: observing });
             self.ask_sections_of(plugin.clone(), cx);
         }
         let Some(page) = self.settings_page.as_ref() else { return Vec::new() };
@@ -71,18 +70,15 @@ impl SettingsWindow {
     /// The plugin said its sections changed: ask again.
     fn ask_sections(&mut self, cx: &mut Context<Self>) {
         let Some(page) = &self.settings_page else { return };
-        let id = page.plugin_id.clone();
-        if let Some(plugin) = plugins::all(cx).iter().find(|plugin| plugin.manifest().plugin.id == id).cloned() {
-            self.ask_sections_of(plugin, cx);
-        }
+        let plugin = page.plugin.clone();
+        self.ask_sections_of(plugin, cx);
     }
 
     fn ask_sections_of(&mut self, plugin: Plugin, cx: &mut Context<Self>) {
         let asked = plugin.settings_sections(cx);
-        let (plugin_id, generation) = (plugin.manifest().plugin.id.clone(), plugins::generation(cx));
         let task = cx.spawn(async move |this, cx| {
             let sections = asked.await.unwrap_or_default();
-            this.update(cx, |this, cx| this.apply_sections(&plugin, &plugin_id, generation, sections, cx)).ok();
+            this.update(cx, |this, cx| this.apply_sections(&plugin, sections, cx)).ok();
         });
         if let Some(page) = &mut self.settings_page {
             page._asking.push(task);
@@ -90,10 +86,11 @@ impl SettingsWindow {
     }
 
     /// The plugin's sections are these: keep the ones it still has (with what it now says),
-    /// drop the others, and have it draw the new ones.
-    fn apply_sections(&mut self, plugin: &Plugin, plugin_id: &str, generation: u64, sections: Vec<SettingsSection>, cx: &mut Context<Self>) {
+    /// drop the others, and have it draw the new ones. An answer from an instance the page no longer
+    /// shows is dropped.
+    fn apply_sections(&mut self, plugin: &Plugin, sections: Vec<SettingsSection>, cx: &mut Context<Self>) {
         let Some(page) = &mut self.settings_page else { return };
-        if page.plugin_id != plugin_id || page.generation != generation {
+        if !page.plugin.same_instance(plugin) {
             return;
         }
         let mut old = std::mem::take(&mut page.sections);
@@ -155,7 +152,7 @@ impl SettingsWindow {
                         settings::update(cx, |settings| settings.set_tool_on(&plugin_id, &tool, *on))
                     });
                 item(
-                    LogoBadge::new(icon.as_bytes()).size(px(30.)).into_any_element(),
+                    LogoBadge::new(icon.as_bytes()).size(px(ITEM_ICON)).into_any_element(),
                     operation.title.clone().into(),
                     Some(operation.description.clone().into()),
                     Some(switch.into_any_element()),
@@ -208,28 +205,59 @@ impl SettingsWindow {
         v_flex()
             .gap(px(18.))
             .when(!manifest.plugin.description.is_empty(), |page| {
-                page.child(div().text_color(t.text_muted).child(manifest.plugin.description.clone()))
+                // At most four lines: the rest is cut with an ellipsis.
+                page.child(div().text_color(t.text_muted).clamp_lines(4).child(delight_ui::ellipsize(&manifest.plugin.description, 700)))
             })
             .children(stopped)
+            .children(updates_section(plugin, source, t, cx))
             .child(section("Tools", tools))
-            .child(section("Permissions", permission_rows(&manifest.plugin.permissions, t)))
+            .child(section("Permissions", self.permissions_of(&manifest.plugin.id, &manifest.plugin.permissions, t, cx)))
             // The plugin's own sections, as cards like the ones above: the app draws each
             // title and card, the plugin the rows inside.
-            .children(self.settings_sections(plugin, cx).into_iter().map(|(title, height, footer, surface)| {
-                let content = div().h(px(height)).overflow_hidden().child(surface).into_any_element();
-                v_flex()
-                    .gap(px(6.))
-                    .child(section(title, vec![content]))
-                    .when(!footer.is_empty(), |column| {
-                        column.child(div().px(px(4.)).text_size(t.text_size_small()).text_color(t.text_muted).child(footer))
+            .children({
+                let cards: Vec<AnyElement> = self
+                    .settings_sections(plugin, cx)
+                    .into_iter()
+                    .map(|(title, height, footer, surface)| {
+                        let content = div().h(px(height)).overflow_hidden().child(surface).into_any_element();
+                        v_flex()
+                            .gap(px(6.))
+                            .child(section(title, vec![content]))
+                            .when(!footer.is_empty(), |column| {
+                                column.child(
+                                    div().px(px(4.)).text_size(t.text_size_small()).text_color(t.text_muted).clamp_lines(3).child(delight_ui::ellipsize(&footer, 400)),
+                                )
+                            })
+                            .into_any_element()
                     })
-            }))
+                    .collect();
+                cards
+            })
             // Last of the plugin's own sections: tips are the least needed.
             .when(!manifest.plugin.tips.is_empty(), |page| {
                 page.child(section("Tips", tip_rows(&manifest.plugin.tips, t)))
             })
             .child(footer)
             .into_any_element()
+    }
+
+    /// The plugin's permission rows, each opening and closing on a click; which are open is kept per
+    /// plugin while the window lives.
+    fn permissions_of(&self, plugin_id: &str, permissions: &[PermissionRequest], t: &Theme, cx: &mut Context<Self>) -> Vec<AnyElement> {
+        let closed = OpenPermissions::default();
+        let open = self.open_permissions.get(plugin_id).unwrap_or(&closed);
+        permission_rows(
+            permissions,
+            open,
+            |index| {
+                let plugin_id = plugin_id.to_string();
+                Box::new(cx.listener(move |this, _: &ClickEvent, _, cx| {
+                    this.open_permissions.entry(plugin_id.clone()).or_default().toggle(index);
+                    cx.notify();
+                }))
+            },
+            t,
+        )
     }
 
     /// The page of a file that doesn't load: why, and deleting it.
@@ -297,10 +325,11 @@ impl SettingsWindow {
 }
 
 /// A plugin's header: its logo, name and what it is, and its switch.
-pub(super) fn plugin_header(plugin: &Plugin, source: &Source, t: &Theme, cx: &App) -> AnyElement {
+pub(super) fn plugin_header(plugin: &Plugin, t: &Theme, cx: &App) -> AnyElement {
     let properties = &plugin.manifest().plugin;
-    let kind = if source.built_in { "Built-in" } else { "Installed" };
-    let by = if properties.author.is_empty() { properties.id.clone() } else { format!("by {}", properties.author) };
+    // The same line as the install window's: who made it, its version, and its id.
+    let (author, version) = (delight_ui::ellipsize(&delight_ui::one_line(&properties.author), 100), delight_ui::ellipsize(&delight_ui::one_line(&properties.version), 60));
+    let by = if author.is_empty() { format!("Version {version}") } else { format!("{author} · Version {version}") };
     let id = properties.id.clone();
     let switch = Switch::new("plugin-on")
         .checked(settings::get(cx).plugin_on(&id))
@@ -312,13 +341,17 @@ pub(super) fn plugin_header(plugin: &Plugin, source: &Source, t: &Theme, cx: &Ap
             v_flex()
                 .flex_1()
                 .min_w(px(0.))
-                .child(div().text_size(px(20.)).font_weight(FontWeight::SEMIBOLD).child(properties.name.clone()))
+                // One line each, ending in an ellipsis when there is more.
+                .child(div().text_size(px(20.)).font_weight(FontWeight::SEMIBOLD).truncate().child(delight_ui::ellipsize(&delight_ui::one_line(&properties.name), 160)))
                 .child(
-                    div()
+                    h_flex()
                         .mt(px(2.))
+                        .gap(px(6.))
                         .text_size(px(12.))
-                        .text_color(t.text_muted)
-                        .child(format!("{kind} · {} · {by}", properties.version)),
+                        // Each ends in its own ellipsis when the line is too short for both.
+                        .child(div().min_w(px(0.)).truncate().text_color(t.text_muted).child(by))
+                        .child(div().flex_shrink_0().text_color(t.text_faint).child("·"))
+                        .child(div().min_w(px(0.)).truncate().text_color(t.text_faint).child(delight_ui::ellipsize(&properties.id, 128))),
                 ),
         )
         .child(switch)
@@ -351,43 +384,79 @@ pub(super) fn broken_header(broken: &Broken, t: &Theme) -> AnyElement {
         .into_any_element()
 }
 
-/// The rows of a Permissions section: one per permission, all on show, nothing behind a tooltip:
-/// an icon; the permission's name with what it allows beside it; the plugin's own reason under
-/// that; and, for a permission that lists things (the programs `Commands` runs), each as a chip.
-/// Or one row saying there are none.
-pub(super) fn permission_rows(permissions: &[PermissionRequest], t: &Theme) -> Vec<AnyElement> {
+/// Which of a plugin's permission rows are open: none, until one is clicked.
+#[derive(Debug, Default)]
+pub(crate) struct OpenPermissions(HashSet<usize>);
+
+impl OpenPermissions {
+    pub(crate) fn is_open(&self, index: usize) -> bool {
+        self.0.contains(&index)
+    }
+
+    pub(crate) fn toggle(&mut self, index: usize) {
+        if !self.0.remove(&index) {
+            self.0.insert(index);
+        }
+    }
+}
+
+/// What a click on a permission's row does: the view that draws the rows makes one for each.
+pub(crate) type Toggle = Box<dyn Fn(&ClickEvent, &mut Window, &mut App)>;
+
+/// The rows of a Permissions section: one per permission. Each shows an icon, the permission's name
+/// and the plugin's own reason in one line; click it (or its chevron) for the reason in full, what
+/// the permission allows, and, for a permission that lists things (the programs `Commands` runs),
+/// each as a chip. Or one row saying there are none.
+pub(crate) fn permission_rows(
+    permissions: &[PermissionRequest],
+    open: &OpenPermissions,
+    toggle: impl Fn(usize) -> Toggle,
+    t: &Theme,
+) -> Vec<AnyElement> {
     if permissions.is_empty() {
         let check = Icon::new(IconName::CircleCheck).size(px(18.)).color(t.success).into_any_element();
         return vec![item(check, "Needs no permissions".into(), None, None, t)];
     }
-    permissions.iter().map(|request| permission_row(request, t)).collect()
+    let last = permissions.len() - 1;
+    permissions
+        .iter()
+        .enumerate()
+        .map(|(index, request)| permission_row(index, index == last, request, open.is_open(index), toggle(index), t))
+        .collect()
 }
 
-fn permission_row(request: &PermissionRequest, t: &Theme) -> AnyElement {
+/// One permission's row: `index` in the card, and whether it is the `last` (the card's corners are
+/// its own there).
+fn permission_row(index: usize, last: bool, request: &PermissionRequest, open: bool, toggle: Toggle, t: &Theme) -> AnyElement {
     let spec = request.permission.spec();
     let icon = IconName::from_name(spec.icon()).unwrap_or(IconName::Puzzle);
-    let tile = div()
-        .size(px(30.))
-        .flex_shrink_0()
-        .rounded(px(8.))
-        .bg(t.tint(t.warning))
-        .flex()
-        .items_center()
-        .justify_center()
-        .child(Icon::new(icon).size(px(18.)).color(t.warning));
+    // Just the icon, in the permission's colour: no tile behind it.
+    let tile = div().size(px(20.)).flex_shrink_0().flex().items_center().justify_center().child(Icon::new(icon).size(px(18.)).color(t.warning));
+    // The reason: one line when the row is closed, all of it when it is open.
     let why = if request.reason.is_empty() {
         // Built before plugins said why.
         div().mt(px(2.)).text_size(px(12.)).text_color(t.text_faint).child("The plugin doesn’t say why")
     } else {
-        div().mt(px(2.)).text_size(px(12.)).child(request.reason.clone())
+        // Closed: one line; open: all of it, which is at most a sentence.
+        div().mt(px(2.)).text_size(px(12.)).clamp_lines(if open { 4 } else { 1 }).child(request.reason.clone())
     };
+    let allows = open.then(|| {
+        v_flex()
+            .mt(px(8.))
+            .gap(px(1.))
+            .child(div().text_size(px(10.)).font_weight(FontWeight::BOLD).text_color(t.text_faint).child("ALLOWS"))
+            .child(div().text_size(px(12.)).text_color(t.text_muted).clamp_lines(3).child(spec.describe()))
+    });
     // Orange like the icon, so what the plugin runs stands out; a step darker in light mode,
     // where the orange itself is too pale for text.
     let ink = if t.dark { t.warning } else { gpui::hsla(t.warning.h, t.warning.s, t.warning.l * 0.72, 1.) };
     let items = spec.items();
-    let items = (!items.is_empty()).then(|| {
+    let items = (open && !items.is_empty()).then(|| {
         h_flex().flex_wrap().gap(px(6.)).mt(px(7.)).children(items.into_iter().map(|item| {
+            // One line, cut with an ellipsis at the card's width: a program's path can be very long.
             div()
+                .max_w_full()
+                .truncate()
                 .px(px(8.))
                 .py(px(2.))
                 .rounded(px(10.))
@@ -398,29 +467,32 @@ fn permission_row(request: &PermissionRequest, t: &Theme) -> AnyElement {
                 .text_size(px(11.))
                 .font_weight(FontWeight::MEDIUM)
                 .text_color(ink)
-                .child(item)
+                .child(delight_ui::ellipsize(&item, 100))
         }))
     });
-    h_flex()
-        .items_start()
-        .gap(px(12.))
+    let chevron = Icon::new(if open { IconName::ChevronUp } else { IconName::ChevronDown }).size(px(14.)).color(t.text_faint);
+    // The icon, the name and the chevron share one line, so they line up; the text under it starts
+    // at the name.
+    v_flex()
+        .id(("permission", index))
         .px(px(14.))
         .py(px(10.))
-        .child(tile)
+        // The hover colour follows the card's rounded corners at its top and bottom: GPUI clips to
+        // rectangles, so the card can't round it.
+        .when(index == 0, |row| row.rounded_t(t.radius))
+        .when(last, |row| row.rounded_b(t.radius))
+        .cursor_pointer()
+        .hover(|row| row.bg(t.fill_subtle()))
+        .on_click(toggle)
         .child(
-            v_flex()
-                .flex_1()
-                .min_w(px(0.))
-                .child(
-                    h_flex()
-                        .items_baseline()
-                        .gap(px(8.))
-                        .child(div().font_weight(FontWeight::SEMIBOLD).child(spec.title()))
-                        .child(div().text_size(px(11.5)).text_color(t.text_muted).child(spec.describe())),
-                )
-                .child(why)
-                .children(items),
+            h_flex()
+                .items_center()
+                .gap(px(12.))
+                .child(tile)
+                .child(div().flex_1().min_w(px(0.)).font_weight(FontWeight::SEMIBOLD).truncate().child(spec.title()))
+                .child(div().flex_shrink_0().child(chevron)),
         )
+        .child(v_flex().pl(px(32.)).child(why).children(allows).children(items))
         .into_any_element()
 }
 
@@ -450,6 +522,75 @@ fn tip_rows(tips: &[String], t: &Theme) -> Vec<AnyElement> {
         .collect()
 }
 
+/// For an installed plugin that names its location: the newer version published there with the
+/// button that installs it, or else what the last look there found with Check Now; and whether the
+/// plugin updates on its own.
+fn updates_section(plugin: &Plugin, source: &Source, t: &Theme, cx: &App) -> Option<AnyElement> {
+    use plugins::updates::{self, Check, State};
+    let properties = &plugin.manifest().plugin;
+    if source.built_in || properties.update.is_none() {
+        return None;
+    }
+    let mut rows = Vec::new();
+    if let Some(offer) = updates::offer(&properties.id, cx) {
+        let title = format!("Version {} is available", delight_ui::ellipsize(&offer.release.version, 60));
+        let id = properties.id.clone();
+        let row = match &offer.state {
+            // How far it has come: a bar, and the share of it once its size is known.
+            State::Downloading(fraction) => {
+                let done = if *fraction > 0. { format!("Downloading… {}%", (fraction * 100.).round()) } else { "Downloading…".to_string() };
+                h_flex()
+                    .h(px(delight_ui::ROW_DETAIL_HEIGHT))
+                    .items_center()
+                    .gap(px(12.))
+                    .px(px(14.))
+                    .child(
+                        v_flex()
+                            .flex_1()
+                            .min_w(px(0.))
+                            .gap(px(6.))
+                            .child(title)
+                            .child(
+                                h_flex()
+                                    .gap(px(10.))
+                                    .items_center()
+                                    .child(div().w(px(180.)).child(delight_ui::progress_bar(*fraction, t.accent, t)))
+                                    .child(div().text_size(px(11.)).text_color(t.text_muted).child(done)),
+                            ),
+                    )
+                    .child(Button::new("update-plugin", "Update").primary().disabled(true))
+                    .into_any_element()
+            }
+            state => {
+                let (detail, color, label) = match state {
+                    State::AsksForMore => ("It asks for new permissions: review them to install it".to_string(), t.warning, "Review Update…"),
+                    State::Failed(why) => (delight_ui::ellipsize(&delight_ui::one_line(why), 200), t.error, "Try Again"),
+                    _ => ("It keeps its data and settings".to_string(), t.text_muted, "Update"),
+                };
+                let button = Button::new("update-plugin", label).primary().on_click(move |_, _, cx| updates::update(&id, cx));
+                delight_ui::row_with(title, detail, button, color)
+            }
+        };
+        rows.push(row);
+    } else {
+        let (detail, color) = match updates::last_check(&properties.id, cx) {
+            None => ("Checked at launch and once a day".to_string(), t.text_muted),
+            Some(Check::Checking) => ("Checking…".to_string(), t.text_muted),
+            Some(Check::UpToDate) => ("It is up to date".to_string(), t.success),
+            Some(Check::Failed(why)) => (delight_ui::ellipsize(&delight_ui::one_line(&why), 200), t.error),
+        };
+        let id = properties.id.clone();
+        let check = Button::new("check-plugin-update", "Check Now").on_click(move |_, _, cx| updates::check(&id, cx));
+        rows.push(delight_ui::row_with("Check for updates", detail, check, color));
+    }
+    let id = properties.id.clone();
+    let switch = Switch::new("update-automatically")
+        .checked(settings::get(cx).updates_automatically(&id))
+        .on_change(move |on, _, cx| settings::update(cx, |settings| settings.set_updates_automatically(&id, *on)));
+    rows.push(delight_ui::row("Update automatically", Some("Updates that ask for no new permissions install on their own"), switch, t));
+    Some(section("Updates", rows).into_any_element())
+}
+
 /// An error on its tint.
 fn notice(text: String, t: &Theme) -> AnyElement {
     h_flex()
@@ -464,6 +605,6 @@ fn notice(text: String, t: &Theme) -> AnyElement {
         .into_any_element()
 }
 
-pub(super) fn file_name(file: &Path) -> String {
+pub(crate) fn file_name(file: &Path) -> String {
     file.file_name().map_or_else(|| file.display().to_string(), |name| name.to_string_lossy().into_owned())
 }

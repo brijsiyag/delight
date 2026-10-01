@@ -18,9 +18,9 @@ use wasmtime_wasi::{DirPerms, FilePerms};
 
 use crate::{Candidate, Granted, rank};
 
-/// Longest the app waits for a plugin's answer. A plugin that stops mid-call fails
-/// the call, but one called just after it stopped never answers; the timeout makes
-/// that a stop too.
+/// Longest the app waits for a plugin's answer. A plugin embedded_gpui stops is marked
+/// stopped the moment it does (the app watches its host), and isn't called again; the
+/// timeout is for one that runs but doesn't answer, and makes that a stop too.
 pub const CALL_TIMEOUT: Duration = Duration::from_secs(3);
 
 /// How embedded_gpui's calls fail when the plugin stopped (a trap: its turn took too
@@ -63,14 +63,18 @@ pub fn plugin_options(
 /// A started plugin: its manifest, and the root object the app talks to. Clones share
 /// the same plugin.
 ///
-/// The first call that finds it stopped (see [`CALL_TIMEOUT`]) marks it stopped, with
-/// that reason; it isn't called again, and every call fails at once.
+/// It is marked stopped, with the reason, when embedded_gpui stops it (a trap, in a call
+/// or not) or a call times out (see [`CALL_TIMEOUT`]); it isn't called again, and every
+/// call fails at once.
 #[derive(Clone)]
 pub struct Plugin {
     manifest: Rc<Manifest>,
     host: Entity<PluginHost>,
     root: Remote<PluginApi>,
     stopped: Rc<RefCell<Option<String>>>,
+    /// Watching the host, to mark the plugin stopped as soon as embedded_gpui stops it: a
+    /// call made after that would otherwise go out and never be answered.
+    _watching: Rc<Subscription>,
 }
 
 impl Plugin {
@@ -95,11 +99,19 @@ impl Plugin {
                 let host_root = host_root(granted, cx);
                 host.share_root(&host_root, cx);
                 let root = host.root::<PluginApi>(cx);
+                let stopped: Rc<RefCell<Option<String>>> = Rc::default();
+                let marking = stopped.clone();
+                let watching = cx.observe(&host, move |host, cx| {
+                    if let Some(reason) = host.read(cx).stopped() {
+                        marking.borrow_mut().get_or_insert_with(|| reason.to_string());
+                    }
+                });
                 Plugin {
                     manifest: Rc::new(manifest),
                     host,
                     root,
-                    stopped: Rc::default(),
+                    stopped,
+                    _watching: Rc::new(watching),
                 }
             }))
         })
@@ -107,6 +119,12 @@ impl Plugin {
 
     pub fn manifest(&self) -> &Manifest {
         &self.manifest
+    }
+
+    /// Whether both are the same running instance (clones of one start), not only the same plugin:
+    /// a plugin started again from a changed file is another instance with the same id.
+    pub fn same_instance(&self, other: &Plugin) -> bool {
+        self.host.entity_id() == other.host.entity_id()
     }
 
     /// Why the plugin stopped, if it did.

@@ -54,6 +54,19 @@ impl TextEditor {
         }
     }
 
+    /// ⌃U, as in a terminal: everything before the cursor on its line goes (the selection, if
+    /// there is one). At the line start there is nothing to delete, and lines aren't joined.
+    pub(super) fn kill_to_line_start(&mut self, _: &KillToLineStart, _: &mut Window, cx: &mut Context<Self>) {
+        let range = if self.selected_range.is_empty() {
+            text::line_start(&self.content, self.cursor())..self.cursor()
+        } else {
+            self.selected_range.clone()
+        };
+        if !range.is_empty() {
+            self.replace(range, "", EditKind::Other, cx);
+        }
+    }
+
     pub(super) fn left(&mut self, _: &Left, _: &mut Window, cx: &mut Context<Self>) {
         self.goal_x = None;
         let target = if self.selected_range.is_empty() {

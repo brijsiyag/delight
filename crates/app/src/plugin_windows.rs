@@ -2,6 +2,8 @@
 //! launcher hides and is closed by its user (✕, ⌘W or Esc). The plugin draws in the window's
 //! surface like it does in the launcher's, and there are only a few open from each.
 
+use std::collections::HashSet;
+
 use delight_ui::ActiveTheme as _;
 use embedded_gpui::Surface;
 use gpui::{
@@ -172,15 +174,23 @@ pub fn open(plugin_id: &str, key: String, title: String, width: f32, height: f32
     })
 }
 
+/// Whether a window of this plugin is open (shown, or off screen with the launcher).
+pub fn has_open(plugin_id: &str, cx: &App) -> bool {
+    cx.try_global::<Open>().is_some_and(|open| open.0.iter().any(|open| open.plugin_id == plugin_id))
+}
+
 fn forget(plugin_id: &str, key: &str, cx: &mut App) {
     cx.default_global::<Open>().0.retain(|open| !(open.plugin_id == plugin_id && open.key == key));
 }
 
-/// Close every plugin window: the plugins are starting again, so what they drew is gone.
-pub fn close_all(cx: &mut App) {
-    let windows: Vec<AnyWindowHandle> = std::mem::take(&mut cx.default_global::<Open>().0).into_iter().map(|open| open.window).collect();
-    for window in windows {
-        window.update(cx, |_, window, _| window.remove_window()).ok();
+/// Close the windows of these plugins (by id): they are starting again, or gone, so what they drew
+/// is gone. The other plugins' windows stay.
+pub fn close_of(plugin_ids: &HashSet<String>, cx: &mut App) {
+    let all = std::mem::take(&mut cx.default_global::<Open>().0);
+    let (closing, staying): (Vec<Opened>, Vec<Opened>) = all.into_iter().partition(|open| plugin_ids.contains(&open.plugin_id));
+    cx.default_global::<Open>().0 = staying;
+    for open in closing {
+        open.window.update(cx, |_, window, _| window.remove_window()).ok();
     }
 }
 

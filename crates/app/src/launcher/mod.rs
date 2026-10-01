@@ -26,7 +26,7 @@ use std::collections::{HashMap, HashSet};
 use std::time::Duration;
 
 use delight_protocol::{Action, Input};
-use delight_runtime::{Candidate, detect_all};
+use delight_runtime::{Plugin, RECOMMENDED, detect_all};
 use delight_ui::theme::{INPUT_FONT_SIZE, INPUT_LINE_HEIGHT};
 use delight_ui::{EditorEvent, EditorFont, TextEditor};
 use gpui::{
@@ -35,7 +35,9 @@ use gpui::{
 };
 
 pub use history_search::CONTEXT as HISTORY_SEARCH_CONTEXT;
-pub use window::{bounds, focus_gained, focus_left, hide, level, open, plugins_loaded, refresh, set_input, show, toast, toggle};
+pub use window::{
+    bounds, focus_gained, focus_left, hide, level, open, plugins_loaded, refresh, set_input, show, shows_plugin, toast, toggle,
+};
 
 use crate::macos::{self, NativeWindow};
 use crate::{history, plugins, settings};
@@ -102,15 +104,38 @@ actions!(
 #[action(namespace = launcher, no_json)]
 pub struct SelectTool(pub usize);
 
-/// A tool: its plugin's index in `plugins::all`, and the operation's index in that
-/// plugin's manifest (as in a [`Candidate`]).
-type ToolKey = (usize, usize);
-
-/// A tool as the input history names it: (plugin id, operation id).
+/// A tool, by (plugin id, operation id): the name the input history knows it by, and the key of
+/// everything the launcher keeps about it. Both ids are unique (a second plugin with an id is
+/// refused at load, a manifest can't list an operation twice), and they stay the same when the
+/// plugins start again, whatever order they come in.
 type ToolIds = (String, String);
 
-fn key(candidate: &Candidate) -> ToolKey {
-    (candidate.plugin, candidate.operation)
+/// A tool that fits the input, and how well.
+#[derive(Clone, Debug, PartialEq)]
+struct Match {
+    tool: ToolIds,
+    /// Above 0, at most 1.
+    confidence: f32,
+}
+
+impl Match {
+    fn is_recommended(&self) -> bool {
+        self.confidence >= RECOMMENDED
+    }
+}
+
+/// The ids of the `operation`th tool in `plugin`'s manifest.
+fn ids(plugin: &Plugin, operation: usize) -> Option<ToolIds> {
+    let manifest = plugin.manifest();
+    Some((manifest.plugin.id.clone(), manifest.operations.get(operation)?.id.clone()))
+}
+
+/// The plugin a tool is of, and the tool's index in that plugin's manifest; `None` once either is
+/// gone.
+fn find<'a>(plugins: &'a [Plugin], (plugin_id, operation_id): &ToolIds) -> Option<(&'a Plugin, usize)> {
+    let plugin = plugins.iter().find(|plugin| plugin.manifest().plugin.id == *plugin_id)?;
+    let operation = plugin.manifest().operations.iter().position(|operation| operation.id == *operation_id)?;
+    Some((plugin, operation))
 }
 
 pub struct Launcher {
@@ -122,11 +147,11 @@ pub struct Launcher {
     list_focus: FocusHandle,
     list_scroll: ScrollHandle,
     /// The tools that fit the input, best first.
-    candidates: Vec<Candidate>,
+    candidates: Vec<Match>,
     selected: Option<usize>,
     /// The tool the user picked: it stays selected while the input changes, as long
     /// as it still fits.
-    picked: Option<ToolKey>,
+    picked: Option<ToolIds>,
     /// The tool the completion showing now was remembered for.
     completion_tool: Option<ToolIds>,
     /// Which remembered input the completion shows: 0 the newest that fits, then
@@ -147,7 +172,11 @@ pub struct Launcher {
     last_auto_paste: Option<String>,
     /// The tools opened so far, kept with their state while the plugins run; the
     /// launcher redraws when a tool's actions change.
-    panes: HashMap<ToolKey, (Entity<ToolPane>, Subscription)>,
+    panes: HashMap<ToolIds, (Entity<ToolPane>, Subscription)>,
+    /// The tool whose view is shown: the others are hidden (see [`Launcher::show_only`]).
+    shown_tool: Option<ToolIds>,
+    /// The launcher window is hidden: no tool's view is shown.
+    window_hidden: bool,
     /// Replacing it cancels the detection before.
     detecting: Option<Task<()>>,
     toast: Option<SharedString>,
@@ -207,6 +236,8 @@ impl Launcher {
             tip,
             last_auto_paste: None,
             panes: HashMap::new(),
+            shown_tool: None,
+            window_hidden: false,
             detecting: None,
             toast: None,
             toast_timer: None,
@@ -318,6 +349,15 @@ impl Launcher {
         }
     }
 
+    /// The plugins started again: an open tool whose plugin went on keeps its pane, with what it
+    /// shows. One whose plugin started again (its file changed, an update) or went is a view of an
+    /// instance that no longer runs: its pane goes, which lets that instance go, and the tool opens
+    /// afresh when it is next selected. Tools are named by ids, so nothing else changes.
+    fn drop_stale_tools(&mut self, cx: &App) {
+        let plugins = plugins::all(cx);
+        self.panes.retain(|_, (pane, _)| plugins.iter().any(|running| running.same_instance(pane.read(cx).plugin())));
+    }
+
     /// Show another tip in the empty input.
     fn show_next_tip(&mut self, cx: &mut Context<Self>) {
         self.tip = tips::next(&self.tip, cx);
@@ -343,9 +383,7 @@ impl Launcher {
     /// again. Only the plugin whose tool is selected may, so one working in the background
     /// can't rewrite what is being typed.
     fn set_input_from(&mut self, plugin_id: &str, text: String, cx: &mut Context<Self>) {
-        let selected = self.selected_candidate().map(|candidate| candidate.plugin);
-        let plugins = plugins::all(cx);
-        if !selected.and_then(|index| plugins.get(index)).is_some_and(|plugin| plugin.manifest().plugin.id == plugin_id) {
+        if self.selected_candidate().is_none_or(|candidate| candidate.tool.0 != plugin_id) {
             log::warn!("{plugin_id} set the launcher's input without its tool selected: ignored");
             return;
         }
@@ -368,30 +406,29 @@ impl Launcher {
         self.detecting = Some(cx.spawn(async move |this, cx| {
             cx.background_executor().timer(DETECT_DELAY).await;
             let (asked, detected) = cx.update(|cx| {
-                let plugins = plugins::all(cx);
                 let settings = settings::get(cx);
-                let asked: Vec<usize> = (0..plugins.len())
-                    .filter(|&index| {
-                        let manifest = plugins[index].manifest();
+                let asked: Vec<Plugin> = plugins::all(cx)
+                    .iter()
+                    .filter(|plugin| {
+                        let manifest = plugin.manifest();
                         let id = &manifest.plugin.id;
                         manifest.operations.iter().any(|operation| settings.tool_runs(id, &operation.id))
                     })
+                    .cloned()
                     .collect();
-                let asked_plugins: Vec<_> = asked.iter().map(|&index| plugins[index].clone()).collect();
-                (asked, detect_all(&asked_plugins, &input, cx))
+                let detected = detect_all(&asked, &input, cx);
+                (asked, detected)
             });
             let candidates = detected.await;
             this.update(cx, |this, cx| {
-                let plugins = plugins::all(cx);
                 let settings = settings::get(cx);
-                // Back to indexes into all the plugins, without the tools that are off.
+                // Each answer names a plugin by its place among those asked: by ids from here on, without
+                // the tools that are off.
                 let candidates = candidates
                     .into_iter()
-                    .map(|candidate| Candidate { plugin: asked[candidate.plugin], ..candidate })
-                    .filter(|candidate| {
-                        let manifest = plugins[candidate.plugin].manifest();
-                        let tool = &manifest.operations[candidate.operation].id;
-                        settings.tool_runs(&manifest.plugin.id, tool)
+                    .filter_map(|candidate| {
+                        let tool = ids(asked.get(candidate.plugin)?, candidate.operation)?;
+                        settings.tool_runs(&tool.0, &tool.1).then_some(Match { tool, confidence: candidate.confidence })
                     })
                     .collect();
                 this.show_candidates(candidates, cx);
@@ -402,23 +439,18 @@ impl Launcher {
 
     /// List the tools and keep the selection: the picked tool, else the best one if
     /// it's recommended, else nothing.
-    fn show_candidates(&mut self, candidates: Vec<Candidate>, cx: &mut Context<Self>) {
+    fn show_candidates(&mut self, candidates: Vec<Match>, cx: &mut Context<Self>) {
         self.candidates = candidates;
         // The remembered input's tool, or its plugin's first one if that isn't
         // listed (or the input was remembered without its operation).
         if let Some(tool) = self.prefer_tool.take() {
-            let plugins = plugins::all(cx);
-            let ids = |c: &Candidate| {
-                let manifest = plugins.get(c.plugin)?.manifest();
-                Some((manifest.plugin.id.as_str(), manifest.operations.get(c.operation)?.id.as_str()))
-            };
-            let exact = self.candidates.iter().find(|c| ids(c) == Some((tool.0.as_str(), tool.1.as_str())));
-            let same_plugin = || self.candidates.iter().find(|c| ids(c).is_some_and(|(plugin, _)| plugin == tool.0));
-            if let Some(candidate) = exact.or_else(same_plugin) {
-                self.picked = Some(key(candidate));
+            let exact = self.candidates.iter().find(|c| c.tool == tool);
+            let same_plugin = || self.candidates.iter().find(|c| c.tool.0 == tool.0);
+            if let Some(found) = exact.or_else(same_plugin).map(|c| c.tool.clone()) {
+                self.picked = Some(found);
             }
         }
-        let picked = self.picked.and_then(|picked| self.candidates.iter().position(|c| key(c) == picked));
+        let picked = self.picked.as_ref().and_then(|picked| self.candidates.iter().position(|c| &c.tool == picked));
         let best = self.candidates.first().filter(|c| c.is_recommended()).map(|_| 0);
         self.selected = picked.or(best);
         self.announce_stops(cx);
@@ -426,7 +458,7 @@ impl Launcher {
         cx.notify();
     }
 
-    fn selected_candidate(&self) -> Option<&Candidate> {
+    fn selected_candidate(&self) -> Option<&Match> {
         self.candidates.get(self.selected?)
     }
 
@@ -436,7 +468,7 @@ impl Launcher {
             return;
         }
         self.selected = Some(index);
-        self.picked = Some(key(&self.candidates[index]));
+        self.picked = Some(self.candidates[index].tool.clone());
         self.list_scroll.scroll_to_item(index);
         self.update_selected_pane(cx);
         cx.notify();
@@ -505,20 +537,45 @@ impl Launcher {
 
     /// The selected tool's pane, opened on first use; `None` if its plugin stopped.
     fn selected_pane(&mut self, cx: &mut Context<Self>) -> Option<Entity<ToolPane>> {
-        let key = key(self.selected_candidate()?);
-        if let Some((pane, _)) = self.panes.get(&key) {
+        let tool = self.selected_candidate()?.tool.clone();
+        if let Some((pane, _)) = self.panes.get(&tool) {
             return Some(pane.clone());
         }
         let plugins = plugins::all(cx);
-        let plugin = plugins.get(key.0)?;
+        let (plugin, _) = find(&plugins, &tool)?;
         if plugin.stopped().is_some() {
             return None;
         }
-        let operation = plugin.manifest().operations.get(key.1)?.id.clone();
-        let pane = cx.new(|cx| ToolPane::new(plugin, &operation, cx));
+        let pane = cx.new(|cx| ToolPane::new(plugin, &tool.1, cx));
         let redraw = cx.observe(&pane, |_, _, cx| cx.notify());
-        self.panes.insert(key, (pane.clone(), redraw));
+        self.panes.insert(tool, (pane.clone(), redraw));
         Some(pane)
+    }
+
+    /// Show `tool`'s view, and only it. The tools of one plugin all sit in the same place of that
+    /// plugin's own copy of this window, so a tool that stayed there while another was shown
+    /// would take the other's clicks and scrolling, and be drawn for nothing. A hidden tool keeps
+    /// its state and its last picture, and is shown again at once.
+    fn show_only(&mut self, tool: Option<ToolIds>, cx: &mut Context<Self>) {
+        if self.shown_tool == tool {
+            return;
+        }
+        for (key, shown) in [(&self.shown_tool, false), (&tool, true)] {
+            let Some(pane) = key.as_ref().and_then(|key| self.panes.get(key)).map(|(pane, _)| pane.clone()) else { continue };
+            pane.update(cx, |pane, cx| pane.set_shown(shown, cx));
+        }
+        self.shown_tool = tool;
+    }
+
+    /// Whether the tool shown now is one of this plugin's.
+    fn shows_plugin(&self, plugin_id: &str) -> bool {
+        self.shown_tool.as_ref().is_some_and(|(plugin, _)| plugin == plugin_id)
+    }
+
+    /// The launcher window hid, or shows again: its tool's view goes, and comes back, with it.
+    pub(super) fn window_shown(&mut self, shown: bool, cx: &mut Context<Self>) {
+        self.window_hidden = !shown;
+        cx.notify();
     }
 
     /// Tell the selected tool what the input is now.
@@ -550,7 +607,7 @@ impl Launcher {
     /// The selected tool's footer actions with their keys. An action's shortcut
     /// gives way to the keymap where the focus is.
     fn keyed_actions(&self, window: &Window, cx: &App) -> Vec<(Action, Option<Keystroke>)> {
-        let Some((pane, _)) = self.selected_candidate().and_then(|c| self.panes.get(&key(c))) else {
+        let Some((pane, _)) = self.selected_candidate().and_then(|c| self.panes.get(&c.tool)) else {
             return Vec::new();
         };
         let keymap = cx.key_bindings();
@@ -576,7 +633,7 @@ impl Launcher {
 
     /// Run a footer action: the tool does what it's for.
     fn perform(&mut self, action: &Action, cx: &mut Context<Self>) {
-        let pane = self.selected_candidate().and_then(|c| self.panes.get(&key(c))).map(|(pane, _)| pane.clone());
+        let pane = self.selected_candidate().and_then(|c| self.panes.get(&c.tool)).map(|(pane, _)| pane.clone());
         if let Some(pane) = pane {
             pane.update(cx, |pane, cx| pane.perform(&action.id, cx));
         }
@@ -604,3 +661,4 @@ impl Launcher {
         }));
     }
 }
+

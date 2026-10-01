@@ -118,6 +118,8 @@ enum EchoAction {
     OpenWindow,
     /// Says its settings sections changed.
     SectionsChanged,
+    /// Spins forever: the turn budget stops the plugin in a call to its tool, not to its root.
+    Spin,
     /// Settings: save, read back, clear; and read only.
     Settings,
     ReadSettings,
@@ -165,6 +167,8 @@ impl Tool for Echo {
                 self.hanging.push(task);
             }
             EchoAction::Release => self.hanging.clear(),
+            #[allow(clippy::empty_loop)]
+            EchoAction::Spin => loop {},
             EchoAction::Ok => network::ok(&self.text.clone(), cx),
             EchoAction::Listen => network::listen(cx),
             EchoAction::Grpc => network::grpc(&self.text.clone(), cx),

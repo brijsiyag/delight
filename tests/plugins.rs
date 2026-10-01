@@ -440,6 +440,32 @@ async fn a_plugin_that_overruns_its_turn_is_stopped(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
+async fn a_plugin_that_stops_outside_the_apps_calls_is_marked_stopped_at_once(cx: &mut TestAppContext) {
+    let wasm = fixture();
+    let manifest = read_manifest(&std::fs::read(&wasm).unwrap()).unwrap();
+    let options = plugin_options(&manifest, data_dir("stops-in-a-tool"), Arc::new(gpui::NoopTextSystem::new()))
+        .with_turn_budget(Duration::from_millis(200));
+    let app = cx.new(|_| FakeApp::default());
+    let started = cx.update(|cx| Plugin::start(wasm, manifest, options, data_dir("stops-in-a-tool"), root_of(&app), cx));
+    settle(cx);
+    let plugin = started.await.unwrap();
+
+    // It stops in its tool, not in a call through `Plugin`: the app sees it from the host.
+    let tool = tool_with(&plugin, "hi", cx).await;
+    cx.update(|cx| drop(tool.perform_action("Spin".into(), cx)));
+    settle(cx);
+    let reason = plugin.stopped().expect("the plugin is marked stopped");
+    assert!(reason.contains("plugin stopped"), "{reason}");
+
+    // So the next call fails at once, instead of going out and waiting for CALL_TIMEOUT.
+    let again = cx.update(|cx| plugin.detect(&input("hello"), cx));
+    let error = futures::FutureExt::now_or_never(again)
+        .expect("a stopped plugin's call is answered at once")
+        .expect_err("a stopped plugin isn't called");
+    assert!(format!("{error:#}").contains("Fixture stopped"), "{error:#}");
+}
+
+#[gpui::test]
 async fn the_plugin_follows_the_apps_theme(cx: &mut TestAppContext) {
     let (_plugin, app) = start("theme", cx).await;
     settle(cx);

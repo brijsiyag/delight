@@ -61,7 +61,7 @@ that code was organised. Where the rewrite changes something on purpose,
   keyboard is in any of them nothing hides; when it goes to something else (another app,
   Settings) and "Hide when focus is lost" is on, the launcher and all the windows go off screen
   (not closed), and the hotkey brings back the launcher and every window that hid, where they were.
-  Esc or the hotkey on the launcher hides the windows with it. Reloading the plugins closes them.
+  Esc or the hotkey on the launcher hides the windows with it. Reloading the plugins closes the windows of the ones that start again.
 - **Logs**: everything the app logs goes to the console and to a file in `~/Library/Logs/Delight`, one
   `delight-YYYYMMDD-HHMMSS.log` for each run (a new one when a run's file passes 8 MiB), the last six
   kept. The menu bar's "Open Logs": with one file it opens in the Mac's text editor (the app that
@@ -164,7 +164,12 @@ that code was organised. Where the rewrite changes something on purpose,
 - A stopped plugin: "{name} stopped: {reason}\n\nIt's off until Delight
   restarts (menu bar → Restart Delight)."
 - A pane is made on first selection, one per (plugin, operation), and kept
-  with its state until plugins reload. The newest input is buffered until the
+  with its state until its plugin starts again. Only the selected tool's view is
+  shown in its plugin; the others, and every tool while the launcher is hidden, are
+  hidden (`Surface::set_hidden`): they keep their state and last picture but draw
+  nothing and get no input, so tools of one plugin never take each other's clicks
+  or scrolling. What a tool keeps in GPUI's element state rather than its own (an
+  untracked scroll offset) starts over when it is shown again. The newest input is buffered until the
   tool object arrives; an unchanged input isn't re-sent.
 - → in the list moves keyboard focus into the tool's surface.
 - The tool view fills the pane's height under the title (the guest wraps it
@@ -230,7 +235,7 @@ The keymap is compiled in (JSON with comments, Zed-style contexts, later
 binding wins in a context); not user-configurable.
 
 - Global: ⌘Q quit.
-- Editor: ⌫ ⇧⌫ ⌦ ⌥⌫ (word) ⌘⌫ (to line start; at a line start joins lines);
+- Editor: ⌫ ⇧⌫ ⌦ ⌥⌫ (word) ⌘⌫ (to line start; at a line start joins lines), ⌃U (as in a terminal: to line start, never joins lines);
   ←→↑↓, ⌃P/⌃N as ↑/↓, ⌥←/→ by word, ⌘← Home ⌃A line start, ⌘→ End ⌃E line
   end, ⌘↑/⌘↓ document start/end, ⇧ + each to select, ⌘A; ⌘C ⌘X ⌘V; ⌘Z,
   ⇧⌘Z; ⌃⌘Space character palette. Multiline: ⇧↵ ⌥↵ newline. With a
@@ -286,11 +291,40 @@ startup falls back to the default.
 
 - Install row: Puzzle icon, "Plugins are .wasm files built with delight-sdk"
   ("Starting plugins…" while loading), "Install…".
-- Install: single-file picker, prompt "Install", no extension filter →
-  inspect → failure: warning "Not installed" + error; success: "Install
-  “Name” version?" with "It can: Network · Runs commands." or "It needs no
-  permissions." [Install, Cancel] → write `plugins/<id>.wasm` (overwrite) →
-  reload plugins.
+- Install: file picker (one or several files), prompt "Install", no extension
+  filter → the **install window** (its own window; Settings doesn't open),
+  for each file in turn: the plugin's icon, name, author and version, its id,
+  a notice "Replaces the built-in|installed “x” v." if it does, its
+  description, its permissions (each with its reason; "Needs no permissions")
+  and its tools, with [Cancel, Install] (↵ installs, Esc leaves that one, ⌘W
+  closes the window and ends the batch); a file that isn't a runnable plugin
+  shows why, with [OK]. With several files the footer says "2 of 3". Install
+  writes `plugins/<id>.wasm` (overwrite), then the next file. Files given
+  while the window is open join the end of its list. When the last one is
+  done, or the window closes, the plugins are reloaded once (not once per
+  file).
+- **Reloading** starts only what changed: a plugin running from a file whose
+  size and modification time are the same goes on (its tools keep what they
+  show, and a sign-in waiting in it goes on); new, changed and stopped ones
+  start, removed ones and their windows go. The launcher keeps the open tools
+  of the plugins that went on. If another reload is asked for meanwhile, only
+  the last one's result is used.
+- **Drop on the menu bar icon**: `.wasm` files dragged onto the icon open
+  the install window, as picked files do (files that aren't `.wasm` are
+  ignored; other drags aren't accepted). The icon's view is given the
+  drop-target methods at runtime (`tray_drop.rs`), because `tray-icon` has no
+  drop support.
+- **Long text** never breaks a page: names, titles, versions, authors and ids
+  show on one line, ending in "…" (line breaks and tabs in them become
+  spaces); a description takes at most 4 lines on the plugin page and in the
+  install window (3 beside a tool, 2 for a notice or a settings row's detail,
+  3 for a card's footer); a permission's reason is one line closed and at
+  most 4 open, its "Allows" text 3, each program a chip on one line cut with
+  "…". Anything that spills out of its lines (stacked accents) is clipped.
+  Text is cut to a length (a title 120–160 characters, a description 400–700)
+  before it is laid out, so a huge string costs the same as a long one.
+- Every tool and every settings card a plugin has is shown. The launcher looks
+  up a key (⌘1–⌘9) only for the first nine tools.
 - Plugin row: badge 26; name + "Built-in|Plugin · v{version} · N tool(s)";
   description (truncated); permissions line; stopped line "Stopped: {reason}
   — off until Delight restarts"; ⚙ if it has settings; 🗑 for installed ones
@@ -310,6 +344,10 @@ startup falls back to the default.
   hairlines between rows), with the plugin's rows on a surface inside (the
   plugin says how tall: a surface can't). A plugin without settings shows
   no cards. "This plugin is no longer loaded."
+  **Permissions** are rows (in the install window too): icon (no tile), name and the
+  plugin's reason in one line; click a row for the reason in full, what the
+  permission allows and, for `Commands`, the programs as chips. All rows are
+  closed at first; which are open is kept per plugin while Settings is open.
 
 ## Settings storage
 
@@ -510,6 +548,51 @@ State (modes, options) is in memory only.
   daily automatic checks; feed
   `github.com/brijsiyag/delight/releases/latest/download/appcast.xml`, EdDSA
   key in Info.plist.
+- Plugin updates (new in the rewrite; plan step 16), each plugin on its own:
+  each installed plugin that names its location has `<location>/<id>.xml`
+  read 30 s after launch and every 24 h, and when its page's Check Now is
+  clicked. Nothing about updates is in General. An installed plugin that
+  names its location has an "Updates" card first on its page: when there is
+  one, "Version X is available", "It keeps its data and settings",
+  [Update]; while it downloads, a progress bar under the version line with
+  "Downloading… N%", and Update dimmed (it installs as soon as the download
+  is done); "It asks for new permissions: review them to
+  install it" [Review Update…], which opens the install window on the
+  downloaded file; an error [Try Again]. Otherwise "Check for updates"
+  (Checked at launch and once a day / Checking… / It is up to date / why the
+  manifest couldn't be read, in the error colour) with [Check Now]. Then
+  always "Update automatically" ("Updates that ask for no new permissions
+  install on their own"), a switch per plugin, on by default. Automatic
+  updates skip a plugin whose tool is shown or whose window is open.
+- Installing (new in the rewrite; plan step 16): under the sidebar's list, a
+  small split button, 24 pt tall with a hairline border: "+ Install Plugin"
+  opens the macOS file picker (several `.wasm` files), and its chevron opens a
+  menu above it: "From a File…" (".wasm files on this Mac") and "From a
+  Link…" ("Plugins published at a URL"); a click elsewhere closes it. From a
+  Link opens the install window (520×540) on one page, laid out as a plugin's
+  page there (20 pt margins): a header with a 44 pt accent-tinted tile and a
+  globe, "Install from a Link" and "Plugins published on GitHub, or at any web
+  address"; the Link field, styled as Settings' search field (placeholder
+  `https://github.com/Meesho/delight-plugins/releases/latest/download/plugins.xml`);
+  then a card that, while empty, shows a puzzle icon and "Paste a link to see
+  its plugins". A link is looked at 300 ms after it stops changing (a paste: at
+  once), with no button: the card says "Looking at the link…", then the
+  caption "N Plugins" with Select All / Select None over a card with one row
+  per plugin, a checklist line with no logo (a link carries none): checkbox,
+  name with its version beside it ("0.0.3 → 0.0.5" for an update), description
+  in two lines under them, and a pill at the right, "Update" (accent) or
+  "Installed" (grey, the row dimmed, can't be picked); the checkbox and the
+  pill line up with the name. New and newer ones start picked. A bad link or no plugins: the card shows a red
+  warning, "Couldn’t use this link" and why, and the field's border is red.
+  The footer has "N selected" on the left, then [Cancel, Download]: Download
+  fetches the picked plugins one after another, each row with a thin progress
+  bar under it and its percentage at the right (the bar green when done, the
+  pill back; a red cross and why if it failed); the button says "Downloading…"
+  meanwhile, then "Review N Plugins…" ("Review Plugin…" for one), not
+  "Install": it shows each one as a picked file, "1 of N", installed only on
+  its own Install.
+  Picking one more after downloading brings Download back, for it alone.
+  Changing the link stops the downloads. ↵ is the main button; Esc closes.
 - Quit hides first (saving the input). Restart in a `.app`: hide, GPUI
   `cx.restart()`. Outside a bundle: spawn the own exe with `--restarted`
   inheriting the environment, then quit (the new one waits for the lock).

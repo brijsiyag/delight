@@ -78,7 +78,7 @@ Nothing Delight builds on is released on crates.io yet, so everything is taken f
 |---|---|---|
 | `delight-plugin-api`, `delight-ui` | this repository, `github.com/brijsiyag/delight` | a release commit (`rev`) |
 | `gpui` | Zed's `gpui-multi-root-embedded-rebased` branch, `github.com/zed-industries/zed` | the commit in `Cargo.lock` (today `8c88a5c`), `version = "=0.2.2"` |
-| `embedded_gpui` (the layer that lets a plugin run its own GPUI) | `github.com/zed-industries/embedded_gpui` | a commit (today `ceb0df8`), taken in by `delight-plugin-api`, so a plugin never names it |
+| `embedded_gpui` (the layer that lets a plugin run its own GPUI) | for now the fork `github.com/brijsiyag/embedded_gpui`, branch `delight`: upstream's `surfaces-as-roots` plus one fix (see [`docs/development.md`](docs/development.md), "The embedded_gpui fork"); back to `zed-industries/embedded_gpui` once upstream has it | a commit, taken in by `delight-plugin-api`, so a plugin never names it |
 
 - **GPUI is the branch's, not crates.io's `gpui`.** Plugins and the app must use exactly the same
   GPUI, so a plugin names it exactly as above (branch and version), or Cargo links a second copy and
@@ -191,6 +191,60 @@ Working examples: the built-ins in [`plugins/`](plugins) (JSON, YAML, SVG, DNS).
 - **Permissions** are declared in `#[plugin(permissions = [...])]`, each with a reason of at most
   100 characters: `Network("why")` and `Commands("why", programs = ["/bin/ps"])`. Programs must be an
   absolute path directly in `/bin`, `/sbin`, `/usr/bin` or `/usr/sbin`.
+
+### Publishing updates
+
+Plugins are published at a location: a URL such as a GitHub release's download address. Delight
+defines the files there; how they are made is up to the plugins' repository, and any tool can write
+them (Meesho's plugins use `cargo xtask publish` in github.com/Meesho/delight-plugins). Rust tools
+can read and write them with `delight_manifest::Release` and `PluginList` (feature `files`).
+
+For each plugin the location holds two files, named by its id: `<id>.wasm`, the plugin (at most
+64 MiB), and `<id>.xml`, its manifest there (at most 1 MiB):
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<plugin id="local.logs" version="0.0.5">
+  <name>Logs</name>
+  <description>Search logs with KQL on your Elasticsearch hosts.</description>
+  <sha256>…the .wasm's SHA-256: 64 lowercase hex digits…</sha256>
+</plugin>
+```
+
+`id` and `version` are the plugin's own (its `#[plugin(id)]`, and its crate's version, SemVer), and
+the `.wasm` must carry the same; `name` (the id if left out) and `description` are shown when
+picking what to install. Beside them, a list can give several plugins at the location in the same
+form, each once, under any file name:
+
+```xml
+<plugins>
+  <plugin id="local.calendar" version="0.0.5">…</plugin>
+  <plugin id="local.logs" version="0.0.5">…</plugin>
+</plugins>
+```
+
+One location holds any number of plugins. A plugin names only its location:
+
+```rust
+#[plugin(id = "local.logs", name = "Logs", icon = "assets/icon.svg",
+         update = "https://github.com/Meesho/delight-plugins/releases/latest/download")]
+```
+
+Delight reads `<location>/<id>.xml` at launch and once a day, and downloads `<location>/<id>.wasm`
+only when the version (SemVer, the crate's `version`) is newer than the one installed. It checks the
+file's SHA-256, its id and its version before anything runs. An update that asks for no new
+permissions installs by itself unless the plugin's page has "Update automatically" off, keeping the
+plugin's data, secrets and settings; one that asks for more is shown like a new install, and waits
+for a yes.
+
+People install from a location too: Settings → the arrow beside "Install Plugin" → "From a Link…",
+with a link to an XML file at the location: a list (every plugin in it, to pick from) or one
+plugin's `<id>.xml`. Delight reads the file to tell which; its name doesn't matter. A copy installed
+before you added `update` doesn't know where to look: install the new build once.
+
+Whatever publishes them: bump a plugin's version for every change (Delight takes only a newer one),
+put the `.wasm` there before the `.xml` that names it, and, with a `latest` location, attach every
+plugin to every release, or the ones left out can't be found.
 
 ### What `host(cx)` gives a plugin
 

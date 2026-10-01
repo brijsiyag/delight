@@ -4,7 +4,8 @@
 //!
 //! * `general`: Delight's own settings.
 //! * `plugins`: a plugin's page (its tools and permissions), and a broken file's.
-//! * `install`: picking a plugin and the sheet that shows what it adds.
+//! * `install`: the Install Plugin… button and its menu: from files, or from a link (the install
+//!   window does the rest).
 //! * `shortcut_recorder`: the field that records the launcher shortcut.
 
 mod general;
@@ -16,7 +17,7 @@ use std::path::PathBuf;
 
 use delight_runtime::Plugin;
 use delight_ui::{
-    ActiveTheme, Button, Caption, EditorEvent, Icon, IconName, LogoBadge, TextEditor, Theme, h_flex, v_flex,
+    ActiveTheme, Caption, EditorEvent, Icon, IconName, LogoBadge, StyledExt as _, TextEditor, Theme, h_flex, v_flex,
 };
 use gpui::{
     AnyElement, App, AppContext as _, Bounds, Context, ElementId, Entity, FocusHandle, Focusable, FontWeight, Global,
@@ -27,7 +28,7 @@ use gpui::{
 
 use crate::hotkey;
 use crate::plugins::{self as loaded, Broken, Source};
-use install::Pending;
+pub(crate) use plugins::{OpenPermissions, file_name, permission_rows};
 use plugins::SettingsPage;
 use shortcut_recorder::{Recorded, ShortcutRecorder};
 
@@ -65,10 +66,12 @@ pub struct SettingsWindow {
     /// The sidebar's search: it filters the plugins.
     search: Entity<TextEditor>,
     shortcut: Entity<ShortcutRecorder>,
-    /// The plugin picked to install, while its sheet shows.
-    installing: Option<Pending>,
+    /// Which permission rows are open on each plugin's page, by plugin id.
+    open_permissions: std::collections::HashMap<String, OpenPermissions>,
     /// The shown plugin's own settings page, while its page shows.
     settings_page: Option<SettingsPage>,
+    /// The Install Plugin… button's menu is open.
+    install_menu: bool,
     _subscriptions: Vec<Subscription>,
 }
 
@@ -151,8 +154,9 @@ impl SettingsWindow {
             page: Page::General,
             search,
             shortcut,
-            installing: None,
+            open_permissions: Default::default(),
             settings_page: None,
+            install_menu: false,
             _subscriptions: subscriptions,
         }
     }
@@ -264,9 +268,7 @@ impl SettingsWindow {
             .child(caption("Installed"))
             .children(installed)
             .children(starting);
-        let install = Button::new("install-plugin", "Install Plugin…")
-            .icon(IconName::Plus)
-            .on_click(cx.listener(|this, _, window, cx| this.pick_plugin(window, cx)));
+        let install = self.install_button(t, cx);
         v_flex()
             .w(px(SIDEBAR_WIDTH))
             .flex_shrink_0()
@@ -281,7 +283,7 @@ impl SettingsWindow {
             .border_color(t.separator())
             .child(search)
             .child(list)
-            .child(div().flex().justify_center().pt(px(8.)).child(install))
+            .child(install)
     }
 }
 
@@ -305,24 +307,16 @@ impl Render for SettingsWindow {
                 self.render_general(&t, cx),
             ),
             Shown::Plugin(plugin, source) => {
-                (plugins::plugin_header(&plugin, &source, &t, cx), self.render_plugin(&plugin, &source, &t, cx))
+                (plugins::plugin_header(&plugin, &t, cx), self.render_plugin(&plugin, &source, &t, cx))
             }
             Shown::Broken(broken) => (plugins::broken_header(&broken, &t), self.render_broken(&broken, &t, cx)),
         };
-        let install = self.render_install(&t, cx);
         h_flex()
             .key_context(CONTEXT)
             .track_focus(&self.focus_handle)
             // TEMPORARY(clipboard): a click anywhere; something may have been copied since.
             .capture_any_mouse_down(|_, _, cx| loaded::refresh_clipboards(cx))
-            // Esc closes the install sheet first.
-            .on_action(cx.listener(|this, _: &CloseSettings, window, cx| {
-                if this.installing.is_some() {
-                    this.cancel_install(cx);
-                } else {
-                    window.remove_window();
-                }
-            }))
+            .on_action(cx.listener(|_, _: &CloseSettings, window, _| window.remove_window()))
             .relative()
             .size_full()
             .items_start()
@@ -348,13 +342,12 @@ impl Render for SettingsWindow {
                             .child(page),
                     ),
             )
-            .children(install)
     }
 }
 
 /// The page's background, under its cards ([`Theme::card`]): white in light mode, as in
 /// System Settings, where the cards are a step darker.
-pub(super) fn content_color(t: &Theme) -> Hsla {
+pub(crate) fn content_color(t: &Theme) -> Hsla {
     if t.dark { hsla(0., 0., 0.12, 1.) } else { hsla(0., 0., 1., 1.) }
 }
 
@@ -362,28 +355,46 @@ fn sidebar_color(t: &Theme) -> Hsla {
     if t.dark { hsla(0., 0., 0.16, 1.) } else { hsla(0., 0., 0.92, 1.) }
 }
 
+/// The lines of an [`item`]'s text, in pixels: a title line, the gap, and a one-line detail add up to
+/// [`ITEM_ICON`], so a tool's logo is as tall as its text.
+const ITEM_TITLE_LINE: f32 = 18.;
+const ITEM_GAP: f32 = 2.;
+const ITEM_DETAIL_LINE: f32 = 16.;
+/// The size of the logo beside an item's text.
+pub(crate) const ITEM_ICON: f32 = ITEM_TITLE_LINE + ITEM_GAP + ITEM_DETAIL_LINE;
+
 /// A row with an icon, a bold title and its detail, and maybe a control: a tool or a
 /// permission.
-fn item(icon: AnyElement, title: SharedString, detail: Option<SharedString>, control: Option<AnyElement>, t: &Theme) -> AnyElement {
+pub(crate) fn item(icon: AnyElement, title: SharedString, detail: Option<SharedString>, control: Option<AnyElement>, t: &Theme) -> AnyElement {
     let detail = detail.map(|detail| {
-        div().mt(px(2.)).text_size(px(12.)).text_color(t.text_muted).child(detail).into_any_element()
+        // At most three lines, the last ending in an ellipsis: a description can be as long as its author likes.
+        div().mt(px(ITEM_GAP)).text_size(px(12.)).line_height(px(ITEM_DETAIL_LINE)).text_color(t.text_muted).clamp_lines(3).child(delight_ui::ellipsize(&detail, 400)).into_any_element()
     });
     item_with(icon, title, detail.into_iter().collect(), control)
 }
 
-/// An [`item`] with its own lines under the title.
+/// An [`item`] with its own lines under the title. The icon lines up with the title, at the top of
+/// the text; a control stays in the middle of the row.
 fn item_with(icon: AnyElement, title: SharedString, lines: Vec<AnyElement>, control: Option<AnyElement>) -> AnyElement {
     h_flex()
+        .items_center()
         .gap(px(12.))
         .px(px(14.))
         .py(px(10.))
-        .child(icon)
         .child(
-            v_flex()
+            h_flex()
                 .flex_1()
                 .min_w(px(0.))
-                .child(div().font_weight(FontWeight::SEMIBOLD).child(title))
-                .children(lines),
+                .items_start()
+                .gap(px(12.))
+                .child(icon)
+                .child(
+                    v_flex()
+                        .flex_1()
+                        .min_w(px(0.))
+                        .child(div().line_height(px(ITEM_TITLE_LINE)).font_weight(FontWeight::SEMIBOLD).truncate().child(delight_ui::ellipsize(&delight_ui::one_line(&title), 120)))
+                        .children(lines),
+                ),
         )
         .children(control)
         .into_any_element()

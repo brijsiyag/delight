@@ -2,30 +2,57 @@
 //! folder, each with its own host object, and the files that don't load, with why.
 //!
 //! * this file: the plugins as they are now, and where they come from.
-//! * `loading`: finding the files, reading their manifests, and starting them, at
-//!   launch and again after an install or a delete.
+//! * `loading`: finding the files, reading their manifests, and starting them: all at
+//!   launch, then each on its own after its install, update or delete.
 //! * `install`: installing a plugin, and deleting one.
 //! * `host_root`: what a plugin may ask of the app.
+//! * `updates`: newer versions of installed plugins, from the locations they name.
 
 mod host_root;
 mod install;
 mod loading;
+pub mod updates;
 
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use std::sync::Arc;
+use std::time::SystemTime;
 
 use delight_runtime::Plugin;
-use gpui::{App, Global, PlatformTextSystem};
+use gpui::{App, Global, PlatformTextSystem, Task};
 
-pub use install::{delete, delete_file, inspect, install};
-pub use loading::{load, reload};
+pub use install::{delete, delete_file, download, inspect, install};
+use install::save_download;
+pub use loading::{forget_file, load, restart};
 
-/// Where a plugin comes from.
+/// A file's size and modification time: read twice, an unchanged file gives equal stamps.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+struct Stamp {
+    len: u64,
+    modified: Option<SystemTime>,
+}
+
+impl Stamp {
+    fn of(file: &Path) -> Stamp {
+        std::fs::metadata(file).map(|meta| Stamp { len: meta.len(), modified: meta.modified().ok() }).unwrap_or_default()
+    }
+}
+
+/// Where a plugin comes from. Two sources are equal when they are the same unchanged file: a
+/// plugin running from one is still the right one to run.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Source {
     pub file: PathBuf,
     pub built_in: bool,
+    stamp: Stamp,
+}
+
+impl Source {
+    fn new(file: PathBuf, built_in: bool) -> Source {
+        let stamp = Stamp::of(&file);
+        Source { file, built_in, stamp }
+    }
 }
 
 /// Why a plugin file doesn't load.
@@ -35,8 +62,8 @@ pub enum Problem {
     /// No manifest this Delight reads: not a plugin, built for another protocol
     /// version, or its manifest is invalid.
     NotAPlugin,
-    /// Another plugin, earlier in the order, already has its id.
-    SameId,
+    /// Its file isn't named `<id>.wasm`, as every plugin file is.
+    WrongName,
     DoesntStart,
 }
 
@@ -45,7 +72,7 @@ impl Problem {
         match self {
             Problem::Unreadable => "Couldn’t be read",
             Problem::NotAPlugin => "Not a plugin for this Delight",
-            Problem::SameId => "Another plugin has the same id",
+            Problem::WrongName => "Its file isn’t named by its id",
             Problem::DoesntStart => "Doesn’t start",
         }
     }
@@ -58,7 +85,7 @@ impl Problem {
                 "It may be built for the previous Delight or another version. Rebuild it with the plugin \
                  API, then install it again."
             }
-            Problem::SameId => "Two files are the same plugin: delete one of them.",
+            Problem::WrongName => "A plugin’s file is named <id>.wasm. Rename it, or install it with Install Plugin…, which names it.",
             Problem::DoesntStart => "It stopped while starting. Rebuild it, or ask its author.",
         }
     }
@@ -75,20 +102,20 @@ pub struct Broken {
 
 /// The plugins that started, in the app's order (the built-ins, then the installed
 /// ones, each by file path), each with where it comes from; and the files that don't
-/// load.
+/// load. Each plugin starts on its own (`loading::restart`): one starting again leaves the others
+/// as they are.
 #[derive(Default)]
 struct Plugins {
     started: Rc<[Plugin]>,
     /// Where each of `started` comes from, in the same order.
     sources: Rc<[Source]>,
     broken: Rc<[Broken]>,
-    /// While they're being started (again).
-    loading: bool,
-    /// How many times they've started: what holds on to a plugin (a surface it
-    /// draws on) knows to ask again when this changes.
-    generation: u64,
+    /// The plugins starting now, by id: replacing one's task cancels its start.
+    starting: HashMap<String, Task<()>>,
     /// What they shape their text with: the app's.
     text_system: Option<Arc<dyn PlatformTextSystem>>,
+    /// Where compiled plugins are kept, shared by all of them; `None` if the folder can't be used.
+    compile_cache: Option<embedded_gpui::CompileCache>,
 }
 
 impl Global for Plugins {}
@@ -117,14 +144,9 @@ pub fn broken(cx: &App) -> Rc<[Broken]> {
     cx.try_global::<Plugins>().map(|plugins| plugins.broken.clone()).unwrap_or_default()
 }
 
-/// Which start of the plugins [`all`] is: it goes up each time they start again.
-pub fn generation(cx: &App) -> u64 {
-    cx.try_global::<Plugins>().map_or(0, |plugins| plugins.generation)
-}
-
-/// Whether the plugins are being started (again) now.
+/// Whether a plugin is starting now.
 pub fn loading(cx: &App) -> bool {
-    cx.try_global::<Plugins>().is_some_and(|plugins| plugins.loading)
+    cx.try_global::<Plugins>().is_some_and(|plugins| !plugins.starting.is_empty())
 }
 
 /// Where installed plugins are: `.wasm` files.

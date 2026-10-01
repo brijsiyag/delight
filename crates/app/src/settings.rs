@@ -45,6 +45,9 @@ pub struct Settings {
     /// Tools turned off: by plugin id, the tools' (operations') ids. Kept apart from
     /// the plugins, so a plugin turned back on has its tools as they were.
     pub disabled_tools: BTreeMap<String, BTreeSet<String>>,
+    /// Plugins that update only when asked, by id. The others install an update that asks for
+    /// nothing new on their own (see `plugins::updates`).
+    pub manual_updates: BTreeSet<String>,
 }
 
 impl Settings {
@@ -82,10 +85,24 @@ impl Settings {
         }
     }
 
+    /// Whether the plugin installs an update that asks for nothing new on its own: unless turned off.
+    pub fn updates_automatically(&self, plugin: &str) -> bool {
+        !self.manual_updates.contains(plugin)
+    }
+
+    pub fn set_updates_automatically(&mut self, plugin: &str, on: bool) {
+        if on {
+            self.manual_updates.remove(plugin);
+        } else {
+            self.manual_updates.insert(plugin.to_string());
+        }
+    }
+
     /// Forget a deleted plugin's switches.
     pub fn forget_plugin(&mut self, plugin: &str) {
         self.disabled_plugins.remove(plugin);
         self.disabled_tools.remove(plugin);
+        self.manual_updates.remove(plugin);
     }
 }
 
@@ -100,6 +117,7 @@ impl Default for Settings {
             open_at_login: true,
             disabled_plugins: BTreeSet::new(),
             disabled_tools: BTreeMap::new(),
+            manual_updates: BTreeSet::new(),
         }
     }
 }
@@ -196,5 +214,17 @@ mod tests {
         settings.set_plugin_on("acme.logs", true);
         assert!(settings.tool_runs("acme.logs", "search"));
         assert!(settings.disabled_tools.is_empty(), "nothing left to remember");
+    }
+
+    #[test]
+    fn each_plugin_updates_automatically_unless_turned_off() {
+        let mut settings = Settings::default();
+        assert!(settings.updates_automatically("acme.logs"), "on by default");
+        settings.set_updates_automatically("acme.logs", false);
+        assert!(!settings.updates_automatically("acme.logs"));
+        assert!(settings.updates_automatically("acme.calendar"), "the others keep theirs");
+        settings.forget_plugin("acme.logs");
+        assert!(settings.updates_automatically("acme.logs"), "a deleted plugin's switch goes with it");
+        assert!(settings.manual_updates.is_empty());
     }
 }

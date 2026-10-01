@@ -1,11 +1,12 @@
 //! What a plugin file is, read without compiling or running any of it.
 
 use anyhow::{Context as _, Result, bail};
-use delight_manifest::{Manifest, SECTION, decode_section};
 use wasmparser::{Parser, Payload};
 
+use crate::{Manifest, SECTION, decode_section};
+
 /// The manifest in a plugin's `.wasm`: its [`SECTION`] custom section, decoded and
-/// checked (see `delight_manifest::decode_section`).
+/// checked (see [`decode_section`]).
 ///
 /// The section sits in the component's core module, not at its top level, so nested
 /// modules and components are searched too. Nothing is compiled or validated beyond
@@ -31,10 +32,10 @@ pub fn read_manifest(wasm: &[u8]) -> Result<Manifest> {
 mod tests {
     use std::borrow::Cow;
 
-    use delight_manifest::{Operation, PluginProperties, encode_operations, encode_properties};
     use wasm_encoder::{Component, CustomSection, Module, ModuleSection};
 
     use super::*;
+    use crate::{Operation, PluginProperties, encode_operations, encode_properties};
 
     fn section() -> Vec<u8> {
         let properties = PluginProperties {
@@ -47,6 +48,7 @@ mod tests {
             tags: Vec::new(),
             permissions: Vec::new(),
             tips: Vec::new(),
+            update: None,
         };
         let operations = [Operation {
             id: "echo".into(),

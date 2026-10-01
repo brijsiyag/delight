@@ -43,6 +43,13 @@ pub struct PluginProperties {
     /// while the plugin has a tool on. As few as are worth reading.
     #[serde(default)]
     pub tips: Vec<String>,
+    /// Where the plugin is published: the URL (`http` or `https`) of a location holding its
+    /// `<id>.wasm` and `<id>.xml`, a manifest with its version (see `Release`, with the `files`
+    /// feature), such as `https://github.com/acme/plugins/releases/latest/download`. The app looks
+    /// there once a day and offers a newer version. Without one, the plugin is updated only by
+    /// installing a newer file.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub update: Option<String>,
 }
 
 /// Most tips a plugin has.
@@ -53,6 +60,8 @@ pub const MAX_TIPS: usize = 5;
 pub const MAX_TIP_CHARS: usize = 60;
 /// The longest a permission's reason is, in characters: a sentence.
 pub const MAX_REASON_CHARS: usize = 100;
+/// The longest a location's URL is.
+pub const MAX_URL_CHARS: usize = 2048;
 /// One tool a plugin offers.
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Operation {
@@ -91,8 +100,11 @@ impl PluginProperties {
     }
 
     /// Check what the types can't: the id's form, a name, a version, its permissions'
-    /// reasons (when it gives them) and its tips.
+    /// reasons (when it gives them), its tips and the URL of where it is published.
     pub fn validate(&self) -> Result<()> {
+        if let Some(url) = &self.update {
+            validate_url(url)?;
+        }
         validate_id(&self.id)?;
         if self.name.trim().is_empty() {
             bail!("the plugin has no name");
@@ -157,6 +169,25 @@ pub fn validate_reason(reason: &str) -> Result<()> {
     Ok(())
 }
 
+/// Check a URL the app will fetch (where a plugin is published): `http://` or `https://`,
+/// a host, no spaces or control characters, and at most [`MAX_URL_CHARS`] characters.
+pub fn validate_url(url: &str) -> Result<()> {
+    let Some(rest) = url.strip_prefix("https://").or_else(|| url.strip_prefix("http://")) else {
+        bail!("{url:?} isn't an http:// or https:// URL");
+    };
+    let host = rest.split(['/', '?', '#']).next().unwrap_or_default();
+    if host.is_empty() {
+        bail!("{url:?} has no host");
+    }
+    if url.chars().any(|c| c.is_whitespace() || c.is_control()) {
+        bail!("{url:?} has spaces or control characters in it");
+    }
+    if url.chars().count() > MAX_URL_CHARS {
+        bail!("the URL is longer than {MAX_URL_CHARS} characters");
+    }
+    Ok(())
+}
+
 /// Check one tip: not blank, and at most [`MAX_TIP_CHARS`] characters.
 pub fn validate_tip(tip: &str) -> Result<()> {
     if tip.trim().is_empty() {
@@ -208,6 +239,7 @@ pub(crate) fn sample() -> Manifest {
                 reason: "Fetches schemas from the web".into(),
             }],
             tips: vec!["Paste JSON to format it".into()],
+            update: Some("https://example.com/plugins".into()),
         },
         operations: vec![Operation {
             id: "format".into(),
@@ -323,6 +355,27 @@ mod tests {
         assert!(with_tips(vec!["  ".into()]).is_err(), "blank");
         assert!(with_tips(vec!["é".repeat(MAX_TIP_CHARS)]).is_ok(), "the limit counts characters");
         assert!(with_tips(vec!["é".repeat(MAX_TIP_CHARS + 1)]).is_err(), "too long");
+    }
+
+    #[test]
+    fn validate_checks_the_update_location() {
+        for (url, valid) in [
+            ("https://example.com/plugins/json", true),
+            ("http://plugins.example.com:8080/delight", true),
+            ("http://localhost:8080", true),
+            ("ftp://example.com/json", false),
+            ("example.com/json", false),
+            ("https:///json", false),
+            ("https://example.com/a json", false),
+            (&format!("https://example.com/{}", "a".repeat(MAX_URL_CHARS)), false),
+        ] {
+            let mut manifest = sample();
+            manifest.plugin.update = Some(url.to_string());
+            assert_eq!(manifest.validate().is_ok(), valid, "{url:?}");
+        }
+        let mut none = sample();
+        none.plugin.update = None;
+        none.validate().unwrap();
     }
 
     #[test]

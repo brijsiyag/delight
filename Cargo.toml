@@ -93,6 +93,10 @@ objc2-app-kit = { version = "=0.3.2", default-features = false, features = [
     "NSVisualEffectView", "NSWindow", "NSWorkspace", "libc", "objc2-quartz-core",
 ] }
 objc2-foundation = { version = "=0.3.2", default-features = false, features = ["std", "NSArray", "NSGeometry", "NSString", "NSURL"] }
+# Plugin updates: the feed is XML (the version `plist` already links), plugin versions are
+# SemVer (the version already in the lock).
+quick-xml = { version = "=0.42.0", features = ["serialize"] }
+semver = "=1.0.28"
 # Zipping the log files for the menu's Open Logs.
 zip = { version = "=8.6.0", default-features = false, features = ["deflate"] }
 # Writing the open-at-login LaunchAgent.
@@ -142,8 +146,23 @@ opt-level = 3
 opt-level = 3
 [profile.dev.package.cranelift-codegen]
 opt-level = 3
+# The compile cache's own path (embedded_gpui's `with_compile_cache`): hashing a plugin and
+# decompressing what was cached. Unoptimized, loading from the cache is nearly as slow as compiling.
+[profile.dev.package.wasmtime-internal-cache]
+opt-level = 3
+[profile.dev.package.zstd-sys]
+opt-level = 3
+[profile.dev.package.zstd-safe]
+opt-level = 3
+[profile.dev.package.sha2]
+opt-level = 3
 
 # GPUI's patches, as embedded_gpui has them: patches don't propagate through
 # git dependencies.
 [patch.crates-io]
 async-task = { git = "https://github.com/smol-rs/async-task.git", rev = "b4486cd71e4e94fbda54ce6302444de14f4d190e" }
+
+# TEMPORARY, while the embedded_gpui change (hidden surfaces) is reviewed: the fork's checkout
+# next to this repository. Replaced by the fork's pushed commit, and removed, once it is pushed.
+[patch."https://github.com/zed-industries/embedded_gpui.git"]
+embedded_gpui = { path = "../embedded_gpui/embedded_gpui" }

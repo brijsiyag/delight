@@ -7,7 +7,7 @@ use gpui::{
 };
 use smallvec::SmallVec;
 
-use crate::{ActiveTheme, Theme, h_flex, v_flex};
+use crate::{ActiveTheme, StyledExt as _, Theme, h_flex, v_flex};
 
 /// A rounded card of rows, tinted a step off the page behind it ([`Theme::card`]), as in
 /// System Settings; its children are rows separated by hairlines.
@@ -35,6 +35,9 @@ impl RenderOnce for Group {
             .flex()
             .flex_col()
             .rounded(t.radius)
+            // Clips what spills out of the card, to its rectangle only: GPUI's clip has no rounded
+            // corners. A row with a hover colour rounds its own corners at the card's top and bottom.
+            .overflow_hidden()
             .bg(t.card())
             .children(self.rows.into_iter().enumerate().flat_map(|(i, row)| {
                 let separator = (i > 0).then(|| div().h(px(1.)).mx(px(10.)).bg(t.separator()).into_any_element());
@@ -103,7 +106,8 @@ impl RenderOnce for Caption {
             .text_size(px(11.))
             .font_weight(FontWeight::SEMIBOLD)
             .text_color(cx.theme().text_muted)
-            .child(self.text)
+            .truncate()
+            .child(crate::ellipsize(&crate::one_line(&self.text), 160))
     }
 }
 
@@ -144,8 +148,8 @@ pub fn row(title: impl Into<SharedString>, detail: Option<&'static str>, control
         .items_center()
         .gap(px(12.))
         .px(px(14.))
-        .child(v_flex().flex_1().min_w(px(0.)).child(title.into()).when_some(detail, |column, detail| {
-            column.child(div().mt(px(2.)).text_size(px(11.)).text_color(t.text_muted).child(detail))
+        .child(v_flex().flex_1().min_w(px(0.)).child(div().truncate().child(crate::ellipsize(&crate::one_line(&title.into()), 160))).when_some(detail, |column, detail| {
+            column.child(div().mt(px(2.)).text_size(px(11.)).text_color(t.text_muted).clamp_lines(2).child(crate::ellipsize(detail, 300)))
         }))
         .child(control)
         .into_any_element()

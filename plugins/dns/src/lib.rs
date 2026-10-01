@@ -18,7 +18,7 @@ use gpui::{App, AppContext as _, AssetSource};
 use crate::lookup::Target;
 
 #[plugin(
-    id = "delight.dns",
+    id = "delight_dns",
     name = "DNS",
     description = "Look up a host's DNS records, resolver and addresses.",
     author = "Delight",

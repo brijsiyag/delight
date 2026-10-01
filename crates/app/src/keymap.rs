@@ -10,12 +10,14 @@
 //!   leaves alone come back out (`Launcher::on_tool_key_down`).
 //! * `Launcher`: anywhere in the launcher window.
 //! * `Settings`: the settings window.
+//! * `InstallPlugin`: the window that asks whether to install a plugin.
 //! * no context: anywhere in Delight.
 
 use delight_ui::editor::actions::CONTEXT as EDITOR;
 use gpui::{App, KeyBinding, NoAction};
 
 use crate::Quit;
+use crate::install_window;
 use crate::plugin_windows;
 use crate::settings_window::{self, CONTEXT as SETTINGS};
 use crate::launcher::{
@@ -54,6 +56,9 @@ pub fn init(cx: &mut App) {
         KeyBinding::new("cmd-w", plugin_windows::Close, Some(plugin_windows::CONTEXT)),
         KeyBinding::new("escape", plugin_windows::Close, Some(plugin_windows::CONTEXT)),
         KeyBinding::new("escape", settings_window::CloseSettings, Some(SETTINGS)),
+        KeyBinding::new("enter", install_window::Confirm, Some(install_window::CONTEXT)),
+        KeyBinding::new("escape", install_window::Cancel, Some(install_window::CONTEXT)),
+        KeyBinding::new("cmd-w", install_window::Close, Some(install_window::CONTEXT)),
         // While the input shows a completion, or is empty: ⌃N and ⌃P complete with the
         // next (older) and previous (newer) remembered input.
         KeyBinding::new("ctrl-n", launcher::OlderCompletion, Some("Launcher > Editor && (showing_completion || empty_input)")),

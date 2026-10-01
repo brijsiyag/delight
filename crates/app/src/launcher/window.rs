@@ -91,6 +91,7 @@ pub fn show(cx: &mut App) {
     let native = handle.update(cx, |launcher, _, cx| {
         launcher.sync_window_size(cx);
         launcher.show_next_tip(cx);
+        launcher.window_shown(true, cx);
         launcher.native.clone()
     });
     let Ok(Some(native)) = native else { return };
@@ -123,6 +124,7 @@ pub fn hide(cx: &mut App) {
     let Some(handle) = handle(cx) else { return };
     let native = handle.update(cx, |launcher, window, cx| {
         launcher.close_history(window, cx);
+        launcher.window_shown(false, cx);
         launcher.native.clone()
     });
     save_input(cx);
@@ -220,6 +222,11 @@ pub fn set_input(plugin_id: &str, text: String, cx: &mut App) {
     }
 }
 
+/// Whether the launcher shows a tool of this plugin now.
+pub fn shows_plugin(plugin_id: &str, cx: &App) -> bool {
+    handle(cx).and_then(|handle| handle.read(cx).ok()).is_some_and(|launcher| launcher.shows_plugin(plugin_id))
+}
+
 /// Ask the plugins again: which are on changed.
 pub fn refresh(cx: &mut App) {
     if let Some(handle) = handle(cx) {
@@ -227,12 +234,13 @@ pub fn refresh(cx: &mut App) {
     }
 }
 
-/// The plugins have started: ask them about the input.
+/// The plugins have started: ask them about the input. The tools of plugins that went on keep what
+/// they show; the others' are closed.
 pub fn plugins_loaded(cx: &mut App) {
     if let Some(handle) = handle(cx) {
         handle
             .update(cx, |launcher, _, cx| {
-                launcher.panes.clear();
+                launcher.drop_stale_tools(cx);
                 launcher.detect(cx);
             })
             .ok();

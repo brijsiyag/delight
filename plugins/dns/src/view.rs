@@ -6,8 +6,8 @@ use std::time::Duration;
 use delight_plugin_api::{Action, Actions, Input, Shortcut, Tool, host};
 use delight_ui::{ActiveTheme, Caption, Group, h_flex, v_flex};
 use gpui::{
-    App, ClipboardItem, Context, InteractiveElement, IntoElement, ParentElement, Render, StatefulInteractiveElement,
-    Styled, Task, Window, div, px,
+    App, ClipboardItem, Context, InteractiveElement, IntoElement, ParentElement, Render, ScrollHandle,
+    StatefulInteractiveElement, Styled, Task, Window, div, px,
 };
 
 use crate::DnsOperation;
@@ -21,6 +21,9 @@ const DELAY: Duration = Duration::from_millis(400);
 pub struct DnsView {
     target: Option<Target>,
     report: Option<Report>,
+    /// Where the pane is scrolled. Kept here, not in the window's element state, which goes while
+    /// the tool is hidden: the tool comes back where it was.
+    scroll: ScrollHandle,
     /// Replacing it cancels the lookup in progress.
     _task: Option<Task<()>>,
 }
@@ -95,7 +98,7 @@ impl Tool for DnsView {
 impl Render for DnsView {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let t = cx.theme();
-        let pane = v_flex().id("dns").size_full().overflow_y_scroll().gap(px(14.));
+        let pane = v_flex().id("dns").size_full().overflow_y_scroll().track_scroll(&self.scroll).gap(px(14.));
         let Some(report) = &self.report else {
             let looking = self.target.as_ref().map(|target| match target {
                 Target::Host(host) => format!("Looking up {host}…"),

@@ -28,6 +28,7 @@ use syn::LitStr;
 ///     tags = ["json"],
 ///     permissions = [Network("Fetches schemas from the web")], // each with why; leave out for none
 ///     tips = ["Paste JSON to format it"], // what to type, and what it gives; few
+///     update = "https://example.com/plugins", // where it is published: <id>.wasm and <id>.xml
 /// )]
 /// struct Json;
 /// ```
@@ -44,6 +45,10 @@ use syn::LitStr;
 /// shows that person's meetings. Not keys or actions: the footer already shows those
 /// ("↵ Copy"). Keep them few, one or two where they're all worth reading; at most 5,
 /// each at most 60 characters.
+///
+/// `update` is the location the plugin is published at: the URL that holds its `<id>.wasm`
+/// and `<id>.xml` (see the README, "Publishing updates"). Delight looks there once a day and
+/// offers a newer version. Leave it out for a plugin that is only ever installed by hand.
 ///
 /// Icon paths
 /// are relative to the crate's `Cargo.toml`. The type must implement `Plugin`, whose

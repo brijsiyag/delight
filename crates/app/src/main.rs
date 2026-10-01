@@ -10,6 +10,7 @@ mod history;
 mod plugin_settings;
 mod secrets;
 mod hotkey;
+mod install_window;
 mod keymap;
 mod launcher;
 mod login;
@@ -21,6 +22,7 @@ mod settings;
 mod settings_window;
 mod single_instance;
 mod tray;
+mod tray_drop;
 mod updater;
 
 use delight_ui::ThemeMode;
@@ -35,6 +37,11 @@ actions!(delight, [Quit]);
 /// Delight's own folder: `~/Library/Application Support/Delight`.
 fn app_dir() -> PathBuf {
     dirs::data_dir().unwrap_or_else(std::env::temp_dir).join("Delight")
+}
+
+/// Delight's caches: `~/Library/Caches/Delight`. What is in it may be deleted; it is made again.
+fn cache_dir() -> PathBuf {
+    dirs::cache_dir().unwrap_or_else(std::env::temp_dir).join("Delight")
 }
 
 /// Everything logged goes to the console and to this run's file (see [`logs`]).
@@ -132,5 +139,6 @@ fn main() {
             log::error!("adding the menu bar icon: {error:#}");
         }
         plugins::load(text_system, cx);
+        plugins::updates::start(cx);
     });
 }

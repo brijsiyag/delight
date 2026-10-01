@@ -4,8 +4,8 @@ use delight_plugin_api::{Action, Actions, Input, Shortcut, Tool, host};
 use delight_ui::conversion::Output;
 use delight_ui::{IconButton, IconName, SegmentedControl, Selectable, h_flex, v_flex};
 use gpui::{
-    App, ClipboardItem, Context, FocusHandle, InteractiveElement, IntoElement, ParentElement, Render, SharedString,
-    StatefulInteractiveElement, Styled, Task, Window, px,
+    App, ClipboardItem, Context, FocusHandle, InteractiveElement, IntoElement, ParentElement, Render, ScrollHandle,
+    SharedString, StatefulInteractiveElement, Styled, Task, Window, px,
 };
 
 use super::convert::{Indent, Mode, Options, convert};
@@ -37,6 +37,9 @@ pub struct JsonView {
     output: Output,
     /// Minified, for "Copy minified" next to a formatted result.
     minified: Option<String>,
+    /// Where the pane is scrolled. Kept here, not in the window's element state, which goes while
+    /// the tool is hidden: the tool comes back where it was.
+    scroll: ScrollHandle,
     /// Replacing it cancels the conversion in progress.
     _task: Option<Task<()>>,
 }
@@ -58,6 +61,7 @@ impl JsonView {
             options: Options::default(),
             output: Output::default(),
             minified: None,
+            scroll: ScrollHandle::new(),
             _task: None,
         }
     }
@@ -166,6 +170,7 @@ impl Render for JsonView {
             .id("json")
             .size_full()
             .overflow_y_scroll()
+            .track_scroll(&self.scroll)
             .gap(px(14.))
             .child(h_flex().child(modes))
             .child(self.output.render(Some(accessory.into_any_element()), cx))

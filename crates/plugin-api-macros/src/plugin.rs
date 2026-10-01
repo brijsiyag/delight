@@ -8,7 +8,7 @@ use darling::FromMeta;
 use darling::ast::NestedMeta;
 use delight_manifest::{
     MAX_TIPS, Permission, PermissionRequest, PluginProperties, SECTION, encode_properties, validate_id, validate_reason,
-    validate_tip,
+    validate_tip, validate_url,
 };
 use proc_macro2::{Literal, TokenStream};
 use quote::quote;
@@ -45,6 +45,9 @@ struct PluginArgs {
     permissions: Permissions,
     #[darling(default)]
     tips: Vec<LitStr>,
+    /// Where its releases are listed (`PluginProperties::update`).
+    #[darling(default)]
+    update: Option<LitStr>,
 }
 
 impl PluginArgs {
@@ -57,6 +60,9 @@ impl PluginArgs {
     fn to_properties(&self, icons: &mut Icons) -> darling::Result<PluginProperties> {
         validate_id(&self.id.value()).map_err(|error| invalid(error).with_span(&self.id))?;
         self.check_tips()?;
+        if let Some(update) = &self.update {
+            validate_url(&update.value()).map_err(|error| invalid(error).with_span(update))?;
+        }
         let properties = PluginProperties {
             id: self.id.value(),
             name: self.name.clone(),
@@ -67,6 +73,7 @@ impl PluginArgs {
             tags: values(&self.tags),
             permissions: self.permissions.0.clone(),
             tips: values(&self.tips),
+            update: self.update.as_ref().map(LitStr::value),
         };
         properties.validate().map_err(invalid)?;
         Ok(properties)

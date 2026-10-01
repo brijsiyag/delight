@@ -4,8 +4,8 @@ use delight_plugin_api::{Action, Actions, Input, Shortcut, Tool, host};
 use delight_ui::conversion::Output;
 use delight_ui::v_flex;
 use gpui::{
-    App, ClipboardItem, Context, InteractiveElement, IntoElement, ParentElement, Render, StatefulInteractiveElement,
-    Styled, Task, Window, px,
+    App, ClipboardItem, Context, InteractiveElement, IntoElement, ParentElement, Render, ScrollHandle,
+    StatefulInteractiveElement, Styled, Task, Window, px,
 };
 
 use super::convert::{json_to_yaml, yaml_to_json};
@@ -14,6 +14,9 @@ pub struct YamlView {
     /// YAML → JSON, or JSON → YAML.
     to_json: bool,
     output: Output,
+    /// Where the pane is scrolled. Kept here, not in the window's element state, which goes while
+    /// the tool is hidden: the tool comes back where it was.
+    scroll: ScrollHandle,
     /// Replacing it cancels the conversion in progress.
     _task: Option<Task<()>>,
 }
@@ -27,7 +30,7 @@ pub enum YamlAction {
 
 impl YamlView {
     pub fn new(to_json: bool) -> Self {
-        Self { to_json, output: Output::default(), _task: None }
+        Self { to_json, output: Output::default(), scroll: ScrollHandle::new(), _task: None }
     }
 
     fn copy_label(&self) -> &'static str {
@@ -76,6 +79,12 @@ impl Tool for YamlView {
 
 impl Render for YamlView {
     fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        v_flex().id("yaml").size_full().overflow_y_scroll().gap(px(14.)).child(self.output.render(None, cx))
+        v_flex()
+            .id("yaml")
+            .size_full()
+            .overflow_y_scroll()
+            .track_scroll(&self.scroll)
+            .gap(px(14.))
+            .child(self.output.render(None, cx))
     }
 }

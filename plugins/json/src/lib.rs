@@ -13,7 +13,7 @@ use gpui::{App, AppContext as _, AssetSource};
 use serde_json::Value;
 
 #[plugin(
-    id = "delight.json",
+    id = "delight_json",
     name = "JSON",
     description = "Format, minify, escape and unescape JSON.",
     author = "Delight",

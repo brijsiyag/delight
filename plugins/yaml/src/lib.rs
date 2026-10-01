@@ -13,7 +13,7 @@ use serde_json::Value;
 use yaml_rust2::Yaml;
 
 #[plugin(
-    id = "delight.yaml",
+    id = "delight_yaml",
     name = "YAML",
     description = "Convert YAML to JSON and JSON to YAML.",
     author = "Delight",

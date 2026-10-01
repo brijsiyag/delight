@@ -9,14 +9,14 @@ use delight_ui::{
     keystroke_for, keystroke_label, v_flex,
 };
 use gpui::{
-    AnyElement, Context, FocusHandle, Focusable, FontWeight, IntoElement, KeyDownEvent, MouseButton, ParentElement,
-    Render, Styled, Window, div, prelude::*, px,
+    AnyElement, Context, Div, FocusHandle, Focusable, FontWeight, IntoElement, KeyDownEvent, MouseButton, ParentElement,
+    Render, Stateful, Styled, Window, div, prelude::*, px,
 };
 
 use super::{
     BAR_HEIGHT, BAR_ICON_GAP, BAR_ICON_SIZE, BAR_PADDING_X, CONTEXT, ClearInput, Dismiss, FocusNext, FocusPrevious,
     FocusTool, FocusTools, Launcher, NewerCompletion, OlderCompletion, OpenSettings, SelectNext, SelectPrevious,
-    SelectTool, TOOL_CONTEXT, TOOL_LIST_CONTEXT, hide, history_search,
+    SelectTool, TOOL_CONTEXT, TOOL_LIST_CONTEXT, ToolIds, find, hide, history_search,
 };
 use crate::{macos, plugin_windows, plugins, settings_window};
 
@@ -166,7 +166,7 @@ impl Launcher {
             list.child(section("Recommended"))
         };
         for (i, candidate) in self.candidates.iter().enumerate() {
-            let Some(plugin) = plugins.get(candidate.plugin) else { continue };
+            let Some((plugin, operation)) = find(&plugins, &candidate.tool) else { continue };
             if i == recommended {
                 list = list
                     .child(div().mx(px(14.)).my(px(6.)).child(Divider::horizontal()))
@@ -175,7 +175,8 @@ impl Launcher {
             let selected = self.selected == Some(i);
             let on_accent = selected && focused;
             let hover = t.fill_subtle();
-            let keystroke = keystroke_for(&SelectTool(i + 1), window);
+            // Only the first nine tools have a key (⌘1 to ⌘9): looking one up for each of dozens costs every frame.
+            let keystroke = if i < 9 { keystroke_for(&SelectTool(i + 1), window) } else { None };
             list = list.child(
                 h_flex()
                     .id(("tool", i))
@@ -192,14 +193,14 @@ impl Launcher {
                         this.select(i, cx);
                         window.focus(&this.list_focus, cx);
                     }))
-                    .child(LogoBadge::new(icon(plugin, candidate.operation)).size(px(20.)))
+                    .child(LogoBadge::new(icon(plugin, operation)).size(px(20.)))
                     .child(
                         div()
                             .flex_1()
                             .min_w(px(0.))
                             .text_color(if on_accent { t.accent_text } else { t.text })
                             .truncate()
-                            .child(title(plugin, candidate.operation)),
+                            .child(title(plugin, operation)),
                     )
                     .when_some(keystroke, |row, keystroke| {
                         let style = if on_accent { KeycapStyle::OnAccent } else { KeycapStyle::Plain };
@@ -210,26 +211,42 @@ impl Launcher {
         list
     }
 
-    /// The selected tool: its name, then its own view; with none selected, why.
+    /// The selected tool: its name, then its own view; with none selected, why. The tool whose view
+    /// this draws is the one shown in its plugin, and every other is hidden (`Launcher::show_only`),
+    /// after this frame: showing and hiding tell the plugins, which is no part of drawing.
     fn render_detail(&mut self, t: &Theme, cx: &mut Context<Self>) -> impl IntoElement {
+        let (detail, drawn) = self.render_tool(t, cx);
+        let shown = drawn.filter(|_| !self.window_hidden);
+        if shown != self.shown_tool {
+            let launcher = cx.weak_entity();
+            cx.defer(move |cx| {
+                launcher.update(cx, |this, cx| this.show_only(shown, cx)).ok();
+            });
+        }
+        detail
+    }
+
+    /// The selected tool's page, and which tool's view it draws (none: a notice instead).
+    fn render_tool(&mut self, t: &Theme, cx: &mut Context<Self>) -> (Stateful<Div>, Option<ToolIds>) {
         // Opaque, unlike the launcher behind it: the tool is read on a solid page.
         let detail = v_flex().id("detail").flex_1().min_w(px(0.)).h_full().gap(px(14.)).px(px(18.)).py(px(14.)).bg(t.tool_background());
         let plugins = plugins::all(cx);
-        let Some(candidate) = self.selected_candidate().copied() else {
-            return detail.child(self.render_empty(t));
+        let Some(tool_ids) = self.selected_candidate().map(|candidate| candidate.tool.clone()) else {
+            return (detail.child(self.render_empty(t)), None);
         };
-        let Some(plugin) = plugins.get(candidate.plugin) else {
-            return detail;
+        let Some((plugin, operation)) = find(&plugins, &tool_ids) else {
+            return (detail, None);
         };
-        let name = plugin.manifest().plugin.name.clone();
-        let title = title(plugin, candidate.operation);
+        let name = delight_ui::ellipsize(&delight_ui::one_line(&plugin.manifest().plugin.name), 100);
+        let title = title(plugin, operation);
         // The plugin's name, unless the tool's title already says it.
         let plugin_name = (name != title).then(|| name.clone());
         let header = h_flex()
             .h(px(24.))
             .gap(px(8.))
-            .child(LogoBadge::new(icon(plugin, candidate.operation)).size(px(20.)))
-            .child(div().flex_shrink_0().font_weight(FontWeight::SEMIBOLD).child(title))
+            .child(LogoBadge::new(icon(plugin, operation)).size(px(20.)))
+            // The title gives way to the plugin's name only when both don't fit: each is one line.
+            .child(div().min_w(px(0.)).font_weight(FontWeight::SEMIBOLD).truncate().child(title))
             .child(
                 div()
                     .flex_1()
@@ -242,7 +259,7 @@ impl Launcher {
         let detail = detail.child(header);
         // A plugin that stopped isn't called again: say so instead.
         if let Some(reason) = plugin.stopped() {
-            return detail.child(stopped_notice(t, format!("{name} stopped: {reason}\n\nIt's off until Delight restarts.")));
+            return (detail.child(stopped_notice(t, format!("{name} stopped: {reason}\n\nIt's off until Delight restarts."))), None);
         }
         match self.selected_pane(cx) {
             // The rest of the height; the plugin draws its view there.
@@ -263,9 +280,9 @@ impl Launcher {
                         }
                     }))
                     .child(surface);
-                detail.child(tool)
+                (detail.child(tool), Some(tool_ids))
             }
-            None => detail,
+            None => (detail, None),
         }
     }
 
@@ -334,7 +351,7 @@ impl Launcher {
 
 /// An operation's title.
 fn title(plugin: &Plugin, operation: usize) -> String {
-    plugin.manifest().operations.get(operation).map(|operation| operation.title.clone()).unwrap_or_default()
+    plugin.manifest().operations.get(operation).map(|operation| delight_ui::ellipsize(&delight_ui::one_line(&operation.title), 100)).unwrap_or_default()
 }
 
 /// An operation's icon (SVG), or its plugin's if it has none.

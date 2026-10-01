@@ -38,7 +38,10 @@ These were settled in the previous attempt (see its
    commit (`rev`), never vendored, so the app and every plugin get exactly the
    same one. Changes are made in the fork `brijsiyag/embedded_gpui`, stay
    small and upstreamable, and are proposed upstream; Delight moves to the
-   fork's commit only for a change upstream won't take.
+   fork's commit only for a change it can't wait for. Since 2026-09-30 it
+   uses the fork's `delight` branch (upstream's `surfaces-as-roots` plus
+   hidden surfaces: tools of one plugin took each other's input), until
+   upstream has the fix (`docs/development.md`, "The embedded_gpui fork").
 
 ## What is different this time
 
@@ -75,7 +78,12 @@ These were settled in the previous attempt (see its
 - **Built-ins are files.** Their `.wasm` files are packaged in the app
   (`Contents/Resources/plugins`, so in the DMG) and loaded by path, like
   installed ones: nothing is embedded in the binary, no build script builds
-  plugins, and embedded_gpui needs no loading from bytes.
+  plugins, and embedded_gpui needs no loading from bytes. Every plugin file,
+  built-in or installed, is named by its id, `<id>.wasm`, so a plugin is found
+  by its id and each starts on its own: a built-in's id is its crate's library
+  name, which Cargo names the file by (`delight_json`; `delight.json` before
+  2026-10-01), and installing names the file. A file named otherwise doesn't
+  load, and says why.
 - **A headless test crate from the start** (a fixture plugin, a fake host
   root, no window), so plugin behaviour is tested without driving the GUI.
 - **Fewer fork changes.** Network sockets and the data folder need none
@@ -326,22 +334,54 @@ fork's `delight` branch.
       be reused: a new key would stop existing installs from updating. The signed app needs
       `allow-unsigned-executable-memory` (wasmtime's compiled plugins; tested on a signed
       test binary).
+16. **Plugin updates.** Plugins are published at a location, such as a GitHub release's download
+    address: for each plugin `<id>.wasm` and `<id>.xml`, a manifest with its id, version, name,
+    description and the file's SHA-256 (`delight_manifest::Release`), and beside them a list of
+    every plugin there in the same form (`PluginList`, under any name; the publish task names it
+    `plugins.xml`). Each plugin is versioned on its own.
+    The plugin names only its location (`#[plugin(update = "…")]`, optional). The app reads each
+    installed plugin's `<id>.xml` at launch and once a day, and downloads `<id>.wasm` only when the
+    version is newer; built-ins update with the app. A download is checked before anything runs:
+    its SHA-256, its manifest (read without running it), the id and version the `.xml` said, newer
+    than the installed one. An update that asks for nothing new (the same permissions, the same
+    programs) replaces the file and restarts that plugin alone, keeping its data, secrets and
+    settings; one that asks for more goes through the install window, like a new plugin. Each
+    plugin's page has "Update automatically" (on by default, stored per plugin): it applies the first
+    kind on its own, never while the plugin's tool is shown or one of its windows is open; the second
+    kind always waits. The page also shows an update and installs it, or else what the last look
+    found, with Check Now: everything about updates is per plugin, nothing is in General.
+    Installing: Settings' "Install Plugin" is a small split button; its main part picks `.wasm`
+    files (the macOS file picker), and its arrow opens a menu, "From a File…" and "From a Link…".
+    From a link, the install window takes a link to an XML file, a list or one plugin's manifest,
+    and tells which from the file's root element, `<plugins>` or `<plugin>`, never from its name
+    (`Link`, `read_published`); it looks at it as soon as it is pasted, lists the plugins there with
+    checkboxes (name, description, and "Update" or "Installed", which can't be picked), downloads
+    and checks the picked ones with a progress bar under each, then Install shows each like a
+    picked file. Publishing: Delight defines only the files at a location (README, "Publishing
+    updates"); making them is the plugins' repository's. `delight-plugins` has `cargo xtask
+    publish`, which writes every plugin's files and a list for a GitHub release (`--out`), or sends
+    the new and newer ones to the location each names (`--upload`, HTTP PUT), and refuses a plugin
+    whose file changed while its version stayed. Meesho's plugins
+    are published as GitHub releases (`https://github.com/Meesho/delight-plugins/releases/latest/download`);
+    `delight-plugins` names that location once it builds against a Delight release that has
+    `update`. Not yet: signing releases (whoever can write a location can replace its plugins; the
+    plugin's key would go in its manifest, as Sparkle's does for the app), putting back the previous
+    file when an update doesn't start, and a mark in Settings' sidebar.
 
 ## Later
 
 Not needed to get the app working; each waits until it is.
 
-- **Compile cache** (**embedded_gpui**, to do): every start compiles each
-  plugin (~250 ms, ~200 MB each); cached, ~10 ms, and 14–25 MB on disk each.
-  Delight can't do it itself: `PluginInstance::new` (`host.rs`) makes its own
-  wasmtime `Config` and `Engine` and loads the file with `Component::from_file`,
-  and wasmtime's cache is off unless `Config::cache` is called (turning on the
-  crate's `cache` feature isn't enough). The change: a
-  `PluginOptions::with_compile_cache(dir)` that hands the folder to wasmtime's
-  own cache (it keys by content and settings and prunes itself), with
-  wasmtime's `cache` feature in embedded_gpui's `Cargo.toml`; Delight then
-  passes `~/Library/Caches/Delight/compiled` in `plugin_options`. Proposed
-  upstream and used once merged (Delight doesn't depend on a fork).
+- **Compile cache** (**embedded_gpui**, done 2026-09-30, in the fork): every start compiled each
+  plugin (~250 ms, ~200 MB each). Delight can't cache it itself: `PluginInstance::new`
+  (`host.rs`) makes its own wasmtime `Config` and `Engine`, and wasmtime's cache is off unless
+  `Config::cache` is called. The change: a `CompileCache` the app makes once for a folder
+  and hands to each plugin (`PluginOptions::with_compile_cache`); it is wasmtime's own cache
+  (keyed by the component's contents and the engine's settings, pruned by one worker), with
+  wasmtime's `cache` feature; Delight makes it in `~/Library/Caches/Delight/compiled`
+  (`plugins/loading.rs`). A second commit on
+  the fork's `delight` branch (`docs/development.md`, "The embedded_gpui fork"); proposed
+  upstream.
 - **Back to embedded_gpui's `main`**: since 2026-09-29 Delight uses its
   `surfaces-as-roots` branch (`ceb0df8`, not yet merged) and the GPUI it
   names, Zed's `gpui-multi-root-embedded-rebased` (`8c88a5c`: Zed PR #63800,
@@ -362,18 +402,28 @@ Not needed to get the app working; each waits until it is.
   passed to tools with the text, their contents only with an `InputFiles`
   permission. `Input` is a struct so they can join it as a minor protocol
   change. The third-party image plugin waits for this.
-- **Calls to a stopped plugin fail at once** (**embedded_gpui**, to do): when
-  a plugin stops (a trap: a turn over its budget, out of memory, a panic, too
-  much drawn), embedded_gpui fails the calls in flight (`fail_pending`), but a
-  call made after the stop is recorded as waiting, its request dropped ("plugin
-  worker is gone"), and never answered. Delight's `CALL_TIMEOUT` (3 s) turns
-  that into a stop, so after a plugin stops outside a call (while drawing, say)
-  the next launcher search waits 3 s for it, once; the open tool's calls
-  (`tool_pane.rs`) wait the same. The change: once stopped, every new call, on
-  any object, fails at once with the stop's reason, as the calls in flight do.
-  Small and upstreamable; chosen over a Delight-only check of
-  `PluginHost::stopped()` before each call. `CALL_TIMEOUT` stays, for a plugin
-  that runs but never answers.
+- **Calls to a stopped plugin fail at once** (done 2026-09-30, in Delight): when a plugin
+  stops (a trap: a turn over its budget, out of memory, a panic, too much drawn),
+  embedded_gpui fails the calls in flight, but a call made after the stop was sent to a
+  worker that was gone and never answered, so the next one waited `CALL_TIMEOUT` (3 s).
+  `PluginHost` tells whoever watches it when it stops, so Delight's `Plugin` watches its
+  host and is marked stopped at once; every call site already checks that before calling.
+  Chosen over a change in embedded_gpui (every later call failing there), which would have
+  been a second commit to carry in the fork for nothing Delight needs; it could still be
+  proposed upstream. `CALL_TIMEOUT` stays, for a plugin that runs but never answers.
+- **Scroll position of a hidden tool** (done for the built-ins 2026-10-01; `delight-plugins` to
+  do): since 2026-09-30 a tool that isn't selected is
+  hidden (`Surface::set_hidden`, `docs/development.md`, "The embedded_gpui fork"): its view is
+  taken out of its plugin's window and keeps its own state. What GPUI keeps for it instead, in
+  the window's element state, is dropped with it: above all the offset of a scroll area the
+  tool doesn't track itself (`.id(…).overflow_y_scroll()` with no `ScrollHandle`). So coming
+  back to such a tool showed its last picture, scrolled, for a moment, then the top. The app
+  can't help: it never sees a scroll offset (the display list has it baked into the positions),
+  and the view isn't recreated, only re-placed. Two fixes:
+  each plugin keeps its own scroll position (a `ScrollHandle` in the view, `track_scroll`: a
+  small change per plugin, done in Delight's plugins (JSON, YAML, DNS), to do in
+  `delight-plugins`); or GPUI keeps an attached root's node while it is detached, which is a
+  change to Zed's branch (proposed upstream, not forked).
 - **Zed's `main`**: see step 2.
 
 ## Watch out for

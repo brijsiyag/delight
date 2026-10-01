@@ -68,6 +68,17 @@ impl ToolPane {
         self.input = Some(input);
     }
 
+    /// The plugin instance the tool runs in.
+    pub fn plugin(&self) -> &Plugin {
+        &self.plugin
+    }
+
+    /// Show the tool, or stop showing it. A hidden tool keeps its state and its last picture, but
+    /// draws nothing and gets no input (`Surface::set_hidden`).
+    pub fn set_shown(&self, shown: bool, cx: &mut App) {
+        self.surface.update(cx, |surface, cx| surface.set_hidden(!shown, cx));
+    }
+
     pub fn actions(&self) -> &[Action] {
         &self.actions
     }

@@ -25,6 +25,7 @@ editor_actions! {
     Delete => delete,
     DeleteWordLeft => delete_word_left,
     DeleteToLineStart => delete_to_line_start,
+    KillToLineStart => kill_to_line_start,
     Left => left,
     Right => right,
     Up => up,

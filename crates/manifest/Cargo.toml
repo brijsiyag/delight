@@ -13,7 +13,20 @@ publish = false
 [lints]
 workspace = true
 
+[features]
+# Reading a plugin's `.wasm` (`read_manifest`), and reading and writing the files where plugins
+# are published (`Release`, `PluginList`): for the app and for publishing tools, such as
+# delight-plugins' `cargo xtask publish`. Off for the plugin API's macros, which build natively for
+# every plugin.
+files = ["dep:quick-xml", "dep:semver", "dep:wasmparser"]
+
 [dependencies]
 anyhow = { workspace = true }
+quick-xml = { workspace = true, optional = true }
+semver = { workspace = true, optional = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+wasmparser = { workspace = true, optional = true }
+
+[dev-dependencies]
+wasm-encoder = { workspace = true }

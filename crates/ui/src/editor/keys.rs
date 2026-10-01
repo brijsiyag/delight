@@ -15,6 +15,7 @@ pub fn key_bindings() -> Vec<KeyBinding> {
         KeyBinding::new("delete", Delete, Some(CONTEXT)),
         KeyBinding::new("alt-backspace", DeleteWordLeft, Some(CONTEXT)),
         KeyBinding::new("cmd-backspace", DeleteToLineStart, Some(CONTEXT)),
+        KeyBinding::new("ctrl-u", KillToLineStart, Some(CONTEXT)),
         KeyBinding::new("left", Left, Some(CONTEXT)),
         KeyBinding::new("right", Right, Some(CONTEXT)),
         KeyBinding::new("up", Up, Some(CONTEXT)),

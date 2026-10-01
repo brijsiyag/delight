@@ -10,7 +10,7 @@ use tray_icon::menu::{Menu, MenuEvent, MenuItem, PredefinedMenuItem};
 use tray_icon::{Icon, TrayIcon, TrayIconBuilder};
 
 use crate::updater::Status;
-use crate::{hotkey, launcher, logs, settings_window, updater};
+use crate::{hotkey, install_window, launcher, logs, settings_window, tray_drop, updater};
 
 /// Black on transparent, so macOS can tint it for light and dark menu bars.
 const LOGO: &[u8] = delight_ui::LOGO_SVG;
@@ -54,7 +54,19 @@ pub fn install(cx: &mut App) -> Result<()> {
         .with_tooltip("Delight")
         .with_menu(Box::new(menu))
         .build()?;
+    // Plugin files dropped on the icon are installed like ones picked in Settings.
+    let (drops, mut dropped) = mpsc::unbounded();
+    match icon.ns_status_item() {
+        Some(item) => tray_drop::accept_drops(&item, drops),
+        None => log::warn!("the menu bar icon has no status item to take drops"),
+    }
     cx.set_global(Tray { _icon: icon, open, updates });
+    cx.spawn(async move |cx| {
+        while let Some(files) = dropped.next().await {
+            cx.update(|cx| install_window::open_files(files, cx));
+        }
+    })
+    .detach();
 
     let (clicks, mut clicked) = mpsc::unbounded();
     MenuEvent::set_event_handler(Some(move |event: MenuEvent| {

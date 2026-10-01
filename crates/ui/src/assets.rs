@@ -50,6 +50,8 @@ macro_rules! icons {
 icons![
     ArrowDownAZ => "arrow-down-a-z",
     Check => "check",
+    ChevronDown => "chevron-down",
+    ChevronUp => "chevron-up",
     CircleCheck => "circle-check",
     CircleX => "circle-x",
     Copy => "copy",

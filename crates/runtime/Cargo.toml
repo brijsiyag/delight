@@ -13,7 +13,8 @@ workspace = true
 anyhow = { workspace = true }
 # TEMPORARY(network): bytes, futures, http, http-body-util, hyper*, rustls, tokio.
 bytes = { workspace = true }
-delight-manifest = { workspace = true }
+# With `files`: reading a plugin's `.wasm`, and its releases' feed.
+delight-manifest = { workspace = true, features = ["files"] }
 delight-protocol = { workspace = true }
 embedded_gpui = { workspace = true }
 futures = { workspace = true }
@@ -26,10 +27,13 @@ log = { workspace = true }
 resolv-conf = { workspace = true }
 system-configuration = { workspace = true }
 rustls = { workspace = true }
+# Plugin updates: fetching a feed and a release (blocking, off the main thread), and checking it.
+sha2 = { workspace = true }
 tokio = { workspace = true }
+ureq = { workspace = true }
 wait-timeout = { workspace = true }
-wasmparser = { workspace = true }
 wasmtime-wasi = { workspace = true }
 
 [dev-dependencies]
+# A plugin's `.wasm`, for the update tests.
 wasm-encoder = { workspace = true }

@@ -93,6 +93,7 @@ mod tests {
                 tags: Vec::new(),
                 permissions: Vec::new(),
                 tips: Vec::new(),
+                update: None,
             },
             operations: operations
                 .iter()

@@ -15,7 +15,7 @@ use delight_plugin_api::{AnyTool, Detection, Input, Operations, Plugin, plugin};
 use gpui::{App, AppContext as _, AssetSource};
 
 #[plugin(
-    id = "delight.svg",
+    id = "delight_svg",
     name = "SVG",
     description = "Preview SVG images and copy them as a data URI.",
     author = "Delight",
