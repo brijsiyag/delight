@@ -244,21 +244,36 @@ impl Launcher {
         };
         let name = delight_ui::ellipsize(&delight_ui::one_line(&plugin.manifest().plugin.name), 100);
         let title = title(plugin, operation);
-        // The plugin's name, unless the tool's title already says it.
-        let plugin_name = (name != title).then(|| name.clone());
+        // The plugin's name, unless the tool's title already says it: a link to its settings page.
+        let plugin_name = (name != title).then(|| {
+            let accent = t.accent;
+            let id = plugin.manifest().plugin.id.clone();
+            div()
+                .id("plugin-name")
+                .min_w(px(0.))
+                .truncate()
+                .cursor_pointer()
+                .hover(move |style| style.text_color(accent))
+                .tooltip(Tooltip::text("Open its settings"))
+                .on_click(move |_, _, cx| {
+                    let id = id.clone();
+                    cx.defer(move |cx| settings_window::open_plugin(id, cx));
+                })
+                .child(name.clone())
+        });
         let header = h_flex()
             .h(px(24.))
             .gap(px(8.))
             .child(LogoBadge::new(icon(plugin, operation)).size(px(20.)))
             // The title gives way to the plugin's name only when both don't fit: each is one line.
             .child(div().min_w(px(0.)).font_weight(FontWeight::SEMIBOLD).truncate().child(title))
+            // Only the name is the link, not the space after it.
             .child(
-                div()
+                h_flex()
                     .flex_1()
                     .min_w(px(0.))
                     .text_size(t.text_size_small())
                     .text_color(t.text_faint)
-                    .truncate()
                     .children(plugin_name),
             )
             .children(plugin_update(plugin, t, cx));
@@ -360,27 +375,12 @@ impl Launcher {
 }
 
 /// A newer version of the tool's plugin, as its settings page offers it: a button that installs it,
-/// or how far its download has come. Or, when the last look for one failed, a small error that
-/// says why while hovered and looks again when clicked.
+/// or how far its download has come. A look for one that failed isn't shown here, where it would
+/// read as the tool's own error; the plugin's page says so.
 fn plugin_update(plugin: &Plugin, t: &Theme, cx: &App) -> Option<AnyElement> {
-    use plugins::updates::{self, Check, State};
+    use plugins::updates::{self, State};
     let id = plugin.manifest().plugin.id.clone();
-    let Some(offer) = updates::offer(&id, cx) else {
-        let Some(Check::Failed(why)) = updates::last_check(&id, cx) else { return None };
-        let tooltip = format!("Couldn’t check for updates: {why}\n\nClick to try again.");
-        let failed = h_flex()
-            .id("update-check-failed")
-            .flex_shrink_0()
-            .gap(px(4.))
-            .text_size(t.text_size_small())
-            .text_color(t.error)
-            .cursor_pointer()
-            .tooltip(Tooltip::text(tooltip))
-            .on_click(move |_, _, cx| updates::check(&id, cx))
-            .child(Icon::new(IconName::TriangleAlert).size(px(12.)).color(t.error))
-            .child("Update check failed");
-        return Some(failed.into_any_element());
-    };
+    let offer = updates::offer(&id, cx)?;
     let label = match &offer.state {
         State::Downloading { done, total } => {
             let done = format!("Downloading… {}", plugins::download_size(*done, *total));

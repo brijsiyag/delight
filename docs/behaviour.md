@@ -183,12 +183,14 @@ that code was organised. Where the rewrite changes something on purpose,
 
 - Header: logo badge 20, title (semibold), plugin name in tertiary colour if
   it differs from the title, ⚙ if the plugin has settings (opens its page).
+  In the rewrite the plugin name is a link to its page (accent on hover,
+  tooltip "Open its settings").
   In the rewrite, when the plugin has an update (plan step 16), at the right a
   small text button "↻ Update to X" ("Review Update…" when it asks for new
   permissions, "Retry Update" after a failure), which does what its page's
-  button does; "Downloading… 1.2/3.4 MB" while it comes. When the last look for
-  one failed: a small red "⚠ Update check failed", which says why while
-  hovered and looks again when clicked.
+  button does; "Downloading… 1.2/3.4 MB" while it comes. A look for one that
+  failed shows nothing here (it would read as the tool's own error); the
+  plugin's page says so.
 - Empty states (Sparkles icon): no candidates → "No tool fits this input" /
   "Plugins in the plugins folder add tools."; candidates but none selected →
   "No strong match" / "Pick a tool on the left, or keep typing."
