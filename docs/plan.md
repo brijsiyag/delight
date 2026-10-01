@@ -40,8 +40,9 @@ These were settled in the previous attempt (see its
    small and upstreamable, and are proposed upstream; Delight moves to the
    fork's commit only for a change it can't wait for. Since 2026-09-30 it
    uses the fork's `delight` branch (upstream's `surfaces-as-roots` plus
-   hidden surfaces: tools of one plugin took each other's input), until
-   upstream has the fix (`docs/development.md`, "The embedded_gpui fork").
+   hidden surfaces, since tools of one plugin took each other's input, and a
+   compile cache), until upstream has both (`docs/development.md`, "The
+   embedded_gpui fork").
 
 ## What is different this time
 

@@ -18,7 +18,7 @@ members = [
 [workspace.package]
 # The app's version: 0.1.0 is the first release. The crates plugins build against have their own
 # version, which is the protocol version (see crates/manifest/Cargo.toml); it is 0.1.0 too.
-version = "0.0.3"
+version = "0.0.4"
 edition = "2024"
 license = "MIT"
 
@@ -34,13 +34,13 @@ delight-protocol = { path = "crates/protocol" }
 delight-plugin-api-macros = { path = "crates/plugin-api-macros" }
 delight-runtime = { path = "crates/runtime" }
 delight-ui = { path = "crates/ui" }
-# Upstream, at a commit: the app and every plugin (through delight-plugin-api) get
+# The fork, at a commit: the app and every plugin (through delight-plugin-api) get
 # exactly this one, wherever they're built. It brings GPUI (see docs/plan.md,
-# Layout). To work on a change, point it at the checkout next to this repository
-# with a `[patch."https://github.com/zed-industries/embedded_gpui.git"]` entry.
-# The tip of its `surfaces-as-roots` branch, not yet merged into its `main` (see
-# docs/plan.md, Later).
-embedded_gpui = { git = "https://github.com/zed-industries/embedded_gpui.git", rev = "ceb0df8266592ddb4c5540c5f09ec10680f34c14" }
+# Layout). The tip of the fork's `delight` branch: upstream's `surfaces-as-roots`
+# (`ceb0df8`) plus hidden surfaces and the compile cache (docs/development.md, "The
+# embedded_gpui fork"). To work on a change, point it at the checkout next to this
+# repository with a `[patch."https://github.com/brijsiyag/embedded_gpui.git"]` entry.
+embedded_gpui = { git = "https://github.com/brijsiyag/embedded_gpui.git", rev = "18edce59921b4071b846e38216646263970d2f78" }
 anyhow = "=1.0.103"
 # TEMPORARY(network), down to `tower-service`: the app's HTTP for plugins, until embedded_gpui
 # links `wasi:http` (README, "Temporary host APIs"). The versions already in
@@ -161,8 +161,3 @@ opt-level = 3
 # git dependencies.
 [patch.crates-io]
 async-task = { git = "https://github.com/smol-rs/async-task.git", rev = "b4486cd71e4e94fbda54ce6302444de14f4d190e" }
-
-# TEMPORARY, while the embedded_gpui change (hidden surfaces) is reviewed: the fork's checkout
-# next to this repository. Replaced by the fork's pushed commit, and removed, once it is pushed.
-[patch."https://github.com/zed-industries/embedded_gpui.git"]
-embedded_gpui = { path = "../embedded_gpui/embedded_gpui" }

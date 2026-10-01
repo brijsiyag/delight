@@ -78,7 +78,7 @@ Nothing Delight builds on is released on crates.io yet, so everything is taken f
 |---|---|---|
 | `delight-plugin-api`, `delight-ui` | this repository, `github.com/brijsiyag/delight` | a release commit (`rev`) |
 | `gpui` | Zed's `gpui-multi-root-embedded-rebased` branch, `github.com/zed-industries/zed` | the commit in `Cargo.lock` (today `8c88a5c`), `version = "=0.2.2"` |
-| `embedded_gpui` (the layer that lets a plugin run its own GPUI) | for now the fork `github.com/brijsiyag/embedded_gpui`, branch `delight`: upstream's `surfaces-as-roots` plus one fix (see [`docs/development.md`](docs/development.md), "The embedded_gpui fork"); back to `zed-industries/embedded_gpui` once upstream has it | a commit, taken in by `delight-plugin-api`, so a plugin never names it |
+| `embedded_gpui` (the layer that lets a plugin run its own GPUI) | for now the fork `github.com/brijsiyag/embedded_gpui`, branch `delight`: upstream's `surfaces-as-roots` plus hidden surfaces and a compile cache (see [`docs/development.md`](docs/development.md), "The embedded_gpui fork"); back to `zed-industries/embedded_gpui` once upstream has them | a commit, taken in by `delight-plugin-api`, so a plugin never names it |
 
 - **GPUI is the branch's, not crates.io's `gpui`.** Plugins and the app must use exactly the same
   GPUI, so a plugin names it exactly as above (branch and version), or Cargo links a second copy and

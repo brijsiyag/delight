@@ -1,7 +1,7 @@
 [package]
 name = "delight-fixture"
 description = "The plugin Delight's headless tests drive"
-version = "0.0.3"
+version = "0.0.4"
 edition = "2024"
 license = "MIT"
 publish = false
@@ -30,8 +30,3 @@ strip = true
 # GPUI's patches, as the root workspace has them: patches don't propagate.
 [patch.crates-io]
 async-task = { git = "https://github.com/smol-rs/async-task.git", rev = "b4486cd71e4e94fbda54ce6302444de14f4d190e" }
-
-# TEMPORARY, while the embedded_gpui change (hidden surfaces) is reviewed: the fork's checkout
-# next to this repository. Replaced by the fork's pushed commit, and removed, once it is pushed.
-[patch."https://github.com/zed-industries/embedded_gpui.git"]
-embedded_gpui = { path = "../../../embedded_gpui/embedded_gpui" }

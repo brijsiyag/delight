@@ -1008,7 +1008,7 @@ checksum = "be1e0bca6c3637f992fc1cc7cbc52a78c1ef6db076dbf1059c4323d6a2048376"
 
 [[package]]
 name = "delight-fixture"
-version = "0.0.3"
+version = "0.0.4"
 dependencies = [
  "delight-plugin-api",
  "log",
@@ -1020,7 +1020,7 @@ dependencies = [
 
 [[package]]
 name = "delight-manifest"
-version = "0.0.3"
+version = "0.0.4"
 dependencies = [
  "anyhow",
  "serde",
@@ -1029,7 +1029,7 @@ dependencies = [
 
 [[package]]
 name = "delight-plugin-api"
-version = "0.0.3"
+version = "0.0.4"
 dependencies = [
  "anyhow",
  "bytes",
@@ -1049,7 +1049,7 @@ dependencies = [
 
 [[package]]
 name = "delight-plugin-api-macros"
-version = "0.0.3"
+version = "0.0.4"
 dependencies = [
  "anyhow",
  "darling",
@@ -1062,7 +1062,7 @@ dependencies = [
 
 [[package]]
 name = "delight-protocol"
-version = "0.0.3"
+version = "0.0.4"
 dependencies = [
  "anyhow",
  "base64",
@@ -1235,6 +1235,7 @@ checksum = "edd0f118536f44f5ccd48bcb8b111bdc3de888b58c74639dfb034a357d0f206d"
 [[package]]
 name = "embedded_gpui"
 version = "0.1.0"
+source = "git+https://github.com/brijsiyag/embedded_gpui.git?rev=18edce59921b4071b846e38216646263970d2f78#18edce59921b4071b846e38216646263970d2f78"
 dependencies = [
  "anyhow",
  "embedded_gpui_macros",
@@ -1256,6 +1257,7 @@ dependencies = [
 [[package]]
 name = "embedded_gpui_macros"
 version = "0.1.0"
+source = "git+https://github.com/brijsiyag/embedded_gpui.git?rev=18edce59921b4071b846e38216646263970d2f78#18edce59921b4071b846e38216646263970d2f78"
 dependencies = [
  "proc-macro2",
  "quote",
