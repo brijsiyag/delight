@@ -235,12 +235,23 @@ pub struct Action<A> {
     pub label: String,
     pub shortcut: Shortcut,
     pub style: ActionStyle,
+    /// No button in the footer, only its key: see [`Action::hidden`].
+    pub hidden: bool,
 }
 
 impl<A> Action<A> {
     /// An action with the footer's usual button.
     pub fn new(id: A, label: impl Into<String>, shortcut: Shortcut) -> Self {
-        Self { id, label: label.into(), shortcut, style: ActionStyle::Normal }
+        Self { id, label: label.into(), shortcut, style: ActionStyle::Normal, hidden: false }
+    }
+
+    /// No button in the footer: only its key, which works from the launcher's input as every
+    /// action's does. For keys a tool wants without spending one of the footer's four buttons on
+    /// them (switching what its page shows, say). One that is also [`Shortcut::ClickOnly`] can't
+    /// be used at all.
+    pub fn hidden(mut self) -> Self {
+        self.hidden = true;
+        self
     }
 
     /// The button is filled: the main thing to do here.

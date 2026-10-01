@@ -304,6 +304,14 @@ pub struct Action {
     /// How its button looks; a plugin built before there were styles sends none: `Normal`.
     #[serde(default, skip_serializing_if = "ActionStyle::is_normal")]
     pub style: ActionStyle,
+    /// No button in the footer: only its key, which the launcher answers as every action's. A
+    /// plugin built before there were hidden actions sends none: shown.
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub hidden: bool,
+}
+
+fn is_false(value: &bool) -> bool {
+    !*value
 }
 
 /// How an action's button looks: a named style, drawn in the app's colours for the current
@@ -404,6 +412,7 @@ mod tests {
                 label: "Copy".into(),
                 shortcut: Shortcut::Keystroke("cmd-enter".into()),
                 style: ActionStyle::Normal,
+                hidden: false,
             },
             r#"{"id":"copy","label":"Copy","shortcut":{"Keystroke":"cmd-enter"}}"#,
         );
@@ -413,8 +422,19 @@ mod tests {
                 label: "Copy".into(),
                 shortcut: Shortcut::ClickOnly,
                 style: ActionStyle::Attention,
+                hidden: false,
             },
             r#"{"id":"copy","label":"Copy","shortcut":"ClickOnly","style":"Attention"}"#,
+        );
+        assert_wire(
+            &Action {
+                id: "prd".into(),
+                label: "Prd".into(),
+                shortcut: Shortcut::Keystroke("alt-1".into()),
+                style: ActionStyle::Normal,
+                hidden: true,
+            },
+            r#"{"id":"prd","label":"Prd","shortcut":{"Keystroke":"alt-1"},"hidden":true}"#,
         );
     }
 

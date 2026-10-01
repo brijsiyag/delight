@@ -28,8 +28,9 @@ pub const PLUGIN_API_VERSION: &str = env!("CARGO_PKG_VERSION");
 /// told when a click lands elsewhere in the launcher), its settings as sections, and where it is
 /// published (the manifest's `update`, which older apps ignore). 0.1 adds whether a
 /// plugin's window hides with the launcher (`open_window`'s `hide_with_launcher`, which
-/// plugins before it don't send) and `set_window_shown`. Before 1.0 a minor bump may also
-/// break what it changes; keep the rules above from 1.0 on.
+/// plugins before it don't send) and `set_window_shown`. 0.2 adds hidden actions (`Action`'s
+/// `hidden`: a key and no button in the footer; plugins before it don't send it). Before 1.0 a
+/// minor bump may also break what it changes; keep the rules above from 1.0 on.
 pub const PROTOCOL_VERSION: ProtocolVersion = ProtocolVersion {
     major: number(env!("CARGO_PKG_VERSION_MAJOR")),
     minor: number(env!("CARGO_PKG_VERSION_MINOR")),

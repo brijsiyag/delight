@@ -215,7 +215,7 @@ that code was organised. Where the rewrite changes something on purpose,
   toasts 8 s, once per plugin per run). The previous attempt showed input
   statistics there (size, lines, chars, words); the rewrite drops them, and a
   tool can offer them instead.
-- Right: the tool's first 4 actions as text buttons with keycaps, vertical
+- Right: the tool's first 4 actions that aren't hidden as text buttons with keycaps, vertical
   dividers between, then a pin (Lucide `pin`), only while "Hide when another
   app is used" is on, in the muted icon colour with no background but the
   hover's: on (the pin's head filled, `pin-filled`), the launcher and the plugins'
@@ -231,8 +231,12 @@ that code was organised. Where the rewrite changes something on purpose,
   current focus context stack, or an earlier action took it. The plugin API
   types them (`Shortcut::Enter`, `CmdEnter`, `Option(1..=9)`, `ClickOnly`).
   The launcher's key-down finds the matching action (same modifiers, key
-  case-insensitive), performs it and stops propagation. (Quirk: actions past
-  the 4 shown still answer their keys.) Labels like `⌘↵` and `⌥1`.
+  case-insensitive), performs it and stops propagation. Every action answers
+  its key, whether it has a button or not: those past the 4 shown, and hidden
+  ones (`Action::hidden()`, plugin API 0.2), which never take a button, for keys
+  a tool wants without spending one (Service Hub's ⌥1–⌥3 environments). A key
+  no action has goes on to the input (⌥1 types `¡` there). Labels like `⌘↵` and
+  `⌥1`.
 
 ## Input history
 
@@ -482,8 +486,9 @@ height / text / icon / padding).
   input change; keep it quick), `actions()` (footer, in order),
   `perform(action)` (the view does the copying, toasting, hiding).
 - `Input { text, files }` (cheap clones; paths the sandbox can't open);
-  `Detection::new(operation, confidence)`; `Action::new(id,
-  label).shortcut("cmd-enter")`.
+  `Detection::new(operation, confidence)`; `Action::new(id, label,
+  shortcut)`, then `.primary()`, `.attention()` or `.hidden()` (a key, no
+  button).
 - Manifest: id (reverse-DNS), name, version, description, author, icon SVG
   (full colour, square, own background for both modes), tags, operations
   (id, title, description, tags), permissions, has_settings.

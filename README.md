@@ -182,7 +182,8 @@ Working examples: the built-ins in [`plugins/`](plugins) (JSON, YAML, SVG, DNS).
 
 - **Action keys are fixed:** `Shortcut::Enter` (↵), `CmdEnter` (⌘↵), `Option(1..=9)` (⌥1–⌥9) or
   `ClickOnly`. Any other key is refused. The footer shows four actions; a destructive one should
-  never be on plain ↵ (mark it `.attention()` or leave it on a click).
+  never be on plain ↵ (mark it `.attention()` or leave it on a click). An action marked `.hidden()`
+  has its key and no button: for keys you want without spending one of the four.
 - **Theme:** use `delight_ui`'s components and theme colours, not your own tokens; they follow
   light/dark automatically.
 - **Settings:** return sections from `Plugin::settings_sections`; the app draws the card, title and

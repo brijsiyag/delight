@@ -1,7 +1,8 @@
 //! The footer's actions and the keys that run them: each action's own shortcut, in
 //! the tool's order. Only ↵, ⌘↵ and ⌥1 to ⌥9 are keys an action may have; any other
 //! keystroke a plugin sends, a shortcut the keymap already binds where the focus is (the
-//! keymap wins), or an earlier action's, is dropped: that action is only clicked.
+//! keymap wins), or an earlier action's, is dropped: that action is only clicked. A hidden
+//! action has its key and no button.
 
 use std::collections::HashSet;
 use std::sync::{Mutex, OnceLock};
@@ -41,6 +42,13 @@ pub fn keyed(actions: Vec<Action>, is_bound: impl Fn(&Keystroke) -> bool) -> Vec
         .collect()
 }
 
+/// The actions that get a button in the footer: in the tool's order, skipping hidden ones, at most
+/// `max` of them (the footer has room for `FOOTER_ACTIONS`, 4). The others still answer their keys:
+/// keys are matched against every action, with or without a button.
+pub fn buttons(keyed: Vec<(Action, Option<Keystroke>)>, max: usize) -> Vec<(Action, Option<Keystroke>)> {
+    keyed.into_iter().filter(|(action, _)| !action.hidden).take(max).collect()
+}
+
 /// Whether `pressed` is `own` (same key, same modifiers).
 pub fn matches(own: &Keystroke, pressed: &Keystroke) -> bool {
     own.modifiers == pressed.modifiers && own.key.eq_ignore_ascii_case(&pressed.key)
@@ -58,7 +66,12 @@ mod tests {
             label: id.into(),
             shortcut: shortcut.map_or(Shortcut::ClickOnly, |key| Shortcut::Keystroke(key.into())),
             style: ActionStyle::Normal,
+            hidden: false,
         }
+    }
+
+    fn hidden(id: &str, shortcut: &str) -> Action {
+        Action { hidden: true, ..action(id, Some(shortcut)) }
     }
 
     fn keys(actions: Vec<Action>, bound: &[&str]) -> Vec<(String, Option<Keystroke>)> {
@@ -93,6 +106,23 @@ mod tests {
         let actions = vec![action("a", Some("cmd-enter")), action("b", Some("enter")), action("c", Some("enter"))];
         let expected = [("a".to_string(), None), ("b".to_string(), key("enter")), ("c".to_string(), None)];
         assert_eq!(keys(actions, &["cmd-enter"]), expected);
+    }
+
+    #[test]
+    fn a_hidden_action_keeps_its_key_but_takes_no_button() {
+        let actions = vec![
+            action("repo", Some("enter")),
+            hidden("prd", "alt-1"),
+            action("argo", Some("cmd-enter")),
+            hidden("int", "alt-2"),
+            action("ringmaster", Some("alt-4")),
+            action("logs", None),
+            action("vault", None),
+        ];
+        let keyed = keyed(actions, |_| false);
+        assert_eq!((keyed[1].0.id.as_str(), keyed[1].1.clone()), ("prd", key("alt-1")), "its key works");
+        let shown: Vec<String> = buttons(keyed, 4).into_iter().map(|(action, _)| action.id).collect();
+        assert_eq!(shown, ["repo", "argo", "ringmaster", "logs"], "four buttons, none of them hidden");
     }
 
     #[test]

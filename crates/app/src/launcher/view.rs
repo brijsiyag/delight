@@ -16,7 +16,7 @@ use gpui::{
 use super::{
     BAR_HEIGHT, BAR_ICON_GAP, BAR_ICON_SIZE, BAR_PADDING_X, CONTEXT, ClearInput, Dismiss, FocusNext, FocusPrevious,
     FocusTool, FocusTools, Launcher, NewerCompletion, OlderCompletion, OpenSettings, SelectNext, SelectPrevious,
-    SelectTool, TOOL_CONTEXT, TOOL_LIST_CONTEXT, ToolIds, find, hide, history_search,
+    SelectTool, TOOL_CONTEXT, TOOL_LIST_CONTEXT, ToolIds, find, footer, hide, history_search,
 };
 use crate::{macos, plugin_windows, plugins, settings, settings_window};
 
@@ -334,7 +334,7 @@ impl Launcher {
         });
         // Buttons are clicked, not dragged: keep their mouse-downs from the footer.
         let mut actions = h_flex().gap(px(2.)).on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation());
-        for (i, (action, key)) in self.keyed_actions(window, cx).into_iter().take(FOOTER_ACTIONS).enumerate() {
+        for (i, (action, key)) in footer::buttons(self.keyed_actions(window, cx), FOOTER_ACTIONS).into_iter().enumerate() {
             if i > 0 {
                 actions = actions.child(Divider::vertical());
             }
