@@ -415,6 +415,21 @@ async fn its_tool_takes_input_and_offers_actions(cx: &mut TestAppContext) {
 }
 
 #[gpui::test]
+async fn a_tool_is_told_when_its_view_is_shown_and_hidden(cx: &mut TestAppContext) {
+    let (plugin, app) = start("visibility", cx).await;
+    let tool = tool_with(&plugin, "hi", cx).await;
+    // The fixture toasts `on_shown` and `on_hidden`, in the order the app tells it.
+    for shown in [true, false, true] {
+        let told = cx.update(|cx| tool.visibility_changed(shown, cx));
+        settle(cx);
+        told.await.expect("visibility_changed");
+    }
+    settle(cx);
+    app.read_with(cx, |app, _| assert_eq!(app.toasts, ["shown", "hidden", "shown"]));
+    assert_eq!(plugin.stopped(), None);
+}
+
+#[gpui::test]
 async fn an_unknown_operation_is_an_error_not_a_stop(cx: &mut TestAppContext) {
     let (plugin, _app) = start("unknown", cx).await;
     let surface = cx.new(Surface::new);

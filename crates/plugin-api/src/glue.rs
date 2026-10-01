@@ -159,6 +159,10 @@ impl ToolApi for ToolHome {
     fn focus_lost(&mut self, cx: &mut Context<Self>) {
         self.tool.focus_lost(cx);
     }
+
+    fn visibility_changed(&mut self, shown: bool, cx: &mut Context<Self>) {
+        self.tool.visibility_changed(shown, cx);
+    }
 }
 
 /// `head` then `tail`, as one array: the plugin's custom section, joined at

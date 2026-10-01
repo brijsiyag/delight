@@ -55,7 +55,9 @@ plugin.wasm: its own GPUI, drawn into a surface the launcher shows
 - **Detection.** On every change of the input the app asks each plugin `detect(input)`, which returns
   the tools that fit with a confidence from 0 to 1. Tools at 0.5 or more are *Recommended*; the
   highest is selected. Then the app hands the input to the tool (`on_input_changed`), shows its
-  footer actions (`list_actions`) and runs the one you pick (`perform_action`).
+  footer actions (`list_actions`) and runs the one you pick (`perform_action`). It tells the tool
+  when its view is shown or hidden (`on_shown`, `on_hidden`): when it's picked or another is, and
+  when the launcher hides and comes back, which sends no input.
 - **Sandbox and permissions.** A plugin sees its own data folder (`/data`) and nothing else. The
   network and running programs need a permission the plugin declares with a reason, which you see
   when installing. A plugin that fails is stopped on its own and the others carry on.

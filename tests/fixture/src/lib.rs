@@ -240,6 +240,14 @@ impl Tool for Echo {
             }
         }
     }
+
+    fn on_shown(&mut self, cx: &mut Context<Self>) {
+        host(cx).toast("shown", cx);
+    }
+
+    fn on_hidden(&mut self, cx: &mut Context<Self>) {
+        host(cx).toast("hidden", cx);
+    }
 }
 
 impl Render for Echo {

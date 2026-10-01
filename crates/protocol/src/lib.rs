@@ -91,6 +91,11 @@ pub trait ToolApi {
     /// The user clicked somewhere else in the launcher (its input, the footer, the list): the
     /// tool closes what it holds open that only a click can close, such as a menu.
     fn focus_lost(&mut self, cx: &mut gpui::Context<Self>);
+
+    /// The tool's view was shown (`true`: the tool was picked, or the launcher came up with it
+    /// picked) or hidden (another tool was picked, or the launcher hid). Since plugin API 0.3;
+    /// a plugin built before it has no such method, and the app ignores the error it answers.
+    fn visibility_changed(&mut self, shown: bool, cx: &mut gpui::Context<Self>);
 }
 
 /// The app's root object for one plugin: what a plugin reaches in the app.
@@ -490,7 +495,7 @@ mod tests {
         );
         assert_eq!(
             methods(ToolApi::schema()),
-            ["on_input_changed", "list_actions", "perform_action", "focus_lost"]
+            ["on_input_changed", "list_actions", "perform_action", "focus_lost", "visibility_changed"]
         );
         assert_eq!(
             methods(HostApi::schema()),

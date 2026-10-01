@@ -184,6 +184,15 @@ pub trait Tool: Render {
     /// The user clicked somewhere else in the launcher (its input, the footer, the list). A
     /// click there never reaches the tool's view, so this is how a menu it holds open closes.
     fn on_focus_lost(&mut self, _cx: &mut Context<Self>) {}
+
+    /// The tool's view was shown: it was picked, or the launcher came up with it picked (an
+    /// unchanged input isn't sent again then). A tool showing what goes stale, such as a list
+    /// fetched from a server, fetches it again here. Nothing by default.
+    fn on_shown(&mut self, _cx: &mut Context<Self>) {}
+
+    /// The tool's view was hidden: another tool was picked, or the launcher hid. Nothing by
+    /// default.
+    fn on_hidden(&mut self, _cx: &mut Context<Self>) {}
 }
 
 /// A tool's footer actions (its [`Tool::Action`]). Derive it for a fieldless enum, one

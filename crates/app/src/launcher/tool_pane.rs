@@ -14,6 +14,8 @@ pub struct ToolPane {
     tool: Option<Remote<ToolApi>>,
     /// The latest input, sent once the tool is there.
     input: Option<Input>,
+    /// Whether the tool's view is shown: the tool is told when it changes, and once it arrives.
+    shown: bool,
     actions: Vec<Action>,
     _opening: Task<()>,
     _observing: Option<Subscription>,
@@ -35,6 +37,7 @@ impl ToolPane {
             plugin: plugin.clone(),
             tool: None,
             input: None,
+            shown: false,
             actions: Vec::new(),
             _opening: opening,
             _observing: None,
@@ -47,6 +50,9 @@ impl ToolPane {
         }
         if let Some(input) = self.input.clone() {
             drop(tool.on_input_changed(input, cx));
+        }
+        if self.shown {
+            drop(tool.visibility_changed(true, cx));
         }
         // The tool notifies when its actions change, and once now.
         let pane = cx.entity().downgrade();
@@ -73,10 +79,18 @@ impl ToolPane {
         &self.plugin
     }
 
-    /// Show the tool, or stop showing it. A hidden tool keeps its state and its last picture, but
-    /// draws nothing and gets no input (`Surface::set_hidden`).
-    pub fn set_shown(&self, shown: bool, cx: &mut App) {
+    /// Show the tool, or stop showing it, and tell it (`visibility_changed`). A hidden tool keeps
+    /// its state and its last picture, but draws nothing and gets no input (`Surface::set_hidden`).
+    /// A plugin built before plugin API 0.3 has no such method: its error is dropped.
+    pub fn set_shown(&mut self, shown: bool, cx: &mut Context<Self>) {
         self.surface.update(cx, |surface, cx| surface.set_hidden(!shown, cx));
+        if self.shown == shown {
+            return;
+        }
+        self.shown = shown;
+        if let Some(tool) = self.tool.as_ref().filter(|_| self.plugin.stopped().is_none()) {
+            drop(tool.visibility_changed(shown, cx));
+        }
     }
 
     pub fn actions(&self) -> &[Action] {

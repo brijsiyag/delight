@@ -203,7 +203,11 @@ that code was organised. Where the rewrite changes something on purpose,
   nothing and get no input, so tools of one plugin never take each other's clicks
   or scrolling. What a tool keeps in GPUI's element state rather than its own (an
   untracked scroll offset) starts over when it is shown again. The newest input is buffered until the
-  tool object arrives; an unchanged input isn't re-sent.
+  tool object arrives; an unchanged input isn't re-sent. The tool is told whenever its view is shown
+  or hidden (`ToolApi::visibility_changed`, plugin API 0.3; `Tool::on_shown` / `on_hidden`), and once
+  it arrives if it's shown: a tool showing what goes stale fetches it again then, as the launcher
+  coming back with the same input tells it nothing else. A plugin built before 0.3 answers with
+  an error, which the app drops.
 - → in the list moves keyboard focus into the tool's surface.
 - The tool view fills the pane's height under the title (the guest wraps it
   in a full-size flex column); views are transparent, the window is the

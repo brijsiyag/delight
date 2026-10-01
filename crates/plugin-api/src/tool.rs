@@ -32,6 +32,7 @@ pub(crate) trait DynTool {
     fn list_actions(&self, cx: &App) -> Vec<Action>;
     fn perform_action(&self, action: &str, cx: &mut App);
     fn focus_lost(&self, cx: &mut App);
+    fn visibility_changed(&self, shown: bool, cx: &mut App);
     fn observe(&self, on_notify: Box<dyn FnMut(&mut App)>, cx: &mut App) -> Subscription;
 }
 
@@ -57,6 +58,10 @@ impl<T: Tool> DynTool for Entity<T> {
 
     fn focus_lost(&self, cx: &mut App) {
         self.update(cx, |tool, cx| tool.on_focus_lost(cx));
+    }
+
+    fn visibility_changed(&self, shown: bool, cx: &mut App) {
+        self.update(cx, |tool, cx| if shown { tool.on_shown(cx) } else { tool.on_hidden(cx) });
     }
 
     /// The action with the id the app hands back; one the tool doesn't have is
