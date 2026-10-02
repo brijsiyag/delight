@@ -50,16 +50,17 @@
   </g>
   <!-- The border line, at the panel's edge, well clear of the logo -->
   <rect x="152" y="152" width="720" height="720" rx="136" fill="none" stroke="#007AFF" stroke-width="8"/>
-  <!-- The logo: three rings, cut so that a way runs from the top into the dot at the centre.
-       The menu bar's design at 14x; stroked 6 wide with round joins to soften its corners. -->
+  <!-- The logo: two rings, cut so that a way runs from the top into the dot at the centre.
+       The menu bar's design (crates/ui/assets/icons/logo.svg) at 14x; drawn 3 inside its
+       edges and stroked 6 wide with round joins to soften its corners. -->
   <g filter="url(#lift)">
     <g fill="url(#ink)" stroke="url(#ink)" stroke-width="6" stroke-linejoin="round">
-      <path d="M529 291.65A221 221 0 0 1 529 732.35L529 700.43A189.2 189.2 0 0 0 529 323.57Z M495 291.65A221 221 0 0 0 495 732.35L495 700.43A189.2 189.2 0 0 1 495 323.57Z M357.73 495A155.2 155.2 0 0 1 666.27 495L634.22 495A123.4 123.4 0 0 0 389.78 495Z M357.73 529A155.2 155.2 0 0 0 666.27 529L634.22 529A123.4 123.4 0 0 1 389.78 529Z M599.77 495A89.4 89.4 0 1 0 599.77 529L567.03 529A57.6 57.6 0 1 1 567.03 495Z"/>
-      <circle cx="512" cy="512" r="30.6"/>
+      <path d="M543 293.19A221 221 0 0 1 543 730.81L543 683.01A173.8 173.8 0 0 0 543 340.99Z M481 293.19A221 221 0 0 0 481 730.81L481 683.01A173.8 173.8 0 0 1 481 340.99Z M642.57 481A134.2 134.2 0 1 0 642.57 543L593.29 543A87 87 0 1 1 593.29 481Z"/>
+      <circle cx="512" cy="512" r="50.2"/>
     </g>
   </g>
   <g fill="url(#sheen)" stroke="url(#sheen)" stroke-width="6" stroke-linejoin="round">
-    <path d="M529 291.65A221 221 0 0 1 529 732.35L529 700.43A189.2 189.2 0 0 0 529 323.57Z M495 291.65A221 221 0 0 0 495 732.35L495 700.43A189.2 189.2 0 0 1 495 323.57Z M357.73 495A155.2 155.2 0 0 1 666.27 495L634.22 495A123.4 123.4 0 0 0 389.78 495Z M357.73 529A155.2 155.2 0 0 0 666.27 529L634.22 529A123.4 123.4 0 0 1 389.78 529Z M599.77 495A89.4 89.4 0 1 0 599.77 529L567.03 529A57.6 57.6 0 1 1 567.03 495Z"/>
-    <circle cx="512" cy="512" r="30.6"/>
+    <path d="M543 293.19A221 221 0 0 1 543 730.81L543 683.01A173.8 173.8 0 0 0 543 340.99Z M481 293.19A221 221 0 0 0 481 730.81L481 683.01A173.8 173.8 0 0 1 481 340.99Z M642.57 481A134.2 134.2 0 1 0 642.57 543L593.29 543A87 87 0 1 1 593.29 481Z"/>
+    <circle cx="512" cy="512" r="50.2"/>
   </g>
 </svg>
