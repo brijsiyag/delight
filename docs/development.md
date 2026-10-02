@@ -17,7 +17,7 @@ settings.
   `plugins/target/wasm32-wasip2/release` when it runs outside Delight.app.
 - Their C (tree-sitter, for syntax highlighting) needs the WASI SDK: its clang
   and C library for WebAssembly. Only building plugins that contain C needs it (the
-  JSON and YAML built-ins do; a plugin in pure Rust never does), and the app and its
+  Formats built-in does; a plugin in pure Rust never does), and the app and its
   users never do. Fetch the pinned SDK once with `cargo xtask wasi-sdk`: it downloads
   it (about 170 MB, 600 MB unpacked), checks its SHA-256 against the pin and unpacks it
   into `target/wasi-sdk`, where `plugins/.cargo/config.toml` points (or set
@@ -98,7 +98,7 @@ downloads are in `xtask/src/config.rs`.
 
    Notarisation waits for Apple, usually a few minutes.
 4. **Try it.** Open the disk image, drag Delight to Applications, start it, and check: the
-   menu bar icon, the launcher, the built-in tools (JSON, YAML, SVG, DNS), and Settings →
+   menu bar icon, the launcher, the built-in tools (Formats, Network, Graphics), and Settings →
    General → Updates. A plugin that won't start in a signed build is the first sign the
    entitlement is missing.
 5. **Publish** (the tag is created with the release), with the two files the task prints:

@@ -82,7 +82,7 @@ These were settled in the previous attempt (see its
   plugins, and embedded_gpui needs no loading from bytes. Every plugin file,
   built-in or installed, is named by its id, `<id>.wasm`, so a plugin is found
   by its id and each starts on its own: a built-in's id is its crate's library
-  name, which Cargo names the file by (`delight_json`; `delight.json` before
+  name, which Cargo names the file by (`delight_formats`; `delight.json` before
   2026-10-01), and installing names the file. A file named otherwise doesn't
   load, and says why.
 - **A headless test crate from the start** (a fixture plugin, a fake host
@@ -291,7 +291,7 @@ fork's `delight` branch.
     `~/Desktop/delight-plugins` (the image plugin waits for pasted files,
     see Later). Each brings the host capabilities it needs; `open_url`, for
     a sign-in, is in already (temporarily: README, "Temporary host APIs"). The
-    DNS built-in (`plugins/dns`) runs no programs: it asks the Mac's resolvers
+    DNS built-in (`plugins/network`, since 2026-10-02 the Network plugin's tool) runs no programs: it asks the Mac's resolvers
     itself over WASI's UDP sockets (`hickory-proto` for the messages;
     `Network`), and the app tells it which they are (`DnsApi`, in `dns/`
     folders: which server answers which domain, VPNs' included, read from
@@ -369,6 +369,16 @@ fork's `delight` branch.
     plugin's key would go in its manifest, as Sparkle's does for the app), putting back the previous
     file when an update doesn't start, and a mark in Settings' sidebar.
 
+17. **The built-ins as three plugins** (2026-10-02): Formats (`plugins/formats`: JSON, YAML ⇄
+    JSON, and new, Base64, .env ⇄ JSON, JWT read and verified, JSON signed as a JWT), Network
+    (`plugins/network`: DNS lookup) and Graphics (`plugins/graphics`: SVG Preview), each a home
+    for the tools of its kind, each tool with its own icon (Lucide glyphs). Results have no caption
+    (the tabs or the title say what they are); DNS shows its records in one table. A tool that takes
+    text (the .env prefix, a JWT's secret) has a live field above its scrolling pane
+    (`formats/src/field.rs`), though GPUI's branch has panicked when text changed next to a field
+    (see "Watch out for"): to watch. JWT signatures are HMAC (`hmac`, `sha2`), what a secret makes.
+    `docs/behaviour.md`, "Built-in tools", has the rest.
+
 ## Later
 
 Not needed to get the app working; each waits until it is.
@@ -433,7 +443,10 @@ Not needed to get the app working; each waits until it is.
 
 - A `TextEditor` on a page that scrolls inside a plugin, next to text rows, panics GPUI
   ("prepaint has not been performed on …", text.rs) when scrolled; not found in GPUI
-  yet. Plugin settings avoid it (the app scrolls the page; a section's surface doesn't).
+  yet. Plugin settings avoid it (the app scrolls the page; a section's surface doesn't), and the
+  Formats tools' fields sit above their scrolling panes. PagerDuty's settings also panicked when a
+  text row changed next to a field; the Formats fields update their results live (since
+  2026-10-02), so watch for it there.
 
 - Zed's repo has two packages named `gpui`: depend with `version = "=0.2.2"`.
 - Crates GPUI links too (`resvg`, `regex`, `image`): pin the versions GPUI

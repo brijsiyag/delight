@@ -1,0 +1,20 @@
+[package]
+name = "delight-graphics"
+description = "Delight's Graphics tools: SVG Preview (preview SVG images and copy them as a data URI)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+base64 = { workspace = true }
+delight-plugin-api = { workspace = true }
+delight-ui = { workspace = true }
+gpui = { workspace = true }
+resvg = { workspace = true }

@@ -4,7 +4,7 @@
 # development the app loads them from target/wasm32-wasip2/release.
 [workspace]
 resolver = "3"
-members = ["dns", "json", "svg", "yaml"]
+members = ["formats", "graphics", "network"]
 
 [workspace.package]
 # The built-ins ship with the app: its version.
@@ -24,12 +24,17 @@ delight-ui = { path = "../crates/ui" }
 # same GPUI the plugin API is built on; any other spelling brings in a second one.
 # Cargo.lock pins the commit.
 gpui = { git = "https://github.com/zed-industries/zed.git", branch = "gpui-multi-root-embedded-rebased", version = "=0.2.2", default-features = false }
-# The version GPUI links.
+# The version GPUI links (SVG's data URI, Base64, JWT).
 base64 = "=0.22.1"
+# JWT dates, in the user's time zone (the app's UTC offset): the version in the lock.
+chrono = { version = "=0.4.45", default-features = false, features = ["alloc"] }
+# JWT signatures (HS256, HS384, HS512).
+hmac = "=0.12.1"
+sha2 = "=0.10.9"
 # The version GPUI links, with no features of its own.
 resvg = { version = "=0.46.0", default-features = false }
 serde = { version = "=1.0.228", features = ["derive"] }
-# Objects keep their keys' order (JSON's Format, YAML ⇄ JSON).
+# Objects keep their keys' order (JSON's Format, YAML ⇄ JSON, .env, JWT).
 serde_json = { version = "=1.0.150", features = ["preserve_order"] }
 # YAML 1.2, pure Rust.
 yaml-rust2 = { version = "=0.13.0", default-features = false }

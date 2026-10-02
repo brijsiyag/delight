@@ -4,7 +4,8 @@ A launcher for macOS. Press **⌘⇧Space**, type or paste something, and Deligh
 fit it: format the JSON, look up the DNS, preview the SVG, open a service's dashboards. Every tool is
 a **plugin**, so you can add your own.
 
-- Built-in tools: **JSON**, **YAML ⇄ JSON**, **SVG preview**, **DNS lookup**.
+- Built-in tools, in three plugins: **Formats** (JSON, YAML ⇄ JSON, Base64, .env ⇄ JSON, JWT),
+  **Network** (DNS lookup) and **Graphics** (SVG preview).
 - Plugins are single `.wasm` files. Each one shows its own interface and can only do what it asked
   permission for.
 - macOS, Apple Silicon and Intel. Signed and notarised; updates itself.
@@ -86,6 +87,14 @@ Nothing Delight builds on is released on crates.io yet, so everything is taken f
   GPUI, so a plugin names it exactly as above (branch and version), or Cargo links a second copy and
   the build fails or misbehaves. Copy the `gpui` line from this repository's `Cargo.toml`, and
   commit your `Cargo.lock`, which pins the commit.
+- **Component crates built on another GPUI can't be used yet.** The branch above isn't merged into
+  Zed's GPUI or released, so crates of GPUI components build on a GPUI of their own:
+  [gpui-component](https://github.com/longbridge/gpui-kit) (gpui-kit 0.7.0) pins crates.io's
+  `gpui-pre` snapshots (`=0.3.7`). Using one links a second GPUI, whose elements can't go in a
+  plugin's views. Until embedded GPUI is released and such crates build on that release, a plugin
+  draws with GPUI and `delight-ui`, or its own code. (gpui-component's syntax highlighting and
+  folding are tree-sitter, which it builds only for native targets, so a plugin wouldn't have them
+  even then.)
 - **The plugin API's `rev` is the version you build for.** Change it to the commit of a newer release
   and rebuild to move up; a plugin built for a newer minor than the app is refused.
 - **This is temporary.** Once embedded_gpui is officially released, Delight and its plugin API move
@@ -178,7 +187,7 @@ cargo build --release --target wasm32-wasip2
 # target/wasm32-wasip2/release/<crate_name>.wasm
 ```
 
-Working examples: the built-ins in [`plugins/`](plugins) (JSON, YAML, SVG, DNS). Unit-test your logic natively (`cargo test`): the API compiles on the Mac and does nothing there.
+Working examples: the built-ins in [`plugins/`](plugins) (Formats, Network, Graphics). Unit-test your logic natively (`cargo test`): the API compiles on the Mac and does nothing there.
 
 ### Rules that shape a plugin
 

@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- "JWT" in Lilex (OFL: OFL-lilex.txt) as outlines, as logos are drawn without fonts; stroked a little to read at 20px, and spaced so the stroke leaves a gap between the letters. -->
+  <rect width="64" height="64" rx="14" fill="#5856D6"/>
+  <path d="M18.91 24.21V35.55Q18.91 36.85 18.32 37.8Q17.74 38.76 16.73 39.27Q15.72 39.79 14.39 39.79Q12.65 39.79 11.5 38.88Q10.35 37.97 10 36.32L11.75 35.95Q11.97 36.87 12.57 37.52Q13.16 38.16 14.43 38.16Q15.68 38.16 16.37 37.44Q17.06 36.72 17.06 35.22V25.81H11.54V24.21Z M25.81 39.52 24.61 24.21H26.25L26.89 32.99L27.22 37.62H27.39L29.41 28.21H31.47L33.49 37.62H33.67L34 32.99L34.63 24.21H36.23L35.03 39.52H32.37L30.51 30.38H30.33L28.47 39.52Z M48.89 25.81V39.52H47.05V25.81H41.94V24.21H54V25.81Z" fill="#FFFFFF" stroke="#FFFFFF" stroke-width="1.6" stroke-linejoin="round"/>
+</svg>

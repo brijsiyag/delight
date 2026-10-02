@@ -1,0 +1,25 @@
+[package]
+name = "delight-formats"
+description = "Delight's Formats tools: JSON, YAML, Base64, .env and JWT: format, convert, encode and decode"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+base64 = { workspace = true }
+chrono = { workspace = true }
+delight-plugin-api = { workspace = true }
+delight-ui = { workspace = true, features = ["code"] }
+gpui = { workspace = true }
+hmac = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
+yaml-rust2 = { workspace = true }

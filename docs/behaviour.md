@@ -529,22 +529,48 @@ height / text / icon / padding).
 
 ## Built-in tools
 
-State (modes, options) is in memory only.
+Three plugins, each an umbrella its later tools join: **Formats**
+(`plugins/formats`, `delight_formats`), **Network** (`plugins/network`,
+`delight_network`) and **Graphics** (`plugins/graphics`, `delight_graphics`).
+Since 2026-10-02; before, each tool was its own plugin (`delight_json`,
+`delight_yaml`, `delight_svg`, `delight_dns`). Each tool has its own icon, and
+each plugin: a Lucide glyph (lucide-static 1.48.0, the UI kit's set; its licence in
+each plugin's `assets/`) in white on a rounded square of an Apple system colour —
+JSON `braces` orange, YAML `list-tree` pink, Base64 `binary` green, Formats
+`file-code` blue; DNS `globe` and Network `waypoints` teal; SVG `pen-tool` and
+Graphics `shapes` purple. .env and JWT are their names instead, ".env" on brown and
+"JWT" on indigo, in Lilex (OFL, `formats/assets/OFL-lilex.txt`) as outlines: logos
+are drawn without fonts.
+State (modes, options, a prefix or a secret) is in memory only. A result has no
+caption above it: the tabs, or the tool's title, say what it is. Tabs take their
+own height (26px), not a fixed row's, which cut off their top.
 
-- **JSON** (`tools/json`), operation "JSON". Detect: trimmed text starts with
+A tool that takes text (the .env prefix, a JWT's secret) has one field, always
+shown, above its scrolling pane (never in it: GPUI's branch panics when a surface
+with a text field scrolls); every change applies at once, with nothing to save.
+GPUI has also panicked when text changed next to a field (the plan's "Watch out
+for"), which a live result does: not seen with these yet.
+
+### Formats
+
+The input is parsed as JSON once, for every tool that takes JSON.
+
+- **JSON**, operation "JSON". Detect: trimmed text starts with
   `{`, `[` or `"`; over 256 KiB a container gets 0.8 unparsed; object/array
   0.92; a JSON string holding JSON 0.9; other values nothing; parse error on
   a container 0.6 ("to show where it breaks"). View: segmented Format /
-  Minify / Escape / Unescape; indent 2↔4 (Format, Unescape); "Sort keys A→Z"
-  (Format, recursive); key order otherwise preserved; conversion in a
-  background task, newest wins. Format unwraps a JSON string holding JSON
-  ("Unescaped from a JSON string"); Escape compacts valid JSON first;
-  Unescape accepts with or without quotes. Errors "Invalid JSON: line L,
-  column C: …" with a "Near" excerpt (up to 3 lines, `{:>5} │ ` gutter, caret).
-  Actions: "Copy formatted/minified/escaped/unescaped" on ↵, plus "Copy
-  minified" on ⌘↵ in Format; toast "{label} — copied to clipboard".
-- **YAML** (`tools/yaml`), operations "YAML → JSON" and "JSON → YAML".
-  Detect: a JSON container (or `{`/`[` over 256 KiB) → JSON → YAML at 0.5 so
+  Minify / Escape / Unescape, with indent 2↔4 (Format, Unescape) and "Sort keys
+  A→Z" (Format, recursive) at their right; key order otherwise preserved;
+  conversion in a background task, newest wins. Format unwraps a JSON string
+  holding JSON; Escape compacts valid JSON first; Unescape accepts with or
+  without quotes. Errors "Invalid JSON: line L, column C: …" with a "Near"
+  excerpt (up to 3 lines, `{:>5} │ ` gutter, caret). Actions: "Copy
+  formatted/minified/escaped/unescaped" on ↵, plus "Copy minified" on ⌘↵ in
+  Format; toast "{label} — copied to clipboard".
+- **YAML ⇄ JSON**, one tool (two before 2026-10-02): the converted text alone,
+  the way the input reads: `{` or `[` first goes JSON → YAML (unless it fails
+  as JSON and parses as YAML, as `{a: 1}` does), anything else YAML → JSON.
+  Detect: a JSON container (or `{`/`[` over 256 KiB) at 0.5 so
   JSON ranks first. Else a shape check over the first 400 non-blank,
   non-comment lines: structured lines (`key:` / `key: value` with a key
   without whitespace or `//` and `:` followed by space or end; `- ` items;
@@ -553,17 +579,67 @@ State (modes, options) is in memory only.
   × 0.9 unparsed; otherwise it must parse to a mapping or sequence. Rejects
   env files, `curl` lines, prose, broken JSON. Conversion (yaml-rust2 ⇄
   serde_json): scalar keys → strings, `.inf`/`.nan` → strings, aliases
-  resolved, several documents → an array ("N YAML documents → a JSON
-  array"), errors with line/column; JSON → YAML with multiline strings, no
-  leading `---`, trailing newline. Actions "Copy JSON" / "Copy YAML" on ↵.
-- **SVG** (`tools/svg`), "SVG Preview". Detect: starts with `<svg` 0.95;
+  resolved, several documents → an array, errors with line/column; JSON →
+  YAML with multiline strings, no leading `---`, trailing newline. Actions
+  "Copy JSON" / "Copy YAML" on ↵.
+- **Base64**: segmented Encode / Decode, picked from the input (and again
+  whenever it changes), the result's size at their right ("UTF-8 · 55 bytes",
+  "11 bytes → 16 characters"). Decode takes either alphabet, padded or not,
+  ignoring line breaks; decoded JSON (object or array) is shown formatted.
+  Detect (compact text of 8 characters or more): decodes to readable UTF-8
+  0.85; to data 0.45, only with padding, `+` or `/`, or 24+ characters of
+  mixed case and digits (words are Base64 too); else Encode at 0.2, for any
+  text. Errors "Not text: N bytes of binary data", "Not Base64: …". Actions:
+  encoding "Copy Base64" ↵, "Copy URL-safe" (unpadded) ⌘↵; decoding "Copy
+  decoded" ↵ (as decoded), "Copy formatted JSON" ⌘↵.
+- **.env ⇄ JSON**, one tool (two before 2026-10-02), the way the input reads:
+  `{` or `[` first goes to variables, anything else to JSON.
+  JSON → variables: one per line; nested keys joined with `_`, upper
+  case, camelCase split (`database.timeoutMs` → `DATABASE_TIMEOUT_MS`), array
+  items by index (`FEATURES_0`), null and empty containers empty; a value with
+  spaces, quotes, `#`, `$` or line breaks double-quoted with `\` escapes.
+  Only an object converts. A "Prefix" field at the top right (160px); the
+  prefix is upper-cased and joined with `_`; the field is there only this way.
+  Detect: a JSON object 0.4 (over 256 KiB 0.35). Actions "Copy .env" ↵, "Copy
+  with export" ⌘↵.
+  Variables → JSON: an object of strings, in order (a later duplicate wins).
+  Blank lines and `#` comments skipped, `export` dropped, `NAME = value`
+  allowed; double quotes with `\n`, `\r`, `\t` and `\` before any other
+  character, single quotes literal, both may span lines; an unquoted value ends at ` #`. No `$`
+  expansion. Errors "Line N: …". Detect: of the first 400 meaningful lines,
+  ≥ 80% `NAME=value` (letters, digits, `_ . -`): two or more 0.85; one only if
+  its name is upper case with a value, 0.6. Action "Copy JSON" ↵.
+- **JWT**: for an HMAC token, the field "Secret, to verify the signature" at the
+  top; then, each under its caption, the header as JSON ("Header"), the registered claims
+  as rows (Subject, Issuer, Audience, Issued, Not before, Expires, ID), times
+  in the user's zone (the app's UTC offset) with "3 h ago" / "in 20 h 48 m",
+  Expires green while valid and red once past, Not before red until it
+  comes ("Claims"); the other claims as JSON ("Other claims"). Detect: starts `eyJ`,
+  two dots, no whitespace, and the header decodes with an `alg`: 0.95. As the
+  secret is typed: "Signature verified with this secret" or "The signature
+  doesn't match this secret" (nothing while it's empty); HS256, HS384 and
+  HS512 only, other algorithms are read, not verified. The secret is kept, and
+  the next token verified with it, until the plugin stops. Actions "Copy
+  payload" ↵, "Copy header" ⌘↵.
+- **JSON → JWT**: signs a JSON object as the payload, header `alg` and
+  `typ`. Segmented HS256 / HS384 / HS512 and the field "Secret to sign with";
+  the token under them, signed again as either changes ("Type a secret to sign
+  the JSON with." while it's empty). Detect: a JSON object 0.3. Action "Copy
+  token" ↵.
+
+### Graphics
+
+- **SVG Preview**. Detect: starts with `<svg` 0.95;
   starts with `<` and `<svg` in the first 1,024 chars 0.9. resvg without
   fonts (`<text>` isn't drawn); zoom = min(520/w, 200/h, 8), rendered at 2×;
   canvas full width × 240, radius 12; backdrops checkerboard (default, 8pt,
   own rounded corners), white, #1C1C1E; "W × H px". Errors "Can't show this
   SVG: …", "This SVG has nothing to draw". Actions "Copy PNG" on ↵, "Copy
   data URI" on ⌘↵ (↵ if there's no PNG).
-- **DNS** (`plugins/dns`), "DNS lookup", needs Network (it runs no programs).
+
+### Network
+
+- **DNS lookup**, needs Network (it runs no programs).
   Target:
   strip scheme, path, query, fragment, userinfo; `[v6]:port`, `host:port`;
   IP, or a hostname with ≥ 2 valid labels and an alphabetic TLD ≥ 2,
@@ -574,12 +650,17 @@ State (modes, options) is in memory only.
   scoped domain (VPN split DNS), else the first unscoped. Queries sent by the
   plugin itself over UDP (hickory-proto's messages; non-blocking, 2 s each) for
   A, AAAA, CNAME, MX, NS, TXT, SOA concurrently; the system resolver (WASI's
-  name lookup) at the same time; PTR for up to 4 addresses. Report: status
-  line; a warning when the system resolver disagrees ("check /etc/hosts, VPN
-  or proxy settings"); sections Addresses, CNAME chain, Mail, Name servers,
-  TXT, Zone, System resolver, Reverse, Resolver; TTL as d/h/m when exact. IP
-  targets: PTR, address class (loopback / private / public). Actions "Copy
-  addresses" / "Copy names" on ↵, "Copy dig command" on ⌘↵.
+  name lookup) at the same time; PTR for up to 4 addresses. Report: notices
+  only for what's wrong (the query failed, NXDOMAIN, no A/AAAA, another
+  status; apps get other addresses, "Apps get X instead (the system
+  resolver): check /etc/hosts, VPN or proxy settings", or the system resolver
+  fails); then one table, Type (a badge: A/AAAA accent, CNAME orange, MX
+  green, others grey) · Name · Value (wraps) · TTL (d/h/m when exact): the
+  CNAME chain, A, AAAA, MX, NS, TXT, SOA (primary, admin, serial), PTR of the
+  addresses; under it "via SERVER (default resolver | scoped to *.domain) · N
+  ms". IP
+  targets: the PTR rows, and "IPv4 · private · via …" under them. Actions
+  "Copy addresses" / "Copy names" on ↵, "Copy dig command" on ⌘↵.
 
 ## Secrets
 

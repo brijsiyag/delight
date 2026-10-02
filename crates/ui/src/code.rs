@@ -1,6 +1,7 @@
 //! Highlighted code for the built-in tools' output: tree-sitter with each grammar's
 //! own highlight query, drawn in the theme's syntax colours (`code` feature, so only
-//! what shows code builds tree-sitter).
+//! what shows code builds tree-sitter). `.env` files have no grammar here: their few
+//! rules are read line by line ([`env_highlights`]).
 //!
 //! [`Code::new`] does the work: run it on a background thread (it parses the whole
 //! text), then draw the result with [`CodeBlock`].
@@ -24,6 +25,8 @@ const MAX_LINES: usize = 2_000;
 pub enum Language {
     Json,
     Yaml,
+    /// `KEY=value` lines, as in a `.env` file.
+    Env,
 }
 
 /// What a highlighted range is; [`CodeBlock`] picks its colour from the theme when
@@ -79,6 +82,7 @@ pub fn highlight(language: Language, text: &str) -> Vec<(Range<usize>, Token)> {
     let config = match language {
         Language::Json => &*JSON,
         Language::Yaml => &*YAML,
+        Language::Env => return env_highlights(text),
     };
     let mut highlighter = Highlighter::new();
     let Ok(events) = highlighter.highlight(config, text.as_bytes(), None, |_| None) else {
@@ -99,6 +103,42 @@ pub fn highlight(language: Language, text: &str) -> Vec<(Range<usize>, Token)> {
             }
             Err(_) => break,
         }
+    }
+    ranges
+}
+
+/// A `.env` file's ranges: comments, `export`, names, `=`, and values (quoted ones as
+/// strings, numbers and booleans as such).
+fn env_highlights(text: &str) -> Vec<(Range<usize>, Token)> {
+    let mut ranges = Vec::new();
+    let mut start = 0;
+    for line in text.split_inclusive('\n') {
+        let content = line.trim_end_matches(['\n', '\r']);
+        let indent = content.len() - content.trim_start().len();
+        let body = &content[indent..];
+        let at = |from: usize, to: usize| start + indent + from..start + indent + to;
+        if body.starts_with('#') {
+            ranges.push((at(0, body.len()), Token::Comment));
+        } else if let Some(eq) = body.find('=') {
+            let mut name_start = 0;
+            if let Some(rest) = body.strip_prefix("export ") {
+                ranges.push((at(0, 6), Token::Keyword));
+                name_start = body.len() - rest.len();
+            }
+            ranges.push((at(name_start, eq), Token::Property));
+            ranges.push((at(eq, eq + 1), Token::Punctuation));
+            let value = &body[eq + 1..];
+            if !value.is_empty() {
+                let token = match value {
+                    v if v.starts_with(['"', '\'']) => Token::String,
+                    "true" | "false" => Token::Constant,
+                    v if v.parse::<f64>().is_ok() => Token::Number,
+                    _ => Token::String,
+                };
+                ranges.push((at(eq + 1, body.len()), token));
+            }
+        }
+        start += line.len();
     }
     ranges
 }
@@ -208,6 +248,19 @@ mod tests {
         assert!(found.contains(&("delight", Token::String)));
         assert!(found.contains(&("3", Token::Number)));
         assert!(found.contains(&("# note", Token::Comment)));
+    }
+
+    #[test]
+    fn env_names_values_and_comments() {
+        let found = tokens(Language::Env, "# db\nexport HOST=localhost\nPORT=5432\nNAME=\"a b\"\nDEBUG=false\nEMPTY=\n");
+        assert!(found.contains(&("# db", Token::Comment)));
+        assert!(found.contains(&("export", Token::Keyword)));
+        assert!(found.contains(&("HOST", Token::Property)));
+        assert!(found.contains(&("localhost", Token::String)));
+        assert!(found.contains(&("5432", Token::Number)));
+        assert!(found.contains(&("\"a b\"", Token::String)));
+        assert!(found.contains(&("false", Token::Constant)));
+        assert!(found.contains(&("EMPTY", Token::Property)));
     }
 
     #[test]
