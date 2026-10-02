@@ -83,6 +83,8 @@ impl Render for YamlView {
             .size_full()
             .overflow_y_scroll()
             .track_scroll(&self.scroll)
+            // Room after the last line, above the footer.
+            .pb(px(14.))
             .gap(px(14.))
             .child(self.output.render(cx))
     }

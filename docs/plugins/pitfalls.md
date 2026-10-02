@@ -206,7 +206,7 @@ on a canvas see every click in their bounds, whatever is drawn on top. *Do:* hit
 hitboxes, which respect `occlude()`; count a click only when it is released over the target.
 
 **Clipped and overflowing layouts.** *You see:* a 26 px control in a 24 px row cut off at the top;
-a label wrapping out of a fixed-height row; rows squashed in the short pane (about 560 × 370); a
+a label wrapping out of a fixed-height row; rows squashed in the short pane (about 560 × 385); a
 long name running out of its card; a 5,000-character word slowing every frame. *Do:* let heights
 follow content, put `flex_shrink_0` on rows in a scrolling column, cut long text before layout and
 keep labels to one line (`.truncate()`), and test with absurd content: a stress plugin found most of
@@ -253,6 +253,12 @@ keyboard moving or the launcher hiding: close menus there, and in `on_hidden`.
 
 ## Scrolling
 
+**A pane that won't scroll, with its content cut off.** *You see:* a long table ends at the bottom
+of the pane, its last rows missing, and the pane doesn't scroll. *Why:* in a scrolling column, a
+child that clips (`overflow_hidden`, as a card with rounded corners does) may shrink below its
+content's height, so it squeezes to fit the pane and there's never more to scroll. *Do:*
+`.flex_shrink_0()` on each child of a scrolling column, or on a wrapper around it.
+
 **Back at the top after switching tools.** *You see:* a tool shows its old scrolled picture for a
 moment, then jumps to the top. *Why:* a hidden tool is taken out of its window, and GPUI drops the
 scroll offset of every scroll area that has no handle. *Do:* a `ScrollHandle` in the view and
@@ -282,8 +288,8 @@ off screen too: 24 sections took 10–14 ms a frame. Keep them few.
 `host(cx).open_window`. At most four per plugin; the fifth fails with *Delight has no room for
 another window from this plugin*, which reaches only the plugin, so log it. Opening an open key
 brings it forward and drops the new view: keep a `WeakEntity` of the view to change what it shows.
-`hide_window` and `show_window` fail once the user has closed the window. Esc in a window is the
-plugin's; there is no call to close one.
+`show_window` and `close_window` fail once the user has closed the window. Esc in a window is the
+plugin's: close the window with `close_window` if Esc should.
 
 ## Storage and secrets
 

@@ -134,6 +134,8 @@ impl Render for Base64View {
             .size_full()
             .overflow_y_scroll()
             .track_scroll(&self.scroll)
+            // Room after the last line, above the footer.
+            .pb(px(14.))
             .gap(px(14.))
             .child(h_flex().justify_between().child(modes).children(info))
             .child(self.output.render(cx))

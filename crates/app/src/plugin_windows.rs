@@ -1,8 +1,8 @@
 //! Windows plugins ask for: a normal window with a plugin's view in it, closed by its user (✕ or
-//! ⌘W). It goes off screen when the launcher hides and comes back with it, unless the plugin asked
-//! for one that stays up; the plugin can also take it off screen and bring it back itself. The
-//! plugin draws in the window's surface like it does in the launcher's, and there are only a few
-//! open from each.
+//! ⌘W) or by the plugin. It goes off screen when the launcher hides and comes back with it, unless
+//! the plugin asked for one that stays up; the plugin can bring it back before the launcher, but
+//! never takes it off screen itself. The plugin draws in the window's surface like it does in the
+//! launcher's, and there are only a few open from each.
 
 use std::collections::HashSet;
 
@@ -35,17 +35,8 @@ struct Opened {
     window: AnyWindowHandle,
     /// It goes off screen when the launcher hides, and comes back with it.
     hides_with_launcher: bool,
-    hidden: Hidden,
-}
-
-/// Why a plugin's window is off screen.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Hidden {
-    No,
-    /// With the launcher: it comes back with it.
-    WithLauncher,
-    /// The plugin took it off screen: it stays off until the plugin brings it back.
-    ByPlugin,
+    /// Off screen because the launcher hid: it comes back with it.
+    hidden_with_launcher: bool,
 }
 
 impl Global for Open {}
@@ -111,10 +102,10 @@ pub fn open(plugin_id: &str, key: String, title: String, width: f32, height: f32
     if let Some(window) = existing {
         cx.activate(true);
         if window.update(cx, |_, window, _| window.activate_window()).is_ok() {
-            // On screen again, even one the plugin or the launcher had taken off: from here on it
-            // hides with the launcher (or not) as any other.
+            // On screen again, even one the launcher had taken off: from here on it hides with the
+            // launcher (or not) as any other.
             if let Some(open) = cx.default_global::<Open>().0.iter_mut().find(|open| open.window == window) {
-                open.hidden = Hidden::No;
+                open.hidden_with_launcher = false;
             }
             return gpui::Task::ready(true);
         }
@@ -180,7 +171,7 @@ pub fn open(plugin_id: &str, key: String, title: String, width: f32, height: f32
         key: key.clone(),
         window: handle.into(),
         hides_with_launcher,
-        hidden: Hidden::No,
+        hidden_with_launcher: false,
     });
     cx.activate(true);
 
@@ -251,7 +242,7 @@ pub fn hide_all(cx: &mut App) {
         .default_global::<Open>()
         .0
         .iter()
-        .filter(|open| open.hides_with_launcher && open.hidden == Hidden::No)
+        .filter(|open| open.hides_with_launcher && !open.hidden_with_launcher)
         .map(|open| open.window)
         .collect();
     let mut hiding = Vec::new();
@@ -259,7 +250,7 @@ pub fn hide_all(cx: &mut App) {
         let visible = window.update(cx, |_, window, _| crate::macos::is_window_visible(window)).unwrap_or(false);
         if visible && let Some(native) = native_of(window, cx) {
             if let Some(open) = cx.default_global::<Open>().0.iter_mut().find(|open| open.window == window) {
-                open.hidden = Hidden::WithLauncher;
+                open.hidden_with_launcher = true;
             }
             hiding.push(native);
         }
@@ -268,13 +259,11 @@ pub fn hide_all(cx: &mut App) {
     cx.spawn(async move |_| hiding.iter().for_each(crate::macos::NativeWindow::order_out)).detach();
 }
 
-/// Bring back the windows [`hide_all`] took off screen, where they were. Those the plugin took off
-/// screen stay off.
+/// Bring back the windows [`hide_all`] took off screen, where they were.
 pub fn restore_hidden(cx: &mut App) {
     let mut windows = Vec::new();
     for open in &mut cx.default_global::<Open>().0 {
-        if open.hidden == Hidden::WithLauncher {
-            open.hidden = Hidden::No;
+        if std::mem::replace(&mut open.hidden_with_launcher, false) {
             windows.push(open.window);
         }
     }
@@ -282,23 +271,31 @@ pub fn restore_hidden(cx: &mut App) {
     cx.spawn(async move |_| showing.iter().for_each(crate::macos::NativeWindow::order_front)).detach();
 }
 
-/// The plugin takes its window `key` off screen (not `shown`), or brings it back, where it was:
-/// whether it has that window open. Taken off by the plugin, it stays off when the launcher shows
-/// again; brought back, it is up whether the launcher is or not.
-pub fn set_shown(plugin_id: &str, key: &str, shown: bool, cx: &mut App) -> bool {
+/// The plugin brings back its window `key` that went off screen with the launcher, where it was:
+/// whether it has that window open. Up, it stays up whether the launcher is or not, until the
+/// launcher hides again.
+pub fn show(plugin_id: &str, key: &str, cx: &mut App) -> bool {
     let Some(open) = cx.default_global::<Open>().0.iter_mut().find(|open| open.plugin_id == plugin_id && open.key == key) else {
         return false;
     };
-    let was = std::mem::replace(&mut open.hidden, if shown { Hidden::No } else { Hidden::ByPlugin });
-    let window = open.window;
-    // Already where the plugin wants it (off screen with the launcher only becomes off by the
-    // plugin): nothing moves.
-    if (was == Hidden::No) == shown {
-        return true;
-    }
-    if let Some(native) = native_of(window, cx) {
+    let (was_hidden, window) = (std::mem::replace(&mut open.hidden_with_launcher, false), open.window);
+    if was_hidden && let Some(native) = native_of(window, cx) {
         // Outside the update: AppKit calls back into GPUI.
-        cx.spawn(async move |_| if shown { native.order_front() } else { native.order_out() }).detach();
+        cx.spawn(async move |_| native.order_front()).detach();
     }
+    true
+}
+
+/// The plugin closes its window `key`, as its user would: whether it had that window open.
+pub fn close(plugin_id: &str, key: &str, cx: &mut App) -> bool {
+    let Some(window) = cx.default_global::<Open>().0.iter().find(|open| open.plugin_id == plugin_id && open.key == key).map(|open| open.window)
+    else {
+        return false;
+    };
+    forget(plugin_id, key, cx);
+    // Outside the plugin's call, as a click on ✕ would be.
+    cx.defer(move |cx| {
+        window.update(cx, |_, window, _| window.remove_window()).ok();
+    });
     true
 }

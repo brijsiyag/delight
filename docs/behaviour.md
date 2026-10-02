@@ -81,12 +81,10 @@ that code was organised. Where the rewrite changes something on purpose,
   and so do the windows that hide with it (off screen, not closed); the hotkey brings back the
   launcher and every window that hid, where they were. Esc or the hotkey on the launcher hides
   those windows with it. A window hides with the launcher unless the plugin opened it with
-  `WindowOptions::hide_with_launcher(false)` (plugin API 0.1; plugins built before it don't
-  say, and theirs hide with the launcher): that one stays up until its user closes it. A
-  plugin can also take any of its open windows off screen and bring it back
-  (`host(cx).hide_window(key)`, `show_window(key)`): one it hid stays off when the launcher
-  shows again, until it shows it. Reloading the plugins closes the windows of the ones that
-  start again.
+  `WindowOptions::hide_with_launcher(false)`: that one stays up until its user closes it. Only
+  Delight takes a plugin's window off screen: the plugin can bring one back without the launcher
+  (`host(cx).show_window(key)`) and close it (`close_window(key)`, as ✕ does), never hide it.
+  Reloading the plugins closes the windows of the ones that start again.
 - **Logs**: everything the app logs goes to the console and to a file in `~/Library/Logs/Delight`, one
   `delight-YYYYMMDD-HHMMSS.log` for each run (a new one when a run's file passes 8 MiB), the last six
   kept. The menu bar's "Open Logs": with one file it opens in the Mac's text editor (the app that
@@ -204,10 +202,9 @@ that code was organised. Where the rewrite changes something on purpose,
   or scrolling. What a tool keeps in GPUI's element state rather than its own (an
   untracked scroll offset) starts over when it is shown again. The newest input is buffered until the
   tool object arrives; an unchanged input isn't re-sent. The tool is told whenever its view is shown
-  or hidden (`ToolApi::visibility_changed`, plugin API 0.3; `Tool::on_shown` / `on_hidden`), and once
-  it arrives if it's shown: a tool showing what goes stale fetches it again then, as the launcher
-  coming back with the same input tells it nothing else. A plugin built before 0.3 answers with
-  an error, which the app drops.
+  or hidden (`ToolApi::visibility_changed`; `Tool::on_shown` / `on_hidden`), and once it arrives
+  if it's shown: a tool showing what goes stale fetches it again then, as the launcher coming back
+  with the same input tells it nothing else.
 - → in the list moves keyboard focus into the tool's surface.
 - The tool view fills the pane's height under the title (the guest wraps it
   in a full-size flex column); views are transparent, the window is the
@@ -237,7 +234,7 @@ that code was organised. Where the rewrite changes something on purpose,
   The launcher's key-down finds the matching action (same modifiers, key
   case-insensitive), performs it and stops propagation. Every action answers
   its key, whether it has a button or not: those past the 4 shown, and hidden
-  ones (`Action::hidden()`, plugin API 0.2), which never take a button, for keys
+  ones (`Action::hidden()`), which never take a button, for keys
   a tool wants without spending one (Service Hub's ⌥1–⌥3 environments). A key
   no action has goes on to the input (⌥1 types `¡` there). Labels like `⌘↵` and
   `⌥1`.

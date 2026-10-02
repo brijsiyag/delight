@@ -154,6 +154,8 @@ impl Render for JwtView {
             .min_h(px(0.))
             .overflow_y_scroll()
             .track_scroll(&self.scroll)
+            // Room after the last line, above the footer.
+            .pb(px(14.))
             .gap(px(14.))
             .children(verified)
             .child(header)
@@ -287,6 +289,7 @@ impl Render for SignView {
             .size_full()
             .gap(px(14.))
             .child(h_flex().gap(px(10.)).child(algorithms).child(secret))
-            .child(div().id("sign").flex_1().min_h(px(0.)).overflow_y_scroll().child(token))
+            // Room after the token's last line, above the footer.
+            .child(div().id("sign").flex_1().min_h(px(0.)).overflow_y_scroll().pb(px(14.)).child(token))
     }
 }

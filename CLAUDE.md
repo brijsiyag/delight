@@ -14,6 +14,11 @@ their own GPUI through embedded_gpui. This repo is a from-scratch rewrite;
 - **embedded_gpui changes are confirmed first.** Before writing anything in
   `../embedded_gpui`, describe the change (what, why, API, files) and wait for
   a yes. Keep each one small and upstreamable, one commit each.
+- **Versions change only for a release.** Never change a version on your own:
+  the app's, the built-ins', the plugin API's, or a plugin's in
+  `../delight-plugins`, even when a change would call for a bump. When the user
+  asks for a release, the release is the version bumps: make them and stop.
+  The user runs `cargo xtask release` (and a plugin's publish) themselves.
 
 ## Where things are
 

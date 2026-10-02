@@ -109,6 +109,8 @@ impl Render for EnvView {
                 .min_h(px(0.))
                 .overflow_y_scroll()
                 .track_scroll(&self.scroll)
+                // Room after the last line, above the footer.
+                .pb(px(14.))
                 .child(self.output.render(cx)),
         )
     }

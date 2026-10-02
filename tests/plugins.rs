@@ -59,9 +59,11 @@ struct FakeApp {
     settings_shown: usize,
     /// The windows the plugin asked for: (key, title, width, height, whether it hides with the
     /// launcher).
-    windows: Vec<(String, String, f32, f32, Option<bool>)>,
-    /// What the plugin asked of its windows' showing: (key, shown).
-    windows_shown: Vec<(String, bool)>,
+    windows: Vec<(String, String, f32, f32, bool)>,
+    /// The windows the plugin asked to bring back on screen, by key.
+    windows_shown: Vec<String>,
+    /// The windows the plugin asked to close, by key.
+    windows_closed: Vec<String>,
     /// The plugin itself, to ask it to draw in them; the surfaces they draw on.
     plugin: Option<Plugin>,
     window_surfaces: Vec<Entity<Surface>>,
@@ -149,7 +151,7 @@ impl HostApi for FakeApp {
         title: String,
         width: f32,
         height: f32,
-        hide_with_launcher: Option<bool>,
+        hide_with_launcher: bool,
         cx: &mut Context<Self>,
     ) -> gpui::Task<anyhow::Result<bool>> {
         self.windows.push((key.clone(), title, width, height, hide_with_launcher));
@@ -161,9 +163,17 @@ impl HostApi for FakeApp {
     }
 
     // As the app does it: whether that window is open.
-    fn set_window_shown(&mut self, key: String, shown: bool, _cx: &mut Context<Self>) -> bool {
+    fn show_window(&mut self, key: String, _cx: &mut Context<Self>) -> bool {
         let open = self.windows.iter().any(|window| window.0 == key);
-        self.windows_shown.push((key, shown));
+        self.windows_shown.push(key);
+        open
+    }
+
+    // As the app does it: whether that window was open; it isn't now.
+    fn close_window(&mut self, key: String, _cx: &mut Context<Self>) -> bool {
+        let open = self.windows.iter().any(|window| window.0 == key);
+        self.windows.retain(|window| window.0 != key);
+        self.windows_closed.push(key);
         open
     }
 

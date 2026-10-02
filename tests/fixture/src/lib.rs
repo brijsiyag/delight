@@ -117,9 +117,9 @@ enum EchoAction {
     /// Ask the app for a window that stays up when the launcher hides; toasts "window ok" once it
     /// has drawn there, or why not.
     OpenWindow,
-    /// Takes that window off screen and brings it back, then asks the same of one it doesn't have;
-    /// toasts what became of each.
-    HideWindow,
+    /// Brings that window back on screen and closes it, then closes one it doesn't have; toasts
+    /// what became of each.
+    ShowAndCloseWindow,
     /// Says its settings sections changed.
     SectionsChanged,
     /// Spins forever: the turn budget stops the plugin in a call to its tool, not to its root.
@@ -207,8 +207,8 @@ impl Tool for Echo {
                 })
                 .detach();
             }
-            EchoAction::HideWindow => {
-                let asked = [host(cx).hide_window("fixture", cx), host(cx).show_window("fixture", cx), host(cx).hide_window("none", cx)];
+            EchoAction::ShowAndCloseWindow => {
+                let asked = [host(cx).show_window("fixture", cx), host(cx).close_window("fixture", cx), host(cx).close_window("none", cx)];
                 cx.spawn(async move |_, cx| {
                     let mut said = Vec::new();
                     for answer in asked {

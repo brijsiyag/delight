@@ -104,12 +104,10 @@ impl HostApi for HostRoot {
         title: String,
         width: f32,
         height: f32,
-        hide_with_launcher: Option<bool>,
+        hide_with_launcher: bool,
         cx: &mut Context<Self>,
     ) -> Task<Result<bool>> {
         let plugin_id = self.plugin_id.clone();
-        // A plugin built before 0.1 doesn't say: its windows hide with the launcher, as they did.
-        let hide_with_launcher = hide_with_launcher.unwrap_or(true);
         // Deferred: the launcher may be in the middle of an update, and the window takes the focus.
         let (sender, receiver) = futures::channel::oneshot::channel();
         cx.defer(move |cx| {
@@ -122,8 +120,12 @@ impl HostApi for HostRoot {
         cx.spawn(async move |_, _| Ok(receiver.await.unwrap_or(false)))
     }
 
-    fn set_window_shown(&mut self, key: String, shown: bool, cx: &mut Context<Self>) -> bool {
-        plugin_windows::set_shown(&self.plugin_id, &key, shown, cx)
+    fn show_window(&mut self, key: String, cx: &mut Context<Self>) -> bool {
+        plugin_windows::show(&self.plugin_id, &key, cx)
+    }
+
+    fn close_window(&mut self, key: String, cx: &mut Context<Self>) -> bool {
+        plugin_windows::close(&self.plugin_id, &key, cx)
     }
 
     fn confirm(&mut self, title: String, message: String, continue_label: String, destructive: bool, cx: &mut Context<Self>) -> Task<Result<bool>> {

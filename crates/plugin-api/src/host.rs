@@ -127,11 +127,11 @@ impl Host {
     }
 
     /// Open a window of the plugin's own with `view` in it: a normal window the user resizes and
-    /// closes (✕, ⌘W). It goes off screen when the launcher hides and comes back with it, unless
-    /// [`WindowOptions::hide_with_launcher`] says otherwise; [`Self::hide_window`] and
-    /// [`Self::show_window`] take it off screen and back whenever the plugin likes. A window with
-    /// the same [`WindowOptions::key`] that is open comes to the front instead, and `view` is
-    /// dropped. An error when the plugin has too many open (close one first), and natively.
+    /// closes (✕, ⌘W), and the plugin closes with [`Self::close_window`]. It goes off screen when
+    /// the launcher hides and comes back with it, unless [`WindowOptions::hide_with_launcher`] says
+    /// otherwise; [`Self::show_window`] brings it back before the launcher. A window with the same
+    /// [`WindowOptions::key`] that is open comes to the front instead, and `view` is dropped. An
+    /// error when the plugin has too many open (close one first), and natively.
     pub fn open_window(&self, options: WindowOptions, view: impl Into<AnyView>, cx: &mut App) -> Task<Result<()>> {
         let Some(remote) = &self.remote else {
             return Task::ready(Err(anyhow!("windows are Delight's: a plugin has them only in Delight")));
@@ -139,7 +139,7 @@ impl Host {
         let WindowOptions { key, title, width, height, hide_with_launcher } = options;
         // The app asks for the view once it has made the window: keep it until then.
         cx.default_global::<PendingWindows>().0.insert(key.clone(), view.into());
-        let asked = remote.open_window(key.clone(), title, width, height, Some(hide_with_launcher), cx);
+        let asked = remote.open_window(key.clone(), title, width, height, hide_with_launcher, cx);
         cx.spawn(async move |cx| {
             let opened = asked.await;
             // Taken by now if the window was made; if it wasn't, or already was, it goes.
@@ -152,24 +152,31 @@ impl Host {
         })
     }
 
-    /// Take the plugin's open window `key` off screen, keeping it and its view: it stays off, even
-    /// when the launcher shows again, until [`Self::show_window`]. An error when no window `key` is
-    /// open (its user may have closed it), and natively.
-    pub fn hide_window(&self, key: impl Into<String>, cx: &mut App) -> Task<Result<()>> {
-        self.set_window_shown(key.into(), false, cx)
-    }
-
-    /// Bring back the plugin's window `key` that is off screen, whether [`Self::hide_window`] or
-    /// the launcher hiding took it there. An error when no window `key` is open, and natively.
+    /// Bring back the plugin's window `key` that went off screen with the launcher, without the
+    /// launcher. A plugin doesn't hide its windows: it closes them ([`Self::close_window`]). An
+    /// error when no window `key` is open (its user may have closed it), and natively.
     pub fn show_window(&self, key: impl Into<String>, cx: &mut App) -> Task<Result<()>> {
-        self.set_window_shown(key.into(), true, cx)
-    }
-
-    fn set_window_shown(&self, key: String, shown: bool, cx: &mut App) -> Task<Result<()>> {
         let Some(remote) = &self.remote else {
             return Task::ready(Err(anyhow!("windows are Delight's: a plugin has them only in Delight")));
         };
-        let asked = remote.set_window_shown(key.clone(), shown, cx);
+        let key = key.into();
+        let asked = remote.show_window(key.clone(), cx);
+        cx.spawn(async move |_| match asked.await {
+            Ok(true) => Ok(()),
+            Ok(false) => Err(anyhow!("the plugin has no window {key:?} open")),
+            Err(error) => Err(error),
+        })
+    }
+
+    /// Close the plugin's window `key`, as its user would (✕): the view in it is let go, and
+    /// [`Self::open_window`] opens a new window with the view it is given. An error when no window
+    /// `key` is open (its user may have closed it), and natively.
+    pub fn close_window(&self, key: impl Into<String>, cx: &mut App) -> Task<Result<()>> {
+        let Some(remote) = &self.remote else {
+            return Task::ready(Err(anyhow!("windows are Delight's: a plugin has them only in Delight")));
+        };
+        let key = key.into();
+        let asked = remote.close_window(key.clone(), cx);
         cx.spawn(async move |_| match asked.await {
             Ok(true) => Ok(()),
             Ok(false) => Err(anyhow!("the plugin has no window {key:?} open")),

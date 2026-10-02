@@ -21,22 +21,16 @@ pub const PLUGIN_API_VERSION: &str = env!("CARGO_PKG_VERSION");
 /// method, changing a type, a new enum variant sent to plugins, a change to the Rust
 /// API that plugins can't build against unchanged. Bump the patch for the rest.
 ///
-/// 0.0 is the protocol so far: the host API (toast, hide, `remember_input`, the theme, the
+/// The protocol so far is the host API (toast, hide, `remember_input`, the theme, the
 /// clipboard, `http`, `open_url`, `dns`, `commands`, secrets, settings, `set_launcher_input`, the
-/// UTC offset, `show_settings`, windows of a plugin's own, and the system's confirm alert), the
-/// plugin's tools with their actions (each with a style: normal, primary or attention; a tool is
-/// told when a click lands elsewhere in the launcher), its settings as sections, and where it is
-/// published (the manifest's `update`, which older apps ignore). 0.1 adds whether a
-/// plugin's window hides with the launcher (`open_window`'s `hide_with_launcher`, which
-/// plugins before it don't send) and `set_window_shown`. 0.2 adds hidden actions (`Action`'s
-/// `hidden`: a key and no button in the footer; plugins before it don't send it). 0.3 tells a
-/// tool when its view is shown and hidden (`ToolApi::visibility_changed`; plugins before it don't
-/// have the method, and the app ignores their error). 0.4 sends the whole theme: the tool's
-/// background, the window's, the card, hover, separator, selection, focus ring and attention
-/// colours, the tint's opacity, the syntax colours and the small, large and code sizes (plugins
-/// before it ignore them); and the plugin API draws every plugin view's text in the theme's colour,
-/// size and font unless the plugin says otherwise. Before 1.0 a minor bump may also break what it
-/// changes; keep the rules above from 1.0 on.
+/// UTC offset, `show_settings`, windows of a plugin's own, which it opens, brings back and closes
+/// but never hides, going with the launcher or staying up, and the system's confirm alert); the
+/// plugin's tools with their actions (each with a style, normal, primary or attention, and shown or
+/// hidden: a key and no button in the footer), told when a click lands elsewhere in the launcher
+/// and when their view is shown and hidden; its settings as sections; the whole theme, in which the
+/// plugin API draws every plugin view's text unless the plugin says otherwise; and where it is
+/// published (the manifest's `update`). Before 1.0 a minor bump may also break what it changes;
+/// keep the rules above from 1.0 on.
 pub const PROTOCOL_VERSION: ProtocolVersion = ProtocolVersion {
     major: number(env!("CARGO_PKG_VERSION_MAJOR")),
     minor: number(env!("CARGO_PKG_VERSION_MINOR")),

@@ -100,7 +100,7 @@ impl PluginProperties {
     }
 
     /// Check what the types can't: the id's form, a name, a version, its permissions'
-    /// reasons (when it gives them), its tips and the URL of where it is published.
+    /// reasons, its tips and the URL of where it is published.
     pub fn validate(&self) -> Result<()> {
         if let Some(url) = &self.update {
             validate_url(url)?;
@@ -118,9 +118,7 @@ impl PluginProperties {
             if !asked.insert(name) {
                 bail!("the plugin asks for {name} twice");
             }
-            if !request.reason.is_empty() {
-                validate_reason(&request.reason)?;
-            }
+            validate_reason(&request.reason)?;
             request.permission.spec().validate()?;
         }
         if self.tips.len() > MAX_TIPS {
@@ -333,7 +331,7 @@ mod tests {
             manifest.validate()
         };
         assert!(with_reasons(&["Fetches schemas"]).is_ok());
-        assert!(with_reasons(&[""]).is_ok(), "built before reasons");
+        assert!(with_reasons(&[""]).is_err(), "none");
         assert!(with_reasons(&["  "]).is_err(), "blank");
         assert!(with_reasons(&[&"é".repeat(MAX_REASON_CHARS)]).is_ok(), "the limit counts characters");
         assert!(with_reasons(&[&"é".repeat(MAX_REASON_CHARS + 1)]).is_err(), "too long");

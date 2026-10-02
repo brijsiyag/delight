@@ -172,6 +172,8 @@ impl Render for JsonView {
             .size_full()
             .overflow_y_scroll()
             .track_scroll(&self.scroll)
+            // Room after the last line, above the footer.
+            .pb(px(14.))
             .gap(px(14.))
             .child(h_flex().justify_between().child(modes).child(accessory))
             .child(self.output.render(cx))

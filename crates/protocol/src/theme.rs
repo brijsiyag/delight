@@ -259,22 +259,4 @@ mod tests {
             assert_eq!(decode::<Theme>(&encode(&theme).unwrap()).unwrap(), theme);
         }
     }
-
-    /// The theme as plugins built before plugin API 0.4 read it.
-    #[derive(Debug, PartialEq, embedded_gpui::serde::Deserialize)]
-    #[serde(crate = "embedded_gpui::serde")]
-    struct ThemeBefore04 {
-        dark: bool,
-        text: Color,
-        accent: Color,
-        font: String,
-        text_size: f32,
-    }
-
-    #[test]
-    fn plugins_before_0_4_read_it_leaving_out_what_they_dont_know() {
-        let read: ThemeBefore04 = decode(&encode(&Theme::dark("Menlo")).unwrap()).unwrap();
-        assert!(read.dark);
-        assert_eq!((read.text, read.text_size), (Theme::dark("Menlo").text, 13.));
-    }
 }

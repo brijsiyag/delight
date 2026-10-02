@@ -233,8 +233,9 @@ impl Launcher {
 
     /// The selected tool's page, and which tool's view it draws (none: a notice instead).
     fn render_tool(&mut self, t: &Theme, cx: &mut Context<Self>) -> (Stateful<Div>, Option<ToolIds>) {
-        // Opaque, unlike the launcher behind it: the tool is read on a solid page.
-        let detail = v_flex().id("detail").flex_1().min_w(px(0.)).h_full().gap(px(14.)).px(px(18.)).py(px(14.)).bg(t.tool_background());
+        // Opaque, unlike the launcher behind it: the tool is read on a solid page. No padding at the
+        // bottom: the tool's view reaches the footer, so what it scrolls runs to the edge.
+        let detail = v_flex().id("detail").flex_1().min_w(px(0.)).h_full().gap(px(14.)).px(px(18.)).pt(px(14.)).bg(t.tool_background());
         let plugins = plugins::all(cx);
         let Some(tool_ids) = self.selected_candidate().map(|candidate| candidate.tool.clone()) else {
             return (detail.child(self.render_empty(t)), None);

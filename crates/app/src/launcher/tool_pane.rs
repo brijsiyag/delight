@@ -81,7 +81,6 @@ impl ToolPane {
 
     /// Show the tool, or stop showing it, and tell it (`visibility_changed`). A hidden tool keeps
     /// its state and its last picture, but draws nothing and gets no input (`Surface::set_hidden`).
-    /// A plugin built before plugin API 0.3 has no such method: its error is dropped.
     pub fn set_shown(&mut self, shown: bool, cx: &mut Context<Self>) {
         // TEMPORARY(fork_hidden_surfaces): `set_hidden` is the fork's, until upstream embedded_gpui
         // can hide a surface (docs/development.md, "The embedded_gpui fork").

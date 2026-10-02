@@ -81,14 +81,15 @@ async fn a_plugin_opens_a_window_of_its_own_and_draws_in_it(cx: &mut TestAppCont
     let toast = wait_for_toast(&app, cx, |toast| !toast.is_empty());
     assert_eq!(toast, "window ok");
     let windows = app.read_with(cx, |app, _| app.windows.clone());
-    assert_eq!(windows, [("fixture".to_string(), "Fixture window".to_string(), 500., 400., Some(false))], "it stays up when the launcher hides");
+    assert_eq!(windows, [("fixture".to_string(), "Fixture window".to_string(), 500., 400., false)], "it stays up when the launcher hides");
 
-    // It takes its window off screen and back, and is told when it has no such window.
-    cx.update(|cx| drop(tool.perform_action("HideWindow".into(), cx)));
+    // It brings its window back on screen and closes it, and is told when it has no such window.
+    cx.update(|cx| drop(tool.perform_action("ShowAndCloseWindow".into(), cx)));
     let toast = wait_for_toast(&app, cx, |toast| toast != "window ok");
     assert_eq!(toast, r#"ok, ok, the plugin has no window "none" open"#);
-    let shown = app.read_with(cx, |app, _| app.windows_shown.clone());
-    assert_eq!(shown, [("fixture".to_string(), false), ("fixture".to_string(), true), ("none".to_string(), false)]);
+    let (shown, closed) = app.read_with(cx, |app, _| (app.windows_shown.clone(), app.windows_closed.clone()));
+    assert_eq!(shown, ["fixture"]);
+    assert_eq!(closed, ["fixture", "none"]);
 }
 
 #[gpui::test]

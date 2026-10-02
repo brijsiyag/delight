@@ -191,42 +191,11 @@ pub fn validate_program(program: &str) -> Result<()> {
 /// and decide. In the manifest they are one object: `{"permission": "Commands",
 /// "programs": ["/bin/ps"], "reason": "…"}`.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(from = "Requested")]
 pub struct PermissionRequest {
     #[serde(flatten)]
     pub permission: Permission,
-    /// At most [`MAX_REASON_CHARS`](crate::MAX_REASON_CHARS) characters. Empty for a
-    /// plugin built before reasons (plugin API 1.5), which doesn't say.
+    /// At most [`MAX_REASON_CHARS`](crate::MAX_REASON_CHARS) characters.
     pub reason: String,
-}
-
-/// A permission as manifests spell it: with its reason, or, before 1.5, only its name
-/// (then only `Network` existed).
-#[derive(Deserialize)]
-#[serde(untagged)]
-enum Requested {
-    WithReason {
-        #[serde(flatten)]
-        permission: Permission,
-        reason: String,
-    },
-    Bare(BareName),
-}
-
-#[derive(Deserialize)]
-enum BareName {
-    Network,
-}
-
-impl From<Requested> for PermissionRequest {
-    fn from(requested: Requested) -> Self {
-        match requested {
-            Requested::WithReason { permission, reason } => PermissionRequest { permission, reason },
-            Requested::Bare(BareName::Network) => {
-                PermissionRequest { permission: Permission::network(), reason: String::new() }
-            }
-        }
-    }
 }
 
 #[cfg(test)]
@@ -246,14 +215,13 @@ mod tests {
     }
 
     #[test]
-    fn a_permission_comes_with_its_reason_or_before_1_5_without() {
+    fn a_permission_comes_with_its_reason() {
         let request = PermissionRequest { permission: Permission::network(), reason: "Syncs".into() };
         let json = r#"{"permission":"Network","reason":"Syncs"}"#;
         assert_eq!(serde_json::to_string(&request).unwrap(), json);
         assert_eq!(serde_json::from_str::<PermissionRequest>(json).unwrap(), request);
-        let bare = serde_json::from_str::<PermissionRequest>(r#""Network""#).unwrap();
-        assert_eq!(bare, PermissionRequest { permission: Permission::network(), reason: String::new() });
-        assert!(serde_json::from_str::<PermissionRequest>(r#""Commands""#).is_err(), "bare names were only Network");
+        assert!(serde_json::from_str::<PermissionRequest>(r#"{"permission":"Network"}"#).is_err(), "no reason");
+        assert!(serde_json::from_str::<PermissionRequest>(r#""Network""#).is_err(), "only a name");
     }
 
     #[test]

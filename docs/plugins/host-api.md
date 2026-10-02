@@ -23,7 +23,8 @@ host(cx).set_secret("api-key", key, cx).detach_and_log_err(cx); // a call with a
 | `open_settings(cx)` | | Opens Settings on the plugin's page, from a tool that needs a key first |
 | `confirm(Confirm, cx)` | | The system's alert: go ahead or cancel ([Confirming](#confirming)) |
 | `open_window(options, view, cx)` | | A window of the plugin's own ([Windows](#windows)) |
-| `hide_window(key, cx)`, `show_window(key, cx)` | | Takes one of them off screen and back |
+| `show_window(key, cx)` | | Brings one back that went off screen with the launcher |
+| `close_window(key, cx)` | | Closes one, as its user would |
 | `utc_offset_seconds(cx)` | | The Mac's time zone ([Time](#time)) |
 | `open_url(url, cx)` | | Opens a web page, `mailto:` or an app's link (`zoommtg:`); not `file:`. [Temporary](publishing.md#temporary-apis) |
 | `settings(cx)`, `set_settings(&value, cx)`, `clear_settings(cx)` | | A small JSON value Delight keeps for the plugin ([Saving data](#saving-data)) |
@@ -99,8 +100,10 @@ opened.detach_and_log_err(cx);
   plugin*, which only the plugin sees, so log it.
 - The size is what it opens at; the user can make it as small as 280 × 160.
 - **They hide with the launcher** (off screen, not closed) and come back with it, unless opened with
-  `.hide_with_launcher(false)`. `hide_window` and `show_window` take one off screen and back; one
-  the plugin hid stays off when the launcher shows again.
+  `.hide_with_launcher(false)`. Only Delight hides them: `show_window` brings one back without the
+  launcher, and a plugin that is done with a window closes it.
+- **`close_window` closes one**, as ✕ does: what it showed is out of date (a new search), say. The
+  view in it is let go; opening the key again opens a new window with the view it is given.
 - In a window, Esc is the plugin's. Reinstalling or updating the plugin closes its windows.
 - GPUI's own `cx.open_window` is refused in a plugin.
 

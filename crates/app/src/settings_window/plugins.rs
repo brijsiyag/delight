@@ -435,14 +435,8 @@ fn permission_row(index: usize, last: bool, request: &PermissionRequest, open: b
     let icon = IconName::from_name(spec.icon()).unwrap_or(IconName::Puzzle);
     // Just the icon, in the permission's colour: no tile behind it.
     let tile = div().size(px(20.)).flex_shrink_0().flex().items_center().justify_center().child(Icon::new(icon).size(px(18.)).color(t.warning));
-    // The reason: one line when the row is closed, all of it when it is open.
-    let why = if request.reason.is_empty() {
-        // Built before plugins said why.
-        div().mt(px(2.)).text_size(px(12.)).text_color(t.text_faint).child("The plugin doesn’t say why")
-    } else {
-        // Closed: one line; open: all of it, which is at most a sentence.
-        div().mt(px(2.)).text_size(px(12.)).clamp_lines(if open { 4 } else { 1 }).child(request.reason.clone())
-    };
+    // The reason: one line when the row is closed, all of it (at most a sentence) when it is open.
+    let why = div().mt(px(2.)).text_size(px(12.)).clamp_lines(if open { 4 } else { 1 }).child(request.reason.clone());
     let allows = open.then(|| {
         v_flex()
             .mt(px(8.))

@@ -73,7 +73,9 @@ methods, and redraws on `cx.notify()`. The plugin's GPUI draws into a surface De
 tool pane, so a few things differ from an app:
 
 - **The view fills the pane** under the tool's title: Delight wraps it in a full-size column. The
-  pane is about 560 × 370 pt; don't depend on an exact size.
+  pane is about 560 × 385 pt; don't depend on an exact size. The view reaches the footer: content
+  that scrolls runs to the edge, and a view that ends with its last row leaves a little space after
+  it.
 - **Leave the background alone.** The launcher's window is the background, and a fill of your own
   over the whole pane looks like a box on it.
 - **Import GPUI's prelude**, `use gpui::prelude::*;`. It has the traits most "no method named …"
