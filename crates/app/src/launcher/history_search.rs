@@ -167,7 +167,7 @@ impl Launcher {
     }
 }
 
-/// The search's icon, in place of the bolt.
+/// The search's icon, in place of the logo.
 pub fn icon(cx: &App) -> Icon {
     Icon::new(IconName::History).color(cx.theme().text_muted)
 }

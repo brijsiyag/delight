@@ -8,7 +8,7 @@ use std::borrow::Cow;
 use gpui::{AssetSource, Result, SharedString};
 
 /// Delight's logo (SVG) — the one copy every part of the app uses.
-pub const LOGO_SVG: &[u8] = include_bytes!("../assets/logo.svg");
+pub const LOGO_SVG: &[u8] = include_bytes!("../assets/icons/logo.svg");
 
 /// The app's asset source: install it with `Application::with_assets(Assets)`.
 pub struct Assets;
@@ -63,6 +63,8 @@ icons![
     IndentIncrease => "list-indent-increase",
     Info => "info",
     Lightbulb => "lightbulb",
+    // Not Lucide's: Delight's logo, the same file as the menu bar's icon.
+    Logo => "logo",
     Maximize => "maximize-2",
     Moon => "moon",
     Pin => "pin",
@@ -79,7 +81,6 @@ icons![
     Trash => "trash-2",
     TriangleAlert => "triangle-alert",
     X => "x",
-    Zap => "zap",
 ];
 
 impl AssetSource for Assets {
@@ -98,7 +99,7 @@ mod tests {
 
     #[test]
     fn every_icon_name_loads() {
-        for name in [IconName::Check, IconName::Settings, IconName::Trash, IconName::Zap] {
+        for name in [IconName::Check, IconName::Settings, IconName::Trash, IconName::Logo] {
             assert!(Assets.load(&name.path()).unwrap().is_some(), "{name:?}");
         }
         assert_eq!(Assets.list("icons/").unwrap().len(), ICONS.len());

@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 36 36">
+  <!-- Delight's logo for the menu bar: two rings, cut so that a way runs from the top into
+       the dot at the centre. Black on transparent, so macOS can tint it as a template image.
+       Drawn for 36 px (18 pt at 2x): 16 pt across, rings 3.8 px wide with 2.4 px between them,
+       and the notches 4 px with their edges on whole pixels. -->
+  <g fill="#000000">
+    <path d="M20 2.13A16 16 0 0 1 20 33.87L20 30.03A12.2 12.2 0 0 0 20 5.97Z"/>
+    <path d="M16 2.13A16 16 0 0 0 16 33.87L16 30.03A12.2 12.2 0 0 1 16 5.97Z"/>
+    <path d="M27.59 16A9.8 9.8 0 1 0 27.59 20L23.66 20A6 6 0 1 1 23.66 16Z"/>
+    <circle cx="18" cy="18" r="3.8"/>
+  </g>
+</svg>

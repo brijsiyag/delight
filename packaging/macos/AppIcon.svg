@@ -1,14 +1,65 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
   <defs>
-    <linearGradient id="background" x1="150" y1="110" x2="870" y2="920" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#7c5cff"/>
-      <stop offset="1" stop-color="#4a2cbe"/>
+    <linearGradient id="bezel" x1="0" y1="100" x2="0" y2="924" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#E6EDF5"/>
     </linearGradient>
-    <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%">
-      <feDropShadow dx="0" dy="24" stdDeviation="28" flood-color="#24145f" flood-opacity=".38"/>
+    <linearGradient id="rim" x1="0" y1="100" x2="0" y2="924" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity="1"/>
+      <stop offset=".55" stop-color="#FFFFFF" stop-opacity=".25"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity=".7"/>
+    </linearGradient>
+    <linearGradient id="ink" x1="0" y1="288" x2="0" y2="736" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2E95FF"/>
+      <stop offset="1" stop-color="#0062D6"/>
+    </linearGradient>
+    <linearGradient id="sheen" x1="0" y1="270" x2="0" y2="560" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity=".12"/>
+      <stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+    <pattern id="grid" x="152" y="152" width="36" height="36" patternUnits="userSpaceOnUse">
+      <path d="M36 0V36M0 36H36" fill="none" stroke="#7FA3CC" stroke-opacity=".32" stroke-width="2"/>
+    </pattern>
+    <clipPath id="panel">
+      <rect x="152" y="152" width="720" height="720" rx="136"/>
+    </clipPath>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="125%">
+      <feDropShadow dx="0" dy="14" stdDeviation="16" flood-color="#0E2240" flood-opacity=".28"/>
+    </filter>
+    <filter id="grain" x="0" y="0" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency=".8" numOctaves="2" seed="4"/>
+      <feColorMatrix type="matrix" values="0 0 0 0 .24  0 0 0 0 .32  0 0 0 0 .45  .2 0 0 0 -.05"/>
+    </filter>
+    <filter id="soft" x="-10%" y="-10%" width="120%" height="120%">
+      <feGaussianBlur stdDeviation="10"/>
+    </filter>
+    <filter id="lift" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="10" stdDeviation="12" flood-color="#00408F" flood-opacity=".32"/>
     </filter>
   </defs>
-  <rect x="72" y="72" width="880" height="880" rx="204" fill="url(#background)" filter="url(#shadow)"/>
-  <rect x="235" y="235" width="554" height="554" rx="126" fill="none" stroke="#fff" stroke-width="52"/>
-  <path d="M565 285 373 548h132l-41 191 192-263H524z" fill="#fff"/>
+  <!-- The tile, on Apple's 824 grid, with a white rim -->
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="url(#bezel)" filter="url(#shadow)"/>
+  <rect x="101.5" y="101.5" width="821" height="821" rx="183.5" fill="none" stroke="url(#rim)" stroke-width="3"/>
+  <rect x="145" y="145" width="734" height="734" rx="143" fill="none" stroke="#2E4A70" stroke-opacity=".08" stroke-width="5"/>
+  <!-- The graph-paper panel, slightly sunk -->
+  <g clip-path="url(#panel)">
+    <rect x="152" y="152" width="720" height="720" fill="#F5F8FC"/>
+    <rect x="152" y="152" width="720" height="720" fill="url(#grid)"/>
+    <rect x="152" y="152" width="720" height="720" fill="#000000" filter="url(#grain)"/>
+    <rect x="152" y="160" width="720" height="720" rx="136" fill="none" stroke="#1C3556" stroke-opacity=".22" stroke-width="30" filter="url(#soft)"/>
+  </g>
+  <!-- The border line, at the panel's edge, well clear of the logo -->
+  <rect x="152" y="152" width="720" height="720" rx="136" fill="none" stroke="#007AFF" stroke-width="8"/>
+  <!-- The logo: three rings, cut so that a way runs from the top into the dot at the centre.
+       The menu bar's design at 14x; stroked 6 wide with round joins to soften its corners. -->
+  <g filter="url(#lift)">
+    <g fill="url(#ink)" stroke="url(#ink)" stroke-width="6" stroke-linejoin="round">
+      <path d="M529 291.65A221 221 0 0 1 529 732.35L529 700.43A189.2 189.2 0 0 0 529 323.57Z M495 291.65A221 221 0 0 0 495 732.35L495 700.43A189.2 189.2 0 0 1 495 323.57Z M357.73 495A155.2 155.2 0 0 1 666.27 495L634.22 495A123.4 123.4 0 0 0 389.78 495Z M357.73 529A155.2 155.2 0 0 0 666.27 529L634.22 529A123.4 123.4 0 0 1 389.78 529Z M599.77 495A89.4 89.4 0 1 0 599.77 529L567.03 529A57.6 57.6 0 1 1 567.03 495Z"/>
+      <circle cx="512" cy="512" r="30.6"/>
+    </g>
+  </g>
+  <g fill="url(#sheen)" stroke="url(#sheen)" stroke-width="6" stroke-linejoin="round">
+    <path d="M529 291.65A221 221 0 0 1 529 732.35L529 700.43A189.2 189.2 0 0 0 529 323.57Z M495 291.65A221 221 0 0 0 495 732.35L495 700.43A189.2 189.2 0 0 1 495 323.57Z M357.73 495A155.2 155.2 0 0 1 666.27 495L634.22 495A123.4 123.4 0 0 0 389.78 495Z M357.73 529A155.2 155.2 0 0 0 666.27 529L634.22 529A123.4 123.4 0 0 1 389.78 529Z M599.77 495A89.4 89.4 0 1 0 599.77 529L567.03 529A57.6 57.6 0 1 1 567.03 495Z"/>
+    <circle cx="512" cy="512" r="30.6"/>
+  </g>
 </svg>

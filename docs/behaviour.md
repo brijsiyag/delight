@@ -25,7 +25,7 @@ that code was organised. Where the rewrite changes something on purpose,
   `cornerCurve = continuous`, then `invalidateShadow`.
 - `hidesOnDeactivate = false`, non-opaque, system shadow,
   `movableByWindowBackground = false` (so text can be selected). Only the
-  bolt icon and the footer drag the window (`performWindowDragWithEvent`);
+  logo and the footer drag the window (`performWindowDragWithEvent`);
   footer buttons stop mouse-down propagation.
 - Painted: a mostly opaque tint (light `gray(.97, .86)`, dark
   `gray(.13, .88)`) so contrast doesn't depend on what's behind; a 1px
@@ -131,8 +131,8 @@ that code was organised. Where the rewrite changes something on purpose,
   (`#[plugin(tips = […])]`, at most 60 characters each), while the plugin has a
   tool on. A plugin's tips say what to type and what it gives ("Paste JSON to
   format it"), not its keys, which the footer shows; one or two each. (The previous attempt said "What you got this time?".)
-- Layout: padding 20, 22px bolt icon centred on the first line, gap 16; when
-  expanded a ⓧ clear button on the first line; ⌃R replaces bolt and input
+- Layout: padding 20, 22px logo centred on the first line, gap 16; when
+  expanded a ⓧ clear button on the first line; ⌃R replaces logo and input
   with the History icon and a search field.
 - ↵ never inserts a newline (typed `\n`/`\r` are dropped unless an IME is
   composing), so ↵ is free for footer actions. ⇧↵ / ⌥↵ insert a newline

@@ -1,7 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 36 36">
-  <!-- Delight's logo: a rounded "command bar" with a bolt. Black on
-       transparent, so the menu bar can use it as a template image (macOS
-       tints it for light and dark menu bars). -->
-  <rect x="4.3" y="4.3" width="27.4" height="27.4" rx="6.2" fill="none" stroke="#000" stroke-width="2.6"/>
-  <path d="M20.5 7 L11 20 H17.5 L15.5 29 L25 16 H18.5 Z" fill="#000"/>
-</svg>

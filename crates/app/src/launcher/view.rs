@@ -113,7 +113,7 @@ impl Launcher {
         // While searching the history, its search input takes the input's place.
         let (icon, input) = match &self.history {
             Some(search) => (history_search::icon(cx), search.query.clone()),
-            None => (Icon::new(IconName::Zap).color(t.text_muted), self.input.clone()),
+            None => (Icon::new(IconName::Logo).color(t.text_muted), self.input.clone()),
         };
         let icon = icon.size(px(BAR_ICON_SIZE));
         let searching = self.history.is_some();
@@ -126,7 +126,7 @@ impl Launcher {
             .py((px(BAR_HEIGHT) - line) / 2.)
             .px(px(BAR_PADDING_X))
             .gap(px(BAR_ICON_GAP))
-            // The bolt is a handle for moving the window; the rest of it selects text.
+            // The logo is a handle for moving the window; the rest of it selects text.
             .child(
                 on_first_line(icon.into_any_element())
                     .on_mouse_down(MouseButton::Left, |_, window, _| window.start_window_move()),
