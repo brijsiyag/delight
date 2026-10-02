@@ -1,5 +1,6 @@
-//! Delight's UI kit: the theme, the icons and the bundled font, the components, and
-//! the text editor. The app uses it now; the built-in tools will too.
+//! Delight's UI kit: the icons and the bundled font, the components, and the text editor, drawn
+//! with the app's theme. The kit only reads the theme (`delight_protocol::Theme`, which the app
+//! sets as a GPUI global): it defines no colours of its own. The app and its built-in tools use it.
 //!
 //! Components are builders rendered with `RenderOnce`, reading the theme with
 //! `cx.theme()`; controls are controlled (they report the new value, and the caller
@@ -40,13 +41,13 @@ pub use raster::render_image;
 pub use segmented::SegmentedControl;
 pub use styled::{Disableable, Selectable, Sizable, Size, StyledExt, ellipsize, h_flex, one_line, v_flex};
 pub use switch::Switch;
-pub use theme::{ActiveTheme, Syntax, Theme, ThemeMode};
+pub use theme::{ActiveTheme, Syntax, Theme};
 pub use tooltip::Tooltip;
 
-/// In the app: load the bundled font and resolve the theme.
+/// In the app: load the bundled font, and follow the app's theme (the app sets it).
 #[cfg(not(target_arch = "wasm32"))]
-pub fn init(cx: &mut gpui::App, mode: ThemeMode) {
-    theme::init(cx, mode);
+pub fn init(cx: &mut gpui::App) {
+    theme::init(cx);
 }
 
 /// In a plugin (a built-in tool): the theme is the app's, and follows it, and the

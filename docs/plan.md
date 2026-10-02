@@ -31,7 +31,7 @@ These were settled in the previous attempt (see its
 5. The network, for now, is the app's (step 13): HTTP, HTTP callbacks and
    gRPC done natively and handed to plugins with `Network`, besides WASI's
    own sockets. It goes once embedded_gpui links `wasi:http`, and plugins use
-   standard clients (README, "Temporary host APIs").
+   standard clients (`docs/development.md`, "Temporary host APIs").
 6. GPUI is not forked: it is used directly from Zed's repository by the
    app, embedded_gpui and every plugin.
 7. embedded_gpui is used from upstream (`zed-industries/embedded_gpui`) at a
@@ -82,7 +82,7 @@ These were settled in the previous attempt (see its
   plugins, and embedded_gpui needs no loading from bytes. Every plugin file,
   built-in or installed, is named by its id, `<id>.wasm`, so a plugin is found
   by its id and each starts on its own: a built-in's id is its crate's library
-  name, which Cargo names the file by (`delight_formats`; `delight.json` before
+  name, which Cargo names the file by (`formats`; `delight.json` before
   2026-10-01), and installing names the file. A file named otherwise doesn't
   load, and says why.
 - **A headless test crate from the start** (a fixture plugin, a fake host
@@ -275,7 +275,7 @@ fork's `delight` branch.
     when asked (so a plugin without the permission gets none). It has none
     yet: the gated capabilities, `add_font` and the host facts come with the
     plugins that need them (step 14).
-13. **Network**, temporary until embedded_gpui links `wasi:http` (README,
+13. **Network**, temporary until embedded_gpui links `wasi:http` (`docs/development.md`,
     "Temporary host APIs"; every piece in a `network/` folder or marked
     `TEMPORARY(network)`). Plugins with `Network` keep WASI's sockets
     (`with_wasi`), and get `HostApi::http`: requests streamed both ways
@@ -290,7 +290,7 @@ fork's `delight` branch.
 14. **DNS tool**, then port the third-party plugins in
     `~/Desktop/delight-plugins` (the image plugin waits for pasted files,
     see Later). Each brings the host capabilities it needs; `open_url`, for
-    a sign-in, is in already (temporarily: README, "Temporary host APIs"). The
+    a sign-in, is in already (temporarily: `docs/development.md`, "Temporary host APIs"). The
     DNS built-in (`plugins/network`, since 2026-10-02 the Network plugin's tool) runs no programs: it asks the Mac's resolvers
     itself over WASI's UDP sockets (`hickory-proto` for the messages;
     `Network`), and the app tells it which they are (`DnsApi`, in `dns/`
@@ -326,7 +326,7 @@ fork's `delight` branch.
       (`github.com/brijsiyag/delight/releases/latest/download/appcast.xml`) given by the
       delegate. Its Objective-C glue is tested; Sparkle itself is not yet run, as that
       needs the pieces below.
-    - Done, written for this architecture (README, "Releasing"): `cargo xtask check-versions`,
+    - Done, written for this architecture (`docs/development.md`, "Releasing"): `cargo xtask check-versions`,
       `bundle-macos`, `sign-macos`, `package-macos` and `release-macos`: the `.app`
       (Sparkle, the built-in plugins in `Contents/Resources/plugins`, `Info.plist` from
       `packaging/macos/`), signing, and one disk image that is both the first install and
@@ -358,8 +358,7 @@ fork's `delight` branch.
     (`Link`, `read_published`); it looks at it as soon as it is pasted, lists the plugins there with
     checkboxes (name, description, and "Update" or "Installed", which can't be picked), downloads
     and checks the picked ones with a progress bar under each, then Install shows each like a
-    picked file. Publishing: Delight defines only the files at a location (README, "Publishing
-    updates"); making them is the plugins' repository's. `delight-plugins` has `cargo xtask
+    picked file. Publishing: Delight defines only the files at a location (`docs/plugins/publishing.md`); making them is the plugins' repository's. `delight-plugins` has `cargo xtask
     publish`, which writes every plugin's files and a list for a GitHub release (`--out`), or sends
     the new and newer ones to the location each names (`--upload`, HTTP PUT), and refuses a plugin
     whose file changed while its version stayed. Meesho's plugins
@@ -458,7 +457,8 @@ Not needed to get the app working; each waits until it is.
 - `#[interface]` makes one message type per method name at module level:
   method names must be unique across interfaces and not clash with types.
 - Payload types need `Describe`; bytes cross as base64, not number arrays.
-- A plugin turn has a 1 s budget: big parses go in tasks.
+- A plugin turn has a 1 s budget, its tasks included (they run on its one thread, in the same
+  turn): cap big parses, or split them with a short timer between pieces.
 - Disk: each GPUI build is several GB.
 
 ## Open questions

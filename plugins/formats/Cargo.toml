@@ -1,5 +1,5 @@
 [package]
-name = "delight-formats"
+name = "formats"
 description = "Delight's Formats tools: JSON, YAML, Base64, .env and JWT: format, convert, encode and decode"
 version.workspace = true
 edition.workspace = true

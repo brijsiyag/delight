@@ -1,6 +1,6 @@
 //! TEMPORARY(open_url): opening a URL for a plugin, until embedded_gpui forwards
-//! GPUI's own `cx.open_url` from plugins (today its plugin platform drops it). README,
-//! "Temporary host APIs".
+//! GPUI's own `cx.open_url` from plugins (today its plugin platform drops it).
+//! docs/development.md, "Temporary host APIs".
 
 use anyhow::{Result, bail};
 

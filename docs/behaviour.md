@@ -423,24 +423,25 @@ startup falls back to the default.
 
 ## Theme
 
-- Role tokens, not per-component ones: `dark`; colours (label, secondary /
-  tertiary label, surface, surface_elevated, fill, fill_strong, hover,
-  active, selected, selection, cursor, focus_ring, separator, border, accent,
-  accent_text); status tints success/warning/error/info (fg, bg); palette
-  red…gray; syntax (keyword, string, number, comment, property, function,
-  type, constant, punctuation); text (ui_font, mono_font, size_sm 11,
-  size_base 13, size_lg 15, mono_size 12); metrics (space 4, radius_sm 6,
-  radius_md 8, control_height 26, row_height 30).
-- Values: macOS HIG colours and Xcode syntax colours, light and dark
-  (`ui/src/theme/palette.rs`). A test checks every token is non-transparent
-  in both modes.
+- Role tokens, not per-component ones (`delight_protocol::Theme`): `dark`; text, text_muted,
+  text_faint; surface, card, fill, hover, border, separator; accent, accent_text, selection,
+  focus_ring; success, warning, error, attention, and `tint_opacity` for a colour's quiet
+  background; `background` (what a tool's view is drawn on) and `window` (the launcher around
+  it); syntax (property, string, number, constant, comment, type, keyword, punctuation); fonts
+  (`font`, `mono_font`) and sizes (text 13, small 11, large 15, mono 12; radius 8, small 6).
+- Values: macOS HIG colours and Xcode syntax colours, light and dark, defined once:
+  `Theme::light` and `Theme::dark` in `crates/protocol/src/theme.rs`. A test checks every colour
+  is set in both. The UI kit defines none: it reads the theme.
 - UI font `.SystemUIFont`; mono: first installed of SF Mono / Menlo / Monaco;
   launcher input: bundled Lilex (OFL).
-- System mode follows the window appearance (Dark or VibrantDark). The
-  theme is recomputed only when the mode or the appearance changes, and
-  windows refresh only if it actually changed.
-- Plugins get it from the host (in the sandbox the appearance is always dark
-  and there are no fonts), follow changes, and redraw only when it differs.
+- The app chooses (`crates/app/src/theme.rs`): the Appearance setting, or in System mode the
+  window appearance (Dark or VibrantDark). It chooses again only when the mode or the appearance
+  changes, and windows refresh only if the theme actually changed.
+- Plugins get the whole theme from the app (in the sandbox the appearance is always dark and there
+  are no fonts), and again whenever it changes: each plugin's host object notifies, the plugin
+  asks, and its views are drawn again. The plugin API draws every plugin view (tool, settings
+  section, window) with the theme's text colour, size and font, so text a plugin doesn't colour
+  is the theme's, not GPUI's default black.
 
 ## Shared components (delight-ui)
 
@@ -530,17 +531,19 @@ height / text / icon / padding).
 ## Built-in tools
 
 Three plugins, each an umbrella its later tools join: **Formats**
-(`plugins/formats`, `delight_formats`), **Network** (`plugins/network`,
-`delight_network`) and **Graphics** (`plugins/graphics`, `delight_graphics`).
+(`plugins/formats`, `formats`), **Network** (`plugins/network`,
+`network`) and **Graphics** (`plugins/graphics`, `graphics`).
 Since 2026-10-02; before, each tool was its own plugin (`delight_json`,
 `delight_yaml`, `delight_svg`, `delight_dns`). Each tool has its own icon, and
 each plugin: a Lucide glyph (lucide-static 1.48.0, the UI kit's set; its licence in
 each plugin's `assets/`) in white on a rounded square of an Apple system colour —
-JSON `braces` orange, YAML `list-tree` pink, Base64 `binary` green, Formats
-`file-code` blue; DNS `globe` and Network `waypoints` teal; SVG `pen-tool` and
-Graphics `shapes` purple. .env and JWT are their names instead, ".env" on brown and
-"JWT" on indigo, in Lilex (OFL, `formats/assets/OFL-lilex.txt`) as outlines: logos
-are drawn without fonts.
+JSON `braces` orange (Formats has the same icon as its JSON tool), YAML `list-tree` pink,
+Base64 `binary` green; DNS `globe` teal; SVG `pen-tool` on a cyan-to-blue gradient. .env and JWT are their names
+instead, ".env" on brown and "JWT" on indigo, in Lilex (OFL, `formats/assets/OFL-lilex.txt`) as
+outlines: logos are drawn without fonts. Two plugins have drawings of their own (since
+2026-10-02): Network the internet's globe, meridians and parallels in white on a teal gradient;
+Graphics a white painter's palette with red, orange, green and blue paints on an
+indigo-to-violet gradient, large enough to read at the sidebar's 20 pt.
 State (modes, options, a prefix or a secret) is in memory only. A result has no
 caption above it: the tabs, or the tool's title, say what it is. Tabs take their
 own height (26px), not a fixed row's, which cut off their top.

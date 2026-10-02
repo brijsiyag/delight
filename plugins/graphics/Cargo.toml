@@ -1,5 +1,5 @@
 [package]
-name = "delight-graphics"
+name = "graphics"
 description = "Delight's Graphics tools: SVG Preview (preview SVG images and copy them as a data URI)"
 version.workspace = true
 edition.workspace = true

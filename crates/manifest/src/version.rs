@@ -31,8 +31,12 @@ pub const PLUGIN_API_VERSION: &str = env!("CARGO_PKG_VERSION");
 /// plugins before it don't send) and `set_window_shown`. 0.2 adds hidden actions (`Action`'s
 /// `hidden`: a key and no button in the footer; plugins before it don't send it). 0.3 tells a
 /// tool when its view is shown and hidden (`ToolApi::visibility_changed`; plugins before it don't
-/// have the method, and the app ignores their error). Before 1.0 a
-/// minor bump may also break what it changes; keep the rules above from 1.0 on.
+/// have the method, and the app ignores their error). 0.4 sends the whole theme: the tool's
+/// background, the window's, the card, hover, separator, selection, focus ring and attention
+/// colours, the tint's opacity, the syntax colours and the small, large and code sizes (plugins
+/// before it ignore them); and the plugin API draws every plugin view's text in the theme's colour,
+/// size and font unless the plugin says otherwise. Before 1.0 a minor bump may also break what it
+/// changes; keep the rules above from 1.0 on.
 pub const PROTOCOL_VERSION: ProtocolVersion = ProtocolVersion {
     major: number(env!("CARGO_PKG_VERSION_MAJOR")),
     minor: number(env!("CARGO_PKG_VERSION_MINOR")),

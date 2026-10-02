@@ -1,5 +1,5 @@
 [package]
-name = "delight-network"
+name = "network"
 description = "Delight's Network tools: DNS lookup (a host's records, the resolver that answered, what apps get, reverse lookups)"
 version.workspace = true
 edition.workspace = true

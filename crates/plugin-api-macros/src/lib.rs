@@ -47,7 +47,7 @@ use syn::LitStr;
 /// each at most 60 characters.
 ///
 /// `update` is the location the plugin is published at: the URL that holds its `<id>.wasm`
-/// and `<id>.xml` (see the README, "Publishing updates"). Delight looks there once a day and
+/// and `<id>.xml` (see docs/plugins/publishing.md). Delight looks there once a day and
 /// offers a newer version. Leave it out for a plugin that is only ever installed by hand.
 ///
 /// Icon paths

@@ -1,12 +1,12 @@
 # Building, releasing and workarounds
 
-The developer-facing half of the old README: how to build the app and the built-in plugins, how a release
-is made, and the temporary host APIs and AppKit workarounds. The README is for people who use Delight
-and write plugins for it.
+How the app and the built-in plugins are built, how a release is made, the embedded_gpui fork,
+the temporary host APIs and the AppKit workarounds. The README is for people who use Delight,
+`docs/plugins/` for people who write plugins, and `CONTRIBUTING.md` for working on Delight.
 
 A macOS launcher whose tools are plugins: WASM components that run their own
 GPUI through embedded_gpui. `docs/plan.md` is the plan, `docs/behaviour.md`
-what the app does, and `docs/plugin-settings.md` how to design a plugin's
+what the app does, and `docs/plugins/settings.md` how to design a plugin's
 settings.
 
 ## Development
@@ -164,11 +164,18 @@ Delight makes it in `plugins::load`, in `~/Library/Caches/Delight/compiled`. Tes
 push, and move Delight's `rev`, then rebuild every plugin (the plugin side of embedded_gpui is
 compiled into each `.wasm`).
 
-**Back to upstream.** When upstream has a way to hide a surface and a compile cache (these
-commits or its own), point `embedded_gpui` in the root `Cargo.toml` back at
-`zed-industries/embedded_gpui` and that commit, use upstream's API in `ToolPane::set_shown` and
-`plugins/loading.rs` if it differs, delete this section, and rebuild the plugins. If upstream
-takes one of them first, drop that commit from the branch.
+**Marked as temporary.** Everything that relies on the fork is marked, like the temporary host
+APIs: `TEMPORARY(fork)` on the dependency in the root `Cargo.toml`, and one marker per change on the
+code that uses it, `TEMPORARY(fork_hidden_surfaces)` (`ToolPane::set_shown`) and
+`TEMPORARY(fork_compile_cache)` (`plugins/loading.rs`, `plugins/mod.rs`, the cache's profile in
+`Cargo.toml`). `grep -rn "TEMPORARY(fork"` lists all of it. A new change in the fork gets a marker
+of its own, `TEMPORARY(fork_<change>)`, on every line that uses it.
+
+**Back to upstream.** As soon as upstream releases a way to hide a surface and a compile cache
+(these commits or its own), point `embedded_gpui` in the root `Cargo.toml` back at
+`zed-industries/embedded_gpui` and that release, use upstream's API where the markers are if it
+differs, remove the markers, delete this section, and rebuild the plugins. If upstream takes one of
+them first, drop that commit from the branch and that marker from the code.
 
 **Waiting on upstream, not forked** (decided 2026-10-01). Three more changes were designed and
 set aside: each is small, but each is one more commit to carry and rebase, so they wait for

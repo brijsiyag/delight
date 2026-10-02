@@ -1,6 +1,6 @@
 //! TEMPORARY(open_url): opening a web page in the browser, through the app, until
-//! embedded_gpui forwards GPUI's own `cx.open_url` from plugins. README, "Temporary
-//! host APIs".
+//! embedded_gpui forwards GPUI's own `cx.open_url` from plugins. docs/development.md,
+//! "Temporary host APIs".
 
 use anyhow::{Result, anyhow};
 use delight_protocol::HostApiCaller as _;

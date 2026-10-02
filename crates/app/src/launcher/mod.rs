@@ -212,7 +212,7 @@ impl Launcher {
         });
         let subscriptions = vec![
             cx.subscribe(&input, |this, _, event, cx| this.on_input_event(event, cx)),
-            cx.observe_window_appearance(window, |_, _, cx| delight_ui::theme::appearance_changed(cx)),
+            cx.observe_window_appearance(window, |_, _, cx| crate::theme::appearance_changed(cx)),
             // Losing the keyboard to something else than the launcher and the windows of plugins
             // hides them all, if that's on.
             cx.observe_window_activation(window, |_, window, cx| {

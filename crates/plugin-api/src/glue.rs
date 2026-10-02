@@ -10,7 +10,7 @@ use embedded_gpui::{Ref, open_view, root, share, share_root, shared};
 
 use crate::gpui::{
     AnyEntity, AnyView, App, AppContext as _, Context, IntoElement, ParentElement as _, Render,
-    Styled as _, Subscription, Task, Window, div,
+    Styled as _, Subscription, Task, Window, div, px,
 };
 use crate::host::HostRoot;
 use crate::tool::DynTool;
@@ -108,14 +108,22 @@ impl<P: Plugin> PluginApi for PluginRoot<P> {
     }
 }
 
-/// The view on a surface: a tool, or a settings section, filling the space it's given.
+/// The view on a surface: a tool, a settings section or a window's, filling the space it's given.
 struct Filling {
     view: Option<AnyView>,
 }
 
 impl Render for Filling {
-    fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
-        div().size_full().flex().flex_col().children(self.view.clone())
+    /// With the theme's text style, so text the plugin draws without a colour of its own is the
+    /// theme's text and not GPUI's default (black, 16 px), which can't be read on a dark
+    /// background. Drawn again when the theme changes (`HostRoot` refreshes every window).
+    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let root = div().size_full().flex().flex_col();
+        let root = match crate::theme(cx) {
+            Some(theme) => root.text_color(theme.text).text_size(px(theme.text_size)).font_family(theme.font.clone()),
+            None => root,
+        };
+        root.children(self.view.clone())
     }
 }
 

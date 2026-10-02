@@ -11,7 +11,7 @@ use std::sync::{Arc, Once};
 use std::time::{Duration, Instant};
 
 use delight_protocol::{
-    Action, Color, CommandsApi, DnsApi, HostApi, HttpApi, Input, Permission, PermissionRequest, Shortcut, Theme, ToolApi, ToolApiCaller as _,
+    Action, CommandsApi, DnsApi, HostApi, HttpApi, Input, Permission, PermissionRequest, Shortcut, Theme, ToolApi, ToolApiCaller as _,
 };
 use delight_runtime::{Candidate, Granted, Plugin, detect_all, plugin_options, read_manifest};
 use embedded_gpui::{ClipboardApi, Ref, Remote, Surface, shared};
@@ -87,25 +87,7 @@ impl HostApi for FakeApp {
 
     fn current_theme(&mut self, _cx: &mut Context<Self>) -> Theme {
         self.theme_requests += 1;
-        let gray = |l| Color { h: 0., s: 0., l, a: 1. };
-        Theme {
-            dark: true,
-            text: gray(0.9),
-            text_muted: gray(0.6),
-            text_faint: gray(0.4),
-            surface: gray(0.2),
-            fill: gray(0.3),
-            border: gray(0.3),
-            accent: gray(0.5),
-            accent_text: gray(1.),
-            success: gray(0.5),
-            warning: gray(0.5),
-            error: gray(0.5),
-            font: "Test".into(),
-            mono_font: "Test Mono".into(),
-            text_size: 13.,
-            radius: 8.,
-        }
+        Theme::dark("Test Mono")
     }
 
     fn clipboard(&mut self, cx: &mut Context<Self>) -> Ref<ClipboardApi> {
@@ -309,7 +291,7 @@ async fn actions(tool: &Remote<ToolApi>, cx: &mut TestAppContext) -> Vec<Action>
 fn the_manifest_is_read_from_the_wasm() {
     let manifest = read_manifest(&std::fs::read(fixture()).unwrap()).unwrap();
     assert_eq!(manifest.plugin.id, "dev.delight.fixture");
-    assert_eq!(manifest.plugin.version, "0.0.5");
+    assert_eq!(manifest.plugin.version, "0.0.6");
     assert_eq!(manifest.operations.len(), 1);
     assert_eq!(manifest.operations[0].id, "echo");
     assert!(manifest.plugin.icon.starts_with("<svg"));

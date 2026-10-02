@@ -1,5 +1,5 @@
 //! Delight's development and release tasks, run as `cargo xtask <task>` (the alias is in
-//! `.cargo/config.toml`). `README.md` ("Releasing") says how a release is made.
+//! `.cargo/config.toml`). `docs/development.md` ("Releasing") says how a release is made.
 //!
 //! * `wasi-sdk`: fetch the pinned WASI SDK into `target/wasi-sdk`.
 //! * `sparkle`: fetch the pinned Sparkle into `dist/`.

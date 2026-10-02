@@ -1,6 +1,6 @@
 [env]
 # Plugins with C in them (tree-sitter) build it for wasm32-wasip2 with the WASI SDK's
 # clang and C library, which the `cc` crate finds through WASI_SDK_PATH: the pinned
-# SDK, unpacked into the root `target/wasi-sdk` (see the README). A WASI_SDK_PATH
+# SDK, unpacked into the root `target/wasi-sdk` (see CONTRIBUTING.md). A WASI_SDK_PATH
 # already in the environment wins.
 WASI_SDK_PATH = { value = "../target/wasi-sdk", relative = true }

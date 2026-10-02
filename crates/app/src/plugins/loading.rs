@@ -10,6 +10,8 @@ use std::sync::Arc;
 
 use delight_protocol::Manifest;
 use delight_runtime::{Plugin, plugin_options, read_manifest};
+// TEMPORARY(fork_compile_cache): the fork's, until upstream embedded_gpui caches compiled plugins
+// (docs/development.md, "The embedded_gpui fork").
 use embedded_gpui::CompileCache;
 use gpui::{App, AppContext as _, AsyncApp, PlatformTextSystem};
 
@@ -22,6 +24,7 @@ use crate::{launcher, plugin_windows};
 /// [`restart`] starts one. An installed plugin with a built-in's id replaces it.
 pub fn load(text_system: Arc<dyn PlatformTextSystem>, cx: &mut App) {
     // One cache for every plugin, however often they start: its worker looks after the folder.
+    // TEMPORARY(fork_compile_cache)
     let compile_cache = CompileCache::new(crate::cache_dir().join("compiled"))
         .map_err(|error| log::warn!("no cache of compiled plugins, they compile at every start: {error:#}"))
         .ok();
@@ -109,6 +112,7 @@ async fn start(id: String, source: Source, manifest: Manifest, cx: &mut AsyncApp
         let data = data_dir(&id);
         // Compiled once, then loaded from the cache while the file is the same.
         let mut options = plugin_options(&manifest, data.clone(), text_system);
+        // TEMPORARY(fork_compile_cache)
         if let Some(cache) = compile_cache {
             options = options.with_compile_cache(cache);
         }

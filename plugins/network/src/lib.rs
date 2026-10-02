@@ -10,7 +10,7 @@ use delight_plugin_api::{AnyTool, Detection, Input, Operations, Plugin, plugin};
 use gpui::{App, AppContext as _, AssetSource};
 
 #[plugin(
-    id = "delight_network",
+    id = "network",
     name = "Network",
     description = "Look up hosts and addresses: DNS records, resolvers, reverse lookups.",
     author = "Delight",

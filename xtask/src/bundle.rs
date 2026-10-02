@@ -113,19 +113,20 @@ fn copy_executable(from: &Path, to: &Path) -> Result<()> {
     Ok(())
 }
 
-/// The built-ins' `.wasm` files: one for each member of the plugins workspace.
+/// The built-ins' `.wasm` files: one for each member of the plugins workspace, whose crate (and so
+/// file) is named as its folder and its plugin id, as Delight loads a plugin from `<id>.wasm`.
 fn copy_plugins(root: &Path, into: &Path) -> Result<()> {
     let members = plugin_members(&root.join("plugins/Cargo.toml"))?;
     ensure!(!members.is_empty(), "plugins/Cargo.toml lists no plugins");
     for member in members {
-        let file = format!("delight_{member}.wasm");
+        let file = format!("{member}.wasm");
         let from = root.join("plugins/target").join(PLUGINS_TARGET).join("release").join(&file);
         std::fs::copy(&from, into.join(&file)).with_context(|| format!("copying the built plugin {}", from.display()))?;
     }
     Ok(())
 }
 
-/// The members of the plugins workspace (`dns`, `json`, …).
+/// The members of the plugins workspace (`formats`, `network`, …).
 fn plugin_members(manifest: &Path) -> Result<Vec<String>> {
     let table: toml::Table = std::fs::read_to_string(manifest)?.parse()?;
     let members = table
@@ -195,6 +196,6 @@ mod tests {
         let manifest = Path::new(env!("CARGO_MANIFEST_DIR")).join("../plugins/Cargo.toml");
         let mut members = plugin_members(&manifest).unwrap();
         members.sort();
-        assert_eq!(members, ["dns", "json", "svg", "yaml"]);
+        assert_eq!(members, ["formats", "graphics", "network"]);
     }
 }

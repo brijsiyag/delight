@@ -165,7 +165,7 @@ impl SettingsWindow {
                     Err(error) => recorder.update(cx, |recorder, cx| recorder.set_error(format!("{error:#}"), cx)),
                 }
             }),
-            cx.observe_window_appearance(window, |_, _, cx| delight_ui::theme::appearance_changed(cx)),
+            cx.observe_window_appearance(window, |_, _, cx| crate::theme::appearance_changed(cx)),
             // TEMPORARY(clipboard): something may have been copied elsewhere; plugins see it before a paste.
             cx.observe_window_activation(window, |_, window, cx| {
                 if window.is_window_active() {

@@ -115,6 +115,7 @@ struct Plugins {
     /// What they shape their text with: the app's.
     text_system: Option<Arc<dyn PlatformTextSystem>>,
     /// Where compiled plugins are kept, shared by all of them; `None` if the folder can't be used.
+    // TEMPORARY(fork_compile_cache): the fork's `CompileCache`, until upstream embedded_gpui has one.
     compile_cache: Option<embedded_gpui::CompileCache>,
 }
 
@@ -128,7 +129,7 @@ pub fn all(cx: &App) -> Rc<[Plugin]> {
 /// [`Plugin::refresh_clipboard`]): a paste in a plugin's field then reads what was copied last.
 ///
 /// TEMPORARY(clipboard): a workaround for embedded_gpui sending a clipboard change after the ⌘ key
-/// that pastes it; remove it and its calls when embedded_gpui is fixed (see the README).
+/// that pastes it; remove it and its calls when embedded_gpui is fixed (see docs/development.md).
 pub fn refresh_clipboards(cx: &mut App) {
     for plugin in all(cx).iter() {
         plugin.refresh_clipboard(cx);

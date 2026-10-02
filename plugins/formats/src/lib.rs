@@ -19,11 +19,12 @@ use delight_plugin_api::{AnyTool, Detection, Input, Operations, Plugin, plugin};
 use gpui::{App, AppContext as _, AssetSource};
 
 #[plugin(
-    id = "delight_formats",
+    id = "formats",
     name = "Formats",
     description = "JSON, YAML, Base64, .env and JWT: format, convert, encode and decode.",
     author = "Delight",
-    icon = "assets/icon.svg",
+    // The JSON tool's icon: Formats is known by its main tool.
+    icon = "assets/json.svg",
     tags = ["json", "yaml", "base64", "env", "jwt", "format", "convert", "encode", "decode"],
     tips = ["Paste JSON to format it", "Paste a JWT to read its claims", "Paste YAML to get JSON"],
 )]

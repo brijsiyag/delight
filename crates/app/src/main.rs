@@ -21,11 +21,12 @@ mod plugins;
 mod settings;
 mod settings_window;
 mod single_instance;
+mod theme;
 mod tray;
 mod tray_drop;
 mod updater;
 
-use delight_ui::ThemeMode;
+use theme::ThemeMode;
 use std::path::PathBuf;
 
 use gpui::{App, Application, actions};
@@ -119,7 +120,8 @@ fn main() {
         macos::set_accessory_app();
         let appearance = saved.appearance;
         cx.set_global(saved);
-        delight_ui::init(cx, ThemeMode::System);
+        delight_ui::init(cx);
+        theme::init(cx, ThemeMode::System);
         settings::apply_appearance(appearance, cx);
         keymap::init(cx);
         history::init(cx);

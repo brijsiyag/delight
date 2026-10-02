@@ -4,11 +4,11 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use delight_ui::ThemeMode;
 use gpui::{App, Global};
 use serde::{Deserialize, Serialize};
 
 use crate::files::{read_json, write_json};
+use crate::theme::{self, ThemeMode};
 use crate::{history, launcher, login, macos};
 
 /// Light, dark, or following macOS.
@@ -172,7 +172,7 @@ pub fn apply_appearance(appearance: Appearance, cx: &mut App) {
         Appearance::Light => (ThemeMode::Light, Some(false)),
         Appearance::Dark => (ThemeMode::Dark, Some(true)),
     };
-    delight_ui::theme::set_mode(cx, mode);
+    theme::set_mode(cx, mode);
     // Outside this update: macOS redraws the windows, calling back into GPUI.
     cx.spawn(async move |_| macos::set_app_appearance(dark)).detach();
 }

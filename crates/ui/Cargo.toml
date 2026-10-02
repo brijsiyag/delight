@@ -11,7 +11,7 @@ workspace = true
 
 [features]
 # Highlighted code and a converting tool's result: tree-sitter, which is C (for
-# plugins, built with the WASI SDK; see the README). Only the built-ins that show
+# plugins, built with the WASI SDK; see CONTRIBUTING.md). Only the built-ins that show
 # code turn it on.
 code = ["dep:tree-sitter", "dep:tree-sitter-highlight", "dep:tree-sitter-json", "dep:tree-sitter-yaml"]
 

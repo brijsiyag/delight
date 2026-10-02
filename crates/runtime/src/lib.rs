@@ -14,10 +14,10 @@ mod commands;
 /// The Mac's DNS setup for plugins with `Network`.
 mod dns;
 mod granted;
-// TEMPORARY(open_url): which URLs a plugin may open; README, "Temporary host APIs".
+// TEMPORARY(open_url): which URLs a plugin may open; docs/development.md, "Temporary host APIs".
 pub mod open_url;
-// TEMPORARY(network): the app's HTTP for plugins, until embedded_gpui links `wasi:http`; README,
-// "Temporary host APIs".
+// TEMPORARY(network): the app's HTTP for plugins, until embedded_gpui links `wasi:http`;
+// docs/development.md, "Temporary host APIs".
 mod network;
 mod plugin;
 mod plugin_log;

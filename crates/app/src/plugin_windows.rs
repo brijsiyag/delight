@@ -148,7 +148,7 @@ pub fn open(plugin_id: &str, key: String, title: String, width: f32, height: f32
     let opened = cx.open_window(options, move |window, cx| {
         cx.new(|cx| {
             cx.on_release(move |_, cx| forget(&closing_plugin, &closing_key, cx)).detach();
-            cx.observe_window_appearance(window, |_, _, cx| delight_ui::theme::appearance_changed(cx)).detach();
+            cx.observe_window_appearance(window, |_, _, cx| crate::theme::appearance_changed(cx)).detach();
             // Losing the keyboard to something outside the launcher and its windows hides them all.
             cx.observe_window_activation(window, |_, window, cx| {
                 if window.is_window_active() {

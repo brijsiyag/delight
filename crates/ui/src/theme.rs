@@ -1,23 +1,11 @@
-//! The look: macOS system colours (HIG), the system font and SF Mono, in light and
-//! dark.
-//!
-//! [`Theme`] is deliberately small, so it can be handed to plugins as it is: a few
-//! colours and sizes, with everything else derived from them by its methods. It is a
-//! GPUI global, read with [`ActiveTheme::theme`] (`cx.theme()`), and resolved again
-//! only when the [`ThemeMode`] or the macOS appearance changes.
+//! The theme, as the kit reads it. It is the app's (`delight_protocol::Theme`, which defines the
+//! light and dark ones): a GPUI global the app sets (and, in a plugin, the plugin API). The kit
+//! defines no colours or sizes: it follows that global, keeping it with its colours as GPUI's
+//! `Hsla`, read with [`ActiveTheme::theme`] (`cx.theme()`).
 
-use gpui::{App, Global, Hsla, Pixels, SharedString, WindowAppearance, hsla, px, rgb};
+use gpui::{App, Global, Hsla, Pixels, SharedString, px};
 
 use delight_protocol::Color;
-
-/// Light, dark, or following macOS.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum ThemeMode {
-    #[default]
-    System,
-    Dark,
-    Light,
-}
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Theme {
@@ -30,7 +18,7 @@ pub struct Theme {
     pub text_faint: Hsla,
     /// Raised areas: tooltips, popovers.
     pub surface: Hsla,
-    /// Controls: buttons, switches, keycaps. Half of it is a hover or a group.
+    /// Controls: buttons, switches, keycaps.
     pub fill: Hsla,
     /// Borders; separators are a lighter version.
     pub border: Hsla,
@@ -43,148 +31,105 @@ pub struct Theme {
     pub error: Hsla,
     pub font: SharedString,
     pub mono_font: SharedString,
-    /// The body text size; the small and large sizes are 2px either side.
+    /// The body text size.
     pub text_size: Pixels,
-    /// The corner radius; small elements use 2px less.
+    /// The corner radius.
     pub radius: Pixels,
+    hover: Hsla,
+    separator: Hsla,
+    selection: Hsla,
+    focus_ring: Hsla,
+    attention: Hsla,
+    tint_opacity: f32,
+    card: Hsla,
+    background: Hsla,
+    window: Hsla,
+    syntax: Syntax,
+    text_size_small: Pixels,
+    text_size_large: Pixels,
+    mono_size: Pixels,
+    radius_small: Pixels,
 }
 
 impl Theme {
+    /// The app's light theme, as the kit reads it (for tests).
     pub fn light(mono_font: SharedString) -> Self {
-        Theme {
-            dark: false,
-            text: gray(0., 0.85),
-            text_muted: gray(0., 0.5),
-            text_faint: gray(0., 0.26),
-            surface: gray(0.99, 1.),
-            fill: gray(0., 0.08),
-            border: gray(0., 0.15),
-            accent: color(0x007AFF),
-            accent_text: gray(1., 1.),
-            success: color(0x28A745),
-            warning: color(0xFF9500),
-            error: color(0xFF3B30),
-            font: ".SystemUIFont".into(),
-            mono_font,
-            text_size: px(13.),
-            radius: px(8.),
-        }
+        Theme::from(&delight_protocol::Theme::light(mono_font.to_string()))
     }
 
+    /// The app's dark theme, as the kit reads it (for tests, and in a plugin until the app's has
+    /// arrived).
     pub fn dark(mono_font: SharedString) -> Self {
-        Theme {
-            dark: true,
-            text: gray(1., 0.88),
-            text_muted: gray(1., 0.55),
-            text_faint: gray(1., 0.28),
-            surface: gray(0.18, 1.),
-            fill: gray(1., 0.1),
-            border: gray(1., 0.15),
-            accent: color(0x0A84FF),
-            accent_text: gray(1., 1.),
-            success: color(0x30D158),
-            warning: color(0xFF9F0A),
-            error: color(0xFF453A),
-            font: ".SystemUIFont".into(),
-            mono_font,
-            text_size: px(13.),
-            radius: px(8.),
-        }
+        Theme::from(&delight_protocol::Theme::dark(mono_font.to_string()))
     }
 
-    /// A card of rows on a page (System Settings' groups): a slight tint of the text
-    /// colour over the page, so it is a step darker than a light page and lighter than a
-    /// dark one, with no border.
+    /// A card of rows on a page (System Settings' groups): a slight tint of the text colour over
+    /// the page, with no border.
     pub fn card(&self) -> Hsla {
-        if self.dark { gray(1., 0.07) } else { gray(0., 0.04) }
+        self.card
     }
 
     /// Half the control fill: hovers, and the background of a group of rows.
     pub fn fill_subtle(&self) -> Hsla {
-        self.fill.opacity(0.5)
+        self.hover
     }
 
     /// A hairline between rows.
     pub fn separator(&self) -> Hsla {
-        self.border.opacity(0.66)
+        self.separator
     }
 
     /// Selected text's background.
     pub fn selection(&self) -> Hsla {
-        self.accent.opacity(if self.dark { 0.35 } else { 0.25 })
+        self.selection
     }
 
     /// The ring around a focused control.
     pub fn focus_ring(&self) -> Hsla {
-        self.accent.opacity(0.5)
+        self.focus_ring
+    }
+
+    /// The colour of a button that needs attention (results gone stale): a pink, well apart from
+    /// the accent blue.
+    pub fn attention(&self) -> Hsla {
+        self.attention
     }
 
     /// A tinted background for `color` (a status colour, or the accent).
-    /// The colour of a button that needs attention (results gone stale): a pink, well apart from
-    /// the accent blue. Not part of the theme plugins are given: the app draws those buttons.
-    pub fn attention(&self) -> Hsla {
-        color(if self.dark { 0xFF6AA2 } else { 0xE0397F })
-    }
-
     pub fn tint(&self, color: Hsla) -> Hsla {
-        color.opacity(if self.dark { 0.18 } else { 0.12 })
+        color.opacity(self.tint_opacity)
     }
 
     pub fn text_size_small(&self) -> Pixels {
-        self.text_size - px(2.)
+        self.text_size_small
     }
 
     pub fn text_size_large(&self) -> Pixels {
-        self.text_size + px(2.)
+        self.text_size_large
     }
 
     /// Code is a pixel smaller than text, as monospace looks larger.
     pub fn mono_size(&self) -> Pixels {
-        self.text_size - px(1.)
+        self.mono_size
     }
 
     pub fn radius_small(&self) -> Pixels {
-        self.radius - px(2.)
+        self.radius_small
     }
 
-    /// The launcher's background around the tool view (the input, the tool list, the footer):
-    /// solid, so nothing behind the window shows through, and a step off the tool view's, so the
-    /// two read as one window. The native blur under it stays for the window's shape and shadow.
+    /// The launcher's background around the tool view (the input, the tool list, the footer).
     pub fn window_tint(&self) -> Hsla {
-        if self.dark { gray(0.115, 1.) } else { gray(0.955, 1.) }
+        self.window
     }
 
-    /// The tool view's background, a step lighter than [`Theme::window_tint`] around it: white in
-    /// the light theme, a lifted dark in the dark one.
+    /// The tool view's background, a step lighter than [`Theme::window_tint`] around it.
     pub fn tool_background(&self) -> Hsla {
-        if self.dark { gray(0.155, 1.) } else { gray(1., 1.) }
+        self.background
     }
 
-    /// Colours for highlighted code: Xcode's, in light or dark.
+    /// Colours for highlighted code.
     pub fn syntax(&self) -> Syntax {
-        if self.dark {
-            Syntax {
-                property: color(0x67B7A4),
-                string: color(0xFC6A5D),
-                number: color(0xD0BF69),
-                constant: color(0xFC5FA3),
-                comment: color(0x6C7986),
-                type_: color(0x5DD8FF),
-                keyword: color(0xFC5FA3),
-                punctuation: gray(1., 0.55),
-            }
-        } else {
-            Syntax {
-                property: color(0x0B4F79),
-                string: color(0xC41A16),
-                number: color(0x1C00CF),
-                constant: color(0x9B2393),
-                comment: color(0x5D6C79),
-                type_: color(0x3900A0),
-                keyword: color(0x9B2393),
-                punctuation: gray(0., 0.5),
-            }
-        }
+        self.syntax
     }
 }
 
@@ -201,14 +146,6 @@ pub struct Syntax {
     pub type_: Hsla,
     pub keyword: Hsla,
     pub punctuation: Hsla,
-}
-
-fn color(hex: u32) -> Hsla {
-    rgb(hex).into()
-}
-
-fn gray(lightness: f32, alpha: f32) -> Hsla {
-    hsla(0., 0., lightness, alpha)
 }
 
 impl Global for Theme {}
@@ -233,89 +170,51 @@ pub const INPUT_LINE_HEIGHT: f32 = 21.;
 #[cfg(not(target_arch = "wasm32"))]
 const LILEX: &[u8] = include_bytes!("../assets/fonts/lilex/Lilex-Regular.ttf");
 
-/// What the theme is resolved from.
-struct Preference {
-    mode: ThemeMode,
-    mono_font: SharedString,
-    input_font: SharedString,
-}
+/// The launcher input's font: Lilex where it loaded.
+struct InputFont(SharedString);
 
-impl Global for Preference {}
+impl Global for InputFont {}
 
-/// Load the bundled font, pick the installed fonts, and resolve the theme.
+/// In the app: load the bundled font, and follow the app's theme.
 #[cfg(not(target_arch = "wasm32"))]
-pub(crate) fn init(cx: &mut App, mode: ThemeMode) {
+pub(crate) fn init(cx: &mut App) {
     if let Err(error) = cx.text_system().add_fonts(vec![std::borrow::Cow::Borrowed(LILEX)]) {
         log::warn!("loading the Lilex font failed: {error:#}");
     }
     let names = cx.text_system().all_font_names();
-    let first = |fonts: &[&'static str]| -> SharedString {
-        fonts
-            .iter()
-            .copied()
-            .find(|font| names.iter().any(|name| name == font))
-            .unwrap_or("Menlo")
-            .into()
-    };
-    let mono_font = first(&["SF Mono", "Menlo", "Monaco"]);
-    let input_font = first(&["Lilex", "SF Mono", "Menlo"]);
-    cx.set_global(Preference {
-        mode,
-        mono_font,
-        input_font,
-    });
-    resolve(cx);
+    let input = ["Lilex", "SF Mono", "Menlo"].into_iter().find(|font| names.iter().any(|name| name == font)).unwrap_or("Menlo");
+    cx.set_global(InputFont(input.into()));
+    follow(cx);
 }
 
-/// In a plugin: the theme is the app's (the plugin API's copy of it), and follows it;
-/// the dark one until the app has answered. Once is enough.
+/// In a plugin: follow the app's theme, which the plugin API keeps; the dark one until the app
+/// has answered. The plugin's inputs use its mono font. Once is enough.
 pub(crate) fn init_plugin(cx: &mut App) {
     if cx.has_global::<Theme>() {
         return;
     }
+    follow(cx);
+}
+
+/// Keep the kit's copy of the theme global (`delight_protocol::Theme`) as it changes, and draw
+/// again when it does; until there is one, the dark theme.
+fn follow(cx: &mut App) {
     let theme = cx.try_global::<delight_protocol::Theme>().map_or_else(|| Theme::dark("Menlo".into()), Theme::from);
-    // The launcher's input font is the app's; a plugin's inputs use its mono font.
-    cx.set_global(Preference {
-        mode: ThemeMode::System,
-        mono_font: theme.mono_font.clone(),
-        input_font: theme.mono_font.clone(),
-    });
     cx.set_global(theme);
     cx.observe_global::<delight_protocol::Theme>(|cx| {
         let theme = Theme::from(cx.global::<delight_protocol::Theme>());
-        cx.set_global(theme);
-        cx.refresh_windows();
+        if cx.global::<Theme>() != &theme {
+            cx.set_global(theme);
+            cx.refresh_windows();
+        }
     })
     .detach();
-}
-
-/// The theme as it crosses to plugins, and back.
-impl From<&Theme> for delight_protocol::Theme {
-    fn from(theme: &Theme) -> Self {
-        delight_protocol::Theme {
-            dark: theme.dark,
-            text: theme.text.into(),
-            text_muted: theme.text_muted.into(),
-            text_faint: theme.text_faint.into(),
-            surface: theme.surface.into(),
-            fill: theme.fill.into(),
-            border: theme.border.into(),
-            accent: theme.accent.into(),
-            accent_text: theme.accent_text.into(),
-            success: theme.success.into(),
-            warning: theme.warning.into(),
-            error: theme.error.into(),
-            font: theme.font.to_string(),
-            mono_font: theme.mono_font.to_string(),
-            text_size: theme.text_size.into(),
-            radius: theme.radius.into(),
-        }
-    }
 }
 
 impl From<&delight_protocol::Theme> for Theme {
     fn from(theme: &delight_protocol::Theme) -> Self {
         let color = |color: Color| Hsla::from(color);
+        let syntax = &theme.syntax;
         Theme {
             dark: theme.dark,
             text: color(theme.text),
@@ -333,47 +232,37 @@ impl From<&delight_protocol::Theme> for Theme {
             mono_font: theme.mono_font.clone().into(),
             text_size: px(theme.text_size),
             radius: px(theme.radius),
+            hover: color(theme.hover),
+            separator: color(theme.separator),
+            selection: color(theme.selection),
+            focus_ring: color(theme.focus_ring),
+            attention: color(theme.attention),
+            tint_opacity: theme.tint_opacity,
+            card: color(theme.card),
+            background: color(theme.background),
+            window: color(theme.window),
+            syntax: Syntax {
+                property: color(syntax.property),
+                string: color(syntax.string),
+                number: color(syntax.number),
+                constant: color(syntax.constant),
+                comment: color(syntax.comment),
+                type_: color(syntax.type_),
+                keyword: color(syntax.keyword),
+                punctuation: color(syntax.punctuation),
+            },
+            text_size_small: px(theme.text_size_small),
+            text_size_large: px(theme.text_size_large),
+            mono_size: px(theme.mono_size),
+            radius_small: px(theme.radius_small),
         }
     }
 }
 
-/// The launcher input's font: Lilex, or a monospace fallback if it didn't load.
+/// The launcher input's font: Lilex, or a monospace fallback if it didn't load; in a plugin, its
+/// mono font.
 pub fn input_font(cx: &App) -> SharedString {
-    cx.global::<Preference>().input_font.clone()
-}
-
-pub fn mode(cx: &App) -> ThemeMode {
-    cx.global::<Preference>().mode
-}
-
-/// Switch between light, dark and following macOS, and redraw.
-pub fn set_mode(cx: &mut App, mode: ThemeMode) {
-    cx.global_mut::<Preference>().mode = mode;
-    resolve(cx);
-}
-
-/// Resolve again after the macOS appearance changed; the app calls this from a
-/// window's `observe_window_appearance`.
-pub fn appearance_changed(cx: &mut App) {
-    resolve(cx);
-}
-
-fn resolve(cx: &mut App) {
-    let preference = cx.global::<Preference>();
-    let dark = match preference.mode {
-        ThemeMode::Dark => true,
-        ThemeMode::Light => false,
-        ThemeMode::System => matches!(
-            cx.window_appearance(),
-            WindowAppearance::Dark | WindowAppearance::VibrantDark
-        ),
-    };
-    let mono_font = preference.mono_font.clone();
-    let theme = if dark { Theme::dark(mono_font) } else { Theme::light(mono_font) };
-    if cx.try_global::<Theme>() != Some(&theme) {
-        cx.set_global(theme);
-        cx.refresh_windows();
-    }
+    cx.try_global::<InputFont>().map_or_else(|| cx.theme().mono_font.clone(), |font| font.0.clone())
 }
 
 #[cfg(test)]
@@ -381,48 +270,12 @@ mod tests {
     use super::*;
 
     #[test]
-    fn crosses_to_plugins_and_back_unchanged() {
-        for theme in [Theme::light("Menlo".into()), Theme::dark("SF Mono".into())] {
-            assert_eq!(Theme::from(&delight_protocol::Theme::from(&theme)), theme);
-        }
-    }
-
-    #[test]
-    fn the_launcher_is_solid_with_the_tool_view_a_step_lighter() {
-        for theme in [Theme::light("Menlo".into()), Theme::dark("Menlo".into())] {
-            let (window, tool) = (theme.window_tint(), theme.tool_background());
-            assert_eq!((window.a, tool.a), (1., 1.), "dark: {}", theme.dark);
-            assert!(tool.l > window.l, "the tool view is lighter (dark: {})", theme.dark);
-        }
-        let light = Theme::light("Menlo".into());
-        assert_eq!(light.tool_background(), gray(1., 1.));
-        assert!(light.window_tint().l < 1., "not white");
-        assert!(Theme::dark("Menlo".into()).tool_background().l < 0.5);
-    }
-
-    /// Every colour has a real value in both appearances: an unset one would be
-    /// transparent.
-    #[test]
-    fn both_themes_set_every_colour() {
-        for theme in [Theme::light("Menlo".into()), Theme::dark("Menlo".into())] {
-            let colours = [
-                theme.text,
-                theme.text_muted,
-                theme.text_faint,
-                theme.surface,
-                theme.fill,
-                theme.border,
-                theme.accent,
-                theme.accent_text,
-                theme.success,
-                theme.warning,
-                theme.error,
-            ];
-            for (index, colour) in colours.iter().enumerate() {
-                assert!(colour.a > 0., "colour {index} is unset (dark: {})", theme.dark);
-            }
-            assert!(theme.text_size_small() > px(0.) && theme.radius_small() > px(0.));
-            assert!(!theme.font.is_empty() && !theme.mono_font.is_empty());
+    fn reads_the_apps_theme_as_it_is() {
+        for theme in [delight_protocol::Theme::light("Menlo"), delight_protocol::Theme::dark("SF Mono")] {
+            let read = Theme::from(&theme);
+            assert_eq!((read.dark, read.text, read.card()), (theme.dark, theme.text.into(), theme.card.into()));
+            assert_eq!(read.tint(read.accent), Hsla::from(theme.tint(theme.accent)));
+            assert_eq!((read.mono_font.as_ref(), read.text_size_small()), (theme.mono_font.as_str(), px(theme.text_size_small)));
         }
     }
 }

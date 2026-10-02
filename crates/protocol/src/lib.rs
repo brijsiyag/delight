@@ -33,10 +33,15 @@ mod dns;
 pub use dns::*;
 
 // TEMPORARY(network): the app's HTTP for plugins, until embedded_gpui links `wasi:http`. It's all
-// in `network/`; README, "Temporary host APIs".
+// in `network/`; docs/development.md, "Temporary host APIs".
 mod network;
 
 pub use network::*;
+
+/// The light and dark themes the app and plugins draw with.
+mod theme;
+
+pub use theme::*;
 
 use embedded_gpui::ClipboardApi;
 use embedded_gpui::surface::SurfaceApi;
@@ -237,66 +242,6 @@ pub struct Input {
 pub struct Detection {
     pub operation: String,
     pub confidence: f32,
-}
-
-/// The app's look, for plugins to draw with: a few colours and sizes, in light or
-/// dark. The app's own theme (`delight-ui`'s) as data.
-#[data]
-#[derive(PartialEq)]
-pub struct Theme {
-    pub dark: bool,
-    /// Body text.
-    pub text: Color,
-    /// Secondary text: captions, descriptions.
-    pub text_muted: Color,
-    /// The quietest text: placeholders, hints.
-    pub text_faint: Color,
-    /// Raised areas: tooltips, popovers.
-    pub surface: Color,
-    /// Controls: buttons, switches, keycaps.
-    pub fill: Color,
-    pub border: Color,
-    /// Selection, focus and primary actions.
-    pub accent: Color,
-    /// Text on the accent.
-    pub accent_text: Color,
-    pub success: Color,
-    pub warning: Color,
-    pub error: Color,
-    /// Font families: for interface text, and for code.
-    pub font: String,
-    pub mono_font: String,
-    /// The body text size, in pixels.
-    pub text_size: f32,
-    /// The corner radius, in pixels.
-    pub radius: f32,
-}
-
-/// A colour: its hue, saturation and lightness, and its opacity, each from 0 to 1
-/// (GPUI's `Hsla`).
-#[data]
-#[derive(Copy, PartialEq)]
-pub struct Color {
-    pub h: f32,
-    pub s: f32,
-    pub l: f32,
-    pub a: f32,
-}
-
-/// In a plugin, the plugin API keeps the app's theme as a GPUI global, so what draws
-/// with it can follow it (`cx.observe_global::<Theme>()`).
-impl embedded_gpui::gpui::Global for Theme {}
-
-impl From<Color> for embedded_gpui::gpui::Hsla {
-    fn from(color: Color) -> Self {
-        embedded_gpui::gpui::hsla(color.h, color.s, color.l, color.a)
-    }
-}
-
-impl From<embedded_gpui::gpui::Hsla> for Color {
-    fn from(color: embedded_gpui::gpui::Hsla) -> Self {
-        Color { h: color.h, s: color.s, l: color.l, a: color.a }
-    }
 }
 
 /// A footer action of a tool.

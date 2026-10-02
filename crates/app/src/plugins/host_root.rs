@@ -2,7 +2,6 @@
 
 use delight_protocol::{CommandsApi, DnsApi, HostApi, HttpApi, Theme};
 use delight_runtime::Granted;
-use delight_ui::ActiveTheme as _;
 use embedded_gpui::{ClipboardApi, Ref, shared};
 use anyhow::Result;
 use gpui::{Context, Subscription, Task};
@@ -21,7 +20,7 @@ pub(super) struct HostRoot {
 impl HostRoot {
     pub(super) fn new(plugin_id: String, granted: Granted, cx: &mut Context<Self>) -> Self {
         // The plugin observes this object: tell it when the theme changes.
-        let theme_changes = cx.observe_global::<delight_ui::Theme>(|_, cx| cx.notify());
+        let theme_changes = cx.observe_global::<Theme>(|_, cx| cx.notify());
         Self { plugin_id, granted, _theme_changes: theme_changes }
     }
 }
@@ -48,7 +47,7 @@ impl HostApi for HostRoot {
     }
 
     fn current_theme(&mut self, cx: &mut Context<Self>) -> Theme {
-        Theme::from(cx.theme())
+        cx.global::<Theme>().clone()
     }
 
     fn clipboard(&mut self, cx: &mut Context<Self>) -> Ref<ClipboardApi> {

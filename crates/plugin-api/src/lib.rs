@@ -46,11 +46,11 @@ mod host;
 mod commands;
 /// `Host::dns_resolvers`: the Mac's DNS setup.
 mod dns;
-// TEMPORARY(open_url): `Host::open_url`, until embedded_gpui forwards GPUI's own; README,
-// "Temporary host APIs".
+// TEMPORARY(open_url): `Host::open_url`, until embedded_gpui forwards GPUI's own;
+// docs/development.md, "Temporary host APIs".
 mod open_url;
 // TEMPORARY(network): HTTP, callbacks and gRPC through the app, until embedded_gpui links
-// `wasi:http`; README, "Temporary host APIs".
+// `wasi:http`; docs/development.md, "Temporary host APIs".
 pub mod network;
 mod tool;
 

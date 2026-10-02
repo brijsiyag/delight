@@ -141,7 +141,7 @@ struct InstallWindow {
 
 impl InstallWindow {
     fn new(start: Start, window: &mut Window, cx: &mut Context<Self>) -> Self {
-        let mut subscriptions = vec![cx.observe_window_appearance(window, |_, _, cx| delight_ui::theme::appearance_changed(cx))];
+        let mut subscriptions = vec![cx.observe_window_appearance(window, |_, _, cx| crate::theme::appearance_changed(cx))];
         let (files, link) = match start {
             Start::Files(files) => (files, None),
             Start::Link => {
