@@ -31,8 +31,8 @@ host(cx).set_secret("api-key", key, cx).detach_and_log_err(cx); // a call with a
 | `secret(key, cx)`, `set_secret(key, value, cx)` | | Encrypted secrets ([Saving data](#saving-data)) |
 | `http(request, cx)`, `listen_http(port, respond, cx)` | `Network` | HTTP, and a listener on `127.0.0.1` ([The network](#the-network)) |
 | `dns_resolvers(cx)` | `Network` | The Mac's DNS setup, VPNs included ([DNS](#dns)) |
-| `run(Command, cx)` | `Commands` | Runs a program the manifest lists ([Commands](#commands)) |
-| `request_folder(path, access, reason, cx)` | `Files` | Asks the user for a folder; the plugin starts again with it ([Files](#files)) |
+| `run(Command, cx)` | `Commands` | Runs a program it may run: one its manifest lists, or one the user gave it ([Commands](#commands)) |
+| `request_permission(Permission, reason, cx)` | The one asked for | Asks the user for more of a permission the manifest asks for, a folder or a program; the plugin starts again with it ([Asking for more](#asking-for-more)) |
 | `pick_folders(PickFolders, cx)` | `Files` | macOS's folder picker; the plugin starts again with what is picked. [Temporary](publishing.md#temporary-apis) |
 | `save_file(name, contents, cx)` | | macOS's save panel; Delight writes the file ([Saving a file](#saving-a-file)). [Temporary](publishing.md#temporary-apis) |
 
@@ -314,7 +314,7 @@ struct Ports;
 | Permission | Shown as | Allows |
 |---|---|---|
 | `Network("why")` | *Network* | The internet and the local network, and listening on this Mac: [the network](#the-network) |
-| `Commands("why", programs = [...])` | *Runs commands* | Running the listed programs, with any arguments |
+| `Commands("why", programs = [...])` | *Runs commands* | Running the listed programs, and those the user gives it, with any arguments: [commands](#commands) |
 | `Files("why", read = [...], write = [...])` | *Files* | Reading the folders in `read`, writing (and reading) those in `write`, and the folders the user gives it: [files](#files) |
 
 **The reason** is one sentence, at most 100 characters, saying what the plugin does with it:
@@ -324,6 +324,37 @@ An update that asks for more than the installed version has (a new permission, a
 for `Commands`, another folder for `Files`, or writing where it read) doesn't install by itself:
 people review it like a new install. One that asks for less installs as usual. Ask for what you need
 from the start.
+
+### Asking for more
+
+While it runs, a plugin can ask the user for more of a permission its manifest asks for: a folder
+for `Files`, a program for `Commands`. It writes what it wants as a manifest writes a permission:
+
+```rust
+use delight_plugin_api::Permission;
+
+// Save what you need first: when the user allows it, the plugin starts again.
+let none: [&str; 0] = [];
+let projects = Permission::files(none, ["~/Projects"]);
+let had = host(cx).request_permission(projects, "Lists your repositories", cx).await?;
+let git = Permission::commands(["/opt/homebrew/bin/git"]);
+let had = host(cx).request_permission(git, "Commits for you", cx).await?;
+// Only here if the user declined (`false`), or the plugin has it already (`true`); an error if the
+// manifest doesn't ask for that permission, what it names isn't there, or Delight can't ask
+// (another alert or picker is open).
+```
+
+- **The system's alert** asks, with the plugin's `reason` under it: *Allow “Notes” to read and
+  write the files in ~/Projects?*, *Allow “Git” to run /opt/homebrew/bin/git?*
+- **When the user allows it, the plugin starts again** with it (a plugin has what it may do only
+  from its start), and the call never returns. Save what you need (in `/data`, or settings) before
+  you ask. The launcher then asks the plugin about the input again, so its tool comes back; its
+  windows close.
+- **What it has already** is answered `true` at once: no question, no restart. A folder inside one
+  it has, with that access, is one it has.
+- **The user sees what they gave** on the plugin's page in Settings, after what its manifest lists,
+  and can remove it: the plugin starts again without it.
+- `Network` is given only when the plugin is installed.
 
 ### Commands
 
@@ -338,13 +369,17 @@ if output.success() {
 }
 ```
 
-- **Only listed programs**, each an absolute path directly in `/bin`, `/sbin`, `/usr/bin` or
-  `/usr/sbin` (the system's own), at most 20. Nothing from Homebrew or a user's folder.
+- **Only its programs**: those its manifest lists, and those the user gave it ([asking for
+  more](#asking-for-more)). Each is a path in full, anywhere: absolute (`/opt/homebrew/bin/git`) or
+  in the home folder (`~/.cargo/bin/rg`), never a name looked up in `PATH`. With no programs
+  (`Commands("why")`), it runs only those the user gives it.
+- **What it runs is what is at that path**, whatever it is when it runs: a program in a folder
+  others can write to can be replaced.
 - **No shell**: `|`, `>` and `*` are plain characters. Write input to `stdin` instead of piping.
 - An empty environment, the data folder as working folder, killed after 60 seconds; `stdout` and
   `stderr` come back as text, up to 16 MiB each.
-- A program that runs and fails is `Ok`, with `success()` false; one that isn't listed or doesn't
-  start is an error.
+- A program that runs and fails is `Ok`, with `success()` false; one it may not run, or that doesn't
+  start, is an error.
 
 Prefer the host API to a program (`http` rather than `curl`): a program's output is text meant for
 people, and it changes between macOS versions.
@@ -375,15 +410,11 @@ for entry in std::fs::read_dir(format!("{home}/Desktop"))? {
 - **The user sees every folder** on the plugin's page in Settings, with its access, and can remove
   one the plugin was given: the plugin starts again without it.
 
-**Asking for a folder**, while it runs:
+**More folders**, while it runs: ask for one by its path ([asking for more](#asking-for-more)), or
+let the user pick:
 
 ```rust
 use delight_plugin_api::{Access, PickFolders};
-
-// Save what you need first: when the user allows it, the plugin starts again.
-let had = host(cx).request_folder("~/Projects", Access::Write, "Lists your repositories", cx).await?;
-// Only here if the user declined (`false`), or the plugin has that folder already (`true`); an
-// error if there is no folder there, or Delight can't ask (another alert or picker is open).
 
 // Temporary: macOS's folder picker, until GPUI's own `cx.prompt_for_paths` works in a plugin.
 let picked = host(cx).pick_folders(PickFolders::new().multiple().access(Access::Read).prompt("Choose"), cx).await?;
@@ -391,14 +422,8 @@ let picked = host(cx).pick_folders(PickFolders::new().multiple().access(Access::
 // Delight can't show the picker.
 ```
 
-- **A new folder starts the plugin again.** Its sandbox has folders only from its start, so when the
-  user allows a folder, or picks one the plugin didn't have, Delight keeps it and starts the plugin
-  again with it: the call never returns. Save what you need (in `/data`, or settings) before you
-  ask. The launcher then asks the plugin about the input again, so its tool comes back; its windows
-  close.
-- A folder inside one it has, with that access, is one it has: no question, no restart.
-- `request_folder` says the plugin's `reason` under the question: *Allow “Notes” to read and write
-  the files in ~/Projects?* `Access::Write` reads too.
+Folders picked that the plugin didn't have start it again with them, as a folder asked for does.
+`Access::Write` reads too.
 
 #### Saving a file
 
@@ -417,8 +442,8 @@ match host(cx).save_file("report.csv", csv, cx).await? {
 file, while the whole file is in the plugin's memory too (512 MiB for everything a plugin holds). For a
 file larger than about 100 MB, don't pass it to `save_file`:
 
-- **Write it in a folder the user gave the plugin, and say where it is.** Ask for one with
-  `Access::Write` (or pick one), write the file there with `std::fs`, and show its path.
+- **Write it in a folder the user gave the plugin, and say where it is.** Ask for one to write in
+  (or pick one), write the file there with `std::fs`, and show its path.
 - **Or copy it there:** make it in `/data`, then `std::fs::copy` it into the folder the user asked
   for. `std::fs` writes as it goes, so only the disk limits the size.
 

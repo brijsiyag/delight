@@ -116,9 +116,9 @@ A plugin is a WASI component that sees almost nothing of the Mac:
 
 | | A plugin |
 |---|---|
-| Files | Only its own data folder, at `/data`. Nothing else, not even the input's files |
+| Files | Its own data folder, at `/data`; with the `Files` permission, the folders its manifest lists and those the user gives it |
 | Network | Only with the `Network` permission: HTTP through Delight, WASI's own sockets and name lookup |
-| Programs | Only with the `Commands` permission, and only the programs it lists |
+| Programs | Only with the `Commands` permission: the programs it lists, and those the user gives it |
 | Clipboard | GPUI's own `cx.read_from_clipboard` and `cx.write_to_clipboard`, for every plugin |
 | Environment | Empty. No processes, no process id |
 | Clock | Wall-clock time, in UTC: the Mac's time zone comes from `host(cx).utc_offset_seconds` |

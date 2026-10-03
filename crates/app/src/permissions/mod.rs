@@ -1,9 +1,10 @@
 //! What plugins may do: each plugin's manifest's permissions, with what the user gave it while it
 //! ran (a folder it asked for, or that was picked for it), which is kept in `permissions.json`:
 //! `{plugin id: [permission, …]}`, each spelled as in a manifest. Every question about what a
-//! plugin may do is answered here, and what it was given is changed only here; [`view`] is how
-//! permissions look.
+//! plugin may do is answered here, and what it was given is changed only here; [`ask`] asks the
+//! user for more while a plugin runs, and [`view`] is how permissions look.
 
+pub mod ask;
 pub mod view;
 
 use std::collections::BTreeMap;
@@ -39,13 +40,14 @@ pub fn has(plugin: &PluginProperties, asked: &Permission, cx: &App) -> bool {
     of(plugin, cx).covers(asked)
 }
 
-/// Whether `plugin` can be given `asked`: only more of a permission its manifest asks for. The
-/// error names the permission: "this plugin doesn't have the Files permission".
+/// Whether `plugin` can be given `asked`: only more of a permission its manifest asks for ("this
+/// plugin doesn't have the Files permission"), and what that permission accepts (a program's path
+/// in full, say).
 pub fn can_give(plugin: &PluginProperties, asked: &Permission) -> Result<()> {
-    match Permissions::from(plugin).like(asked) {
-        Some(_) => Ok(()),
-        None => Err(anyhow!("this plugin doesn't have the {} permission", asked.spec().name())),
+    if Permissions::from(plugin).like(asked).is_none() {
+        return Err(anyhow!("this plugin doesn't have the {} permission", asked.spec().name()));
     }
+    asked.spec().validate()
 }
 
 /// What the user gave plugin `plugin_id` beyond its manifest.

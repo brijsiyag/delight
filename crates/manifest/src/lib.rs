@@ -37,8 +37,8 @@ pub use manifest::{
 #[cfg(feature = "files")]
 pub use wasm::read_manifest;
 pub use permission::{
-    COMMAND_DIRS, CommandsPermission, FilesPermission, MAX_PROGRAMS, NetworkPermission, Permission, PermissionData,
-    PermissionRequest, PermissionSpec, Permissions, expand_home, home_spelled, validate_program,
+    CommandsPermission, FilesPermission, NetworkPermission, Permission, PermissionData, PermissionRequest, PermissionSpec,
+    Permissions, expand_home, home_spelled, validate_program,
 };
 pub use section::{SECTION, decode_section, encode_operations, encode_properties};
 pub use version::{PLUGIN_API_VERSION, PROTOCOL_VERSION, ProtocolVersion};

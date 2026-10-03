@@ -61,7 +61,7 @@ pub mod network;
 mod tool;
 
 pub use delight_plugin_api_macros::{Actions, Operations, plugin};
-pub use delight_protocol::{ActionStyle, Color, Command, CommandOutput, DnsResolver, Input, Theme};
+pub use delight_protocol::{ActionStyle, Color, Command, CommandOutput, DnsResolver, Input, Permission, Theme};
 pub use embedded_gpui::gpui;
 /// The `http` crate the network's requests and responses are made of.
 // TEMPORARY(network)
@@ -70,9 +70,9 @@ pub use http;
 // TEMPORARY(network)
 #[cfg(feature = "grpc")]
 pub use tonic;
-pub use host::{Access, Confirm, Host, WindowOptions, host, settings_changed, theme};
+pub use host::{Confirm, Host, WindowOptions, host, settings_changed, theme};
 // TEMPORARY(pick_folders)
-pub use pick_folders::PickFolders;
+pub use pick_folders::{Access, PickFolders};
 pub use tool::AnyTool;
 
 use gpui::{AnyView, App, AssetSource, Context, Render};

@@ -2,7 +2,7 @@
 //! updated whenever the app's theme changes.
 
 use anyhow::{Context as _, Result, anyhow};
-use delight_protocol::{HostApi, HostApiCaller as _, Theme};
+use delight_protocol::{HostApi, HostApiCaller as _, Permission, Theme};
 use embedded_gpui::Remote;
 
 use crate::Operations;
@@ -197,21 +197,34 @@ impl Host {
         cx.spawn(async move |_| asked.await)
     }
 
-    /// Ask the user to give the plugin the folder at `path` (`~` is the home folder), with the
-    /// system's alert: *Allow "Plugin" to read the files in ~/Projects?*, the plugin's `reason`
-    /// under it. Needs the `Files` permission.
+    /// Ask the user to give the plugin `permission`: more of one its manifest asks for, written as
+    /// a manifest writes one (`~` is the home folder):
     ///
-    /// **When the user allows it, the plugin starts again**, with the folder in its sandbox at
-    /// `path`, and this never returns: save what it needs (in `/data`, or its settings) before
-    /// asking. The launcher then asks it about the input again, so its tool comes back; its
-    /// windows close. `Ok(false)` when the user declines, `Ok(true)` at once when the plugin has the
-    /// folder already, with that access; an error when there is no folder at `path`, or Delight
-    /// can't ask (another alert or picker is open).
-    pub fn request_folder(&self, path: impl Into<String>, access: Access, reason: impl Into<String>, cx: &mut App) -> Task<Result<bool>> {
+    /// ```ignore
+    /// let none: [&str; 0] = [];
+    /// host(cx).request_permission(Permission::files(none, ["~/Projects"]), "Lists your repositories", cx)
+    /// host(cx).request_permission(Permission::commands(["/opt/homebrew/bin/git"]), "Commits for you", cx)
+    /// ```
+    ///
+    /// The system's alert says what it allows (*Allow "Notes" to read and write the files in
+    /// ~/Projects?*), the plugin's `reason` under it.
+    ///
+    /// **When the user allows it, the plugin starts again** with it, and this never returns: save
+    /// what it needs (in `/data`, or its settings) before asking. The launcher then asks it about
+    /// the input again, so its tool comes back; its windows close. `Ok(false)` when the user
+    /// declines, `Ok(true)` at once when the plugin has it already (a folder inside one it has,
+    /// with that access, too); an error when it can't be given (the manifest doesn't ask for that
+    /// permission, or what it names isn't there), or Delight can't ask (another alert or picker
+    /// is open).
+    pub fn request_permission(&self, permission: Permission, reason: impl Into<String>, cx: &mut App) -> Task<Result<bool>> {
         let Some(remote) = &self.remote else {
-            return Task::ready(Err(anyhow!("folders are Delight's to give: a plugin has them only in Delight")));
+            return Task::ready(Err(anyhow!("permissions are Delight's to give: a plugin has them only in Delight")));
         };
-        let asked = remote.request_folder(path.into(), access == Access::Write, reason.into(), cx);
+        let permission = match serde_json::to_string(&permission) {
+            Ok(permission) => permission,
+            Err(error) => return Task::ready(Err(error.into())),
+        };
+        let asked = remote.request_permission(permission, reason.into(), cx);
         cx.spawn(async move |_| asked.await)
     }
 
@@ -253,16 +266,6 @@ impl Confirm {
         self.destructive = true;
         self
     }
-}
-
-/// What a plugin may do in a folder it is given ([`Host::request_folder`]).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub enum Access {
-    /// Read its files.
-    #[default]
-    Read,
-    /// Write them (and add and remove them), and read them.
-    Write,
 }
 
 /// What a window of the plugin's own is like ([`Host::open_window`]).

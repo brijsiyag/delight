@@ -45,8 +45,10 @@ async fn a_plugin_asks_for_a_folder(cx: &mut TestAppContext) {
     // Declined: the answer reaches the plugin. (Allowed, the app starts it again instead.)
     assert_eq!(toasted(&plugin, &app, "RequestFolder", "~/Projects", cx).await, "declined");
     // Had already: `true`, which the fake says for every folder once told to.
-    app.update(cx, |app, _| app.folder_answer = true);
+    app.update(cx, |app, _| app.asked_answer = true);
     assert_eq!(toasted(&plugin, &app, "RequestFolder", "/Volumes/Work", cx).await, "allowed");
-    let asked = app.read_with(cx, |app, _| app.folders_asked.clone());
-    assert_eq!(asked[0], ("~/Projects".to_string(), true, "Nothing: it's here to test asking".to_string()));
+    // The permission crosses spelled as in a manifest.
+    let asked = app.read_with(cx, |app, _| app.asked.clone());
+    let files = r#"{"permission":"Files","write":["~/Projects"]}"#;
+    assert_eq!(asked[0], (files.to_string(), "Nothing: it's here to test asking".to_string()));
 }

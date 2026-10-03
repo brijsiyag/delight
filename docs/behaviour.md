@@ -397,7 +397,9 @@ startup falls back to the default.
   no cards. "This plugin is no longer loaded."
   **Permissions** are rows (in the install window too): icon (no tile), name and the
   plugin's reason in one line; click a row for the reason in full, what the
-  permission allows and, for `Commands`, the programs as chips. All rows are
+  permission allows and what it lists (the programs `Commands` runs, the folders
+  `Files` has, each as its permission draws it; what the user gave the plugin
+  after its manifest's, with a remove button). All rows are
   closed at first; which are open is kept per plugin while Settings is open.
 
 ## Settings storage
@@ -516,11 +518,14 @@ height / text / icon / padding).
 - Host, gated: read_input_file (InputFiles; the path must be one of the
   *current* input files); read_clipboard (the previous attempt's Clipboard; the
   rewrite: none, see above); run (Commands: a program
-  the manifest lists, an absolute path directly in /bin, /sbin, /usr/bin or
-  /usr/sbin; any args, stdin written then closed, no shell, empty environment,
+  the manifest lists or the user gave it, a path in full anywhere, from / or ~/;
+  any args, stdin written then closed, no shell, empty environment,
   the plugin's data folder as working folder, killed after 60 s, waited off the
-  main thread; output status / stdout / stderr as text, 16 MiB each). Settings
-  and the install sheet show the listed programs under "Runs commands".
+  main thread; output status / stdout / stderr as text, 16 MiB each); request
+  (more of a permission the manifest asks for, a folder or a program: the
+  system's alert, "Allow “Name” to run …?", the plugin's reason under it; allowed,
+  kept in permissions.json and the plugin restarts with it). Settings and the
+  install sheet show the programs under "Runs commands".
 - set_input, toast, hide and open_settings are deferred: the launcher may be
   mid-update.
 - `export_plugin!` does nothing natively, so a tool's unit tests run on the

@@ -49,7 +49,7 @@ impl Granted {
         let network = permissions.get::<NetworkPermission>().is_some();
         let http = network.then(|| cx.new(|_| Http::new(registry.clone())));
         let dns = network.then(|| cx.new(|_| Dns));
-        let commands = permissions.get::<CommandsPermission>().map(|commands| cx.new(|_| Commands::new(commands.programs.clone(), data_dir)));
+        let commands = permissions.get::<CommandsPermission>().map(|commands| cx.new(|_| Commands::new(&commands.programs, data_dir)));
         Granted { registry, clipboard, http, dns, commands }
     }
 

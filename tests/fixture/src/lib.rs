@@ -9,7 +9,7 @@ mod network;
 use delight_plugin_api::gpui::{App, AppContext as _, ClipboardItem, Context, IntoElement, Render, Window, div};
 use delight_plugin_api::gpui::{Hsla, ParentElement as _, Styled as _, prelude::FluentBuilder as _};
 use delight_plugin_api::{
-    Access, Action, Actions, AnyTool, Confirm, Detection, Input, Operations, Plugin, SettingsSection, Shortcut, Tool,
+    Action, Actions, AnyTool, Confirm, Detection, Input, Operations, Permission, Plugin, SettingsSection, Shortcut, Tool,
     WindowOptions, host,
     plugin, settings_changed,
     theme,
@@ -145,6 +145,8 @@ enum EchoAction {
     /// Asks for the folder the input names, to write: toasts "allowed", "declined", or
     /// why it can't.
     RequestFolder,
+    /// Asks to run the program the input names: toasts "allowed", "declined", or why it can't.
+    RequestProgram,
     // TEMPORARY(pick_folders): opens the folder picker for several folders, read-only: toasts what
     // was picked, joined by ", ", "none", or why not.
     PickFolders,
@@ -217,7 +219,12 @@ impl Tool for Echo {
             }
             EchoAction::Home => host(cx).toast(std::env::var("HOME").unwrap_or_else(|_| "no HOME".into()), cx),
             EchoAction::RequestFolder => {
-                let asked = host(cx).request_folder(self.text.trim(), Access::Write, "Nothing: it's here to test asking", cx);
+                let none: [&str; 0] = [];
+                let asked = host(cx).request_permission(Permission::files(none, [self.text.trim()]), "Nothing: it's here to test asking", cx);
+                toast_when_done(asked, |allowed| if allowed { "allowed".into() } else { "declined".into() }, cx);
+            }
+            EchoAction::RequestProgram => {
+                let asked = host(cx).request_permission(Permission::commands([self.text.trim()]), "Nothing: it's here to test asking", cx);
                 toast_when_done(asked, |allowed| if allowed { "allowed".into() } else { "declined".into() }, cx);
             }
             // TEMPORARY(pick_folders)

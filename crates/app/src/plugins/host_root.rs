@@ -1,10 +1,6 @@
 //! What one plugin may ask of the app: its host object.
 
-use std::path::PathBuf;
-
-use delight_protocol::{
-    Bytes, CommandsApi, DnsApi, FilesPermission, HostApi, HttpApi, Permission, PluginProperties, Theme, expand_home, home_spelled,
-};
+use delight_protocol::{Bytes, CommandsApi, DnsApi, FilesPermission, HostApi, HttpApi, Permission, PluginProperties, Theme};
 use delight_runtime::Granted;
 use embedded_gpui::{ClipboardApi, Ref, shared};
 use anyhow::{Result, anyhow};
@@ -29,13 +25,6 @@ impl HostRoot {
         let theme_changes = cx.observe_global::<Theme>(|_, cx| cx.notify());
         Self { plugin, granted, _theme_changes: theme_changes }
     }
-}
-
-/// Give `plugin` `permissions`, which restarts it with them; what it asked never gets its answer,
-/// as the plugin that asked is gone.
-async fn give_and_restart(plugin: PluginProperties, permissions: Vec<Permission>, cx: &mut gpui::AsyncApp) -> Result<()> {
-    cx.update(|cx| permissions::give(&plugin, permissions, cx))?;
-    futures::future::pending().await
 }
 
 #[shared]
@@ -141,32 +130,11 @@ impl HostApi for HostRoot {
         plugin_windows::close(&self.plugin.id, &key, cx)
     }
 
-    fn request_folder(&mut self, path: String, write: bool, reason: String, cx: &mut Context<Self>) -> Task<Result<bool>> {
-        let home = std::env::home_dir();
-        let path = expand_home(&path, home.as_deref());
-        let asked = Permission::folder(&path, write, home.as_deref());
-        if let Err(error) = permissions::can_give(&self.plugin, &asked) {
-            return Task::ready(Err(error));
+    fn request_permission(&mut self, permission: String, reason: String, cx: &mut Context<Self>) -> Task<Result<bool>> {
+        match serde_json::from_str::<Permission>(&permission) {
+            Ok(asked) => permissions::ask::ask(&self.plugin, asked, reason, cx),
+            Err(error) => Task::ready(Err(anyhow!("{permission} isn't a permission: {error}"))),
         }
-        if permissions::has(&self.plugin, &asked, cx) {
-            return Task::ready(Ok(true));
-        }
-        // One that isn't there would be kept, and given to no one.
-        if !path.is_dir() {
-            return Task::ready(Err(anyhow!("there is no folder at {}", path.display())));
-        }
-        let to = if write { "read and write" } else { "read" };
-        let title = format!("Allow “{}” to {to} the files in {}?", self.plugin.name, home_spelled(&path, home.as_deref()));
-        let plugin = self.plugin.clone();
-        // The alert is shown outside this update, on the window that has the keyboard.
-        cx.spawn(async move |_, cx| {
-            let allowed = cx.update(|cx| dialogs::allow(title, reason, cx)).await?;
-            if !allowed {
-                return Ok(false);
-            }
-            give_and_restart(plugin, vec![asked], cx).await?;
-            Ok(true)
-        })
     }
 
     // TEMPORARY(pick_folders)
@@ -178,14 +146,16 @@ impl HostApi for HostRoot {
         let plugin = self.plugin.clone();
         cx.spawn(async move |_, cx| {
             let picked = cx.update(|cx| crate::pick_folders::pick(multiple, prompt, cx)).await?;
-            let home = std::env::home_dir();
-            let new: Vec<Permission> = cx.update(|cx| {
-                picked.iter().map(|path| Permission::folder(path, write, home.as_deref())).filter(|asked| !permissions::has(&plugin, asked, cx)).collect()
-            });
-            if !new.is_empty() {
-                give_and_restart(plugin, new, cx).await?;
+            let folders: Vec<String> = picked.iter().map(|path| path.to_string_lossy().into_owned()).collect();
+            let (all, none) = (folders.clone(), Vec::<String>::new());
+            let picked = if write { Permission::files(none, all) } else { Permission::files(all, none) };
+            let picked = permissions::ask::spelled(&picked, std::env::home_dir().as_deref());
+            if !cx.update(|cx| permissions::has(&plugin, &picked, cx)) {
+                cx.update(|cx| permissions::give(&plugin, vec![picked], cx))?;
+                // The plugin that asked is gone: it starts again with them.
+                return futures::future::pending().await;
             }
-            Ok(picked.iter().map(|path: &PathBuf| path.to_string_lossy().into_owned()).collect())
+            Ok(folders)
         })
     }
 

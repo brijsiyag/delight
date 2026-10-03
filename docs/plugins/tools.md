@@ -87,8 +87,8 @@ The build fails, at the line that is wrong, when:
 - the id is empty, longer than 128 characters, starts with `.` or has other characters;
 - the name is blank, or an icon file can't be read;
 - a permission has no reason, a blank one or one over 100 characters, or is asked for twice;
-- `Commands` lists no programs, more than 20, one twice, or one that isn't an absolute path directly
-  in `/bin`, `/sbin`, `/usr/bin` or `/usr/sbin`;
+- `Commands` lists a program twice, or one that isn't a path in full (from `/` or `~/`, with no `.`
+  or `..` in it);
 - there are more than 5 tips, or one is blank or over 60 characters;
 - `update` isn't an `http://` or `https://` URL with a host, has spaces, or is over 2,048 characters;
 - there is no operation, two have the same id, or one has no id or title.

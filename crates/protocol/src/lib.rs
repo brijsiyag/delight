@@ -14,7 +14,7 @@
 //! are unique across the interfaces here and don't clash with type names.
 
 pub use delight_manifest::{
-    COMMAND_DIRS, CommandsPermission, FilesPermission, MAX_TIP_CHARS, Manifest, NetworkPermission, Operation, PLUGIN_API_VERSION,
+    CommandsPermission, FilesPermission, MAX_TIP_CHARS, Manifest, NetworkPermission, Operation, PLUGIN_API_VERSION,
     PROTOCOL_VERSION, Permission, PermissionRequest, PermissionSpec, Permissions, PluginProperties, ProtocolVersion,
     expand_home, home_spelled, validate_id, validate_tip,
 };
@@ -218,13 +218,14 @@ pub trait HostApi {
     /// the alert (another is open, or nothing of the app is on screen).
     async fn confirm(&mut self, title: String, message: String, continue_label: String, destructive: bool, cx: &mut gpui::Context<Self>) -> bool;
 
-    /// Ask the user to give the plugin the folder at `path` (`~` meaning the home folder), to read
-    /// its files or (`write`) to change them too, with the system's alert and the plugin's
-    /// `reason` in it. Allowed, the folder is kept for the plugin and the plugin starts again with
-    /// it, so the answer never reaches it. Otherwise the answer is `false` (declined), or `true` when
-    /// the plugin has that folder already; an error when there is no folder there, or the app can't
-    /// ask (another alert or picker is up). Only for a plugin with `Files`.
-    async fn request_folder(&mut self, path: String, write: bool, reason: String, cx: &mut gpui::Context<Self>) -> bool;
+    /// Ask the user to give the plugin `permission`: more of one its manifest asks for, as JSON
+    /// spelled as in a manifest (`{"permission": "Files", "write": ["~/Projects"]}`, `~` meaning
+    /// the home folder), with the system's alert saying what it allows and the plugin's `reason`.
+    /// Allowed, it is kept for the plugin and the plugin starts again with it, so the answer never
+    /// reaches it. Otherwise the answer is `false` (declined), or `true` when the plugin has it
+    /// already; an error when it can't be given (the manifest doesn't ask for that permission, or
+    /// what it names isn't there), or the app can't ask (another alert or picker is up).
+    async fn request_permission(&mut self, permission: String, reason: String, cx: &mut gpui::Context<Self>) -> bool;
 
     // TEMPORARY(pick_folders): until GPUI's own picker (`cx.prompt_for_paths`) works in a plugin.
     /// Show the system's folder picker: one folder, or several with `multiple`, its button saying
@@ -474,7 +475,7 @@ mod tests {
         );
         assert_eq!(
             methods(HostApi::schema()),
-            ["toast", "hide", "remember_input", "current_theme", "clipboard", "http", "open_url", "dns", "commands", "secret", "set_secret", "set_launcher_input", "settings", "set_settings", "utc_offset_seconds", "show_settings", "open_window", "show_window", "close_window", "confirm", "request_folder", "pick_folders", "save_file"]
+            ["toast", "hide", "remember_input", "current_theme", "clipboard", "http", "open_url", "dns", "commands", "secret", "set_secret", "set_launcher_input", "settings", "set_settings", "utc_offset_seconds", "show_settings", "open_window", "show_window", "close_window", "confirm", "request_permission", "pick_folders", "save_file"]
         );
     }
 }

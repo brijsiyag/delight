@@ -1,5 +1,5 @@
 //! Running programs for plugins with the `Commands` permission ([`CommandsApi`]): the
-//! ones the manifest lists, with any arguments.
+//! ones it may run (its manifest's, and those the user gave it), with any arguments.
 //!
 //! A program is started directly, never through a shell, so `|`, `;`, `&&` and `$(…)`
 //! in an argument are only text. Its environment is empty (no `PATH`, no `DYLD_*`), its
@@ -11,7 +11,7 @@ use std::process::Stdio;
 use std::time::Duration;
 
 use anyhow::{Context as _, Result, bail};
-use delight_manifest::validate_program;
+use delight_manifest::expand_home;
 use delight_protocol::{Command, CommandOutput, CommandsApi};
 use embedded_gpui::gpui::{AppContext as _, Context, Task};
 use embedded_gpui::shared;
@@ -23,14 +23,17 @@ pub const TIMEOUT: Duration = Duration::from_secs(60);
 const MAX_OUTPUT: u64 = 16 * 1024 * 1024;
 
 pub(crate) struct Commands {
-    /// The programs the manifest lists.
-    programs: Vec<String>,
+    /// The programs it may run, where they are on this Mac (`~` made the home folder).
+    programs: Vec<PathBuf>,
     /// The plugin's data folder, where they run.
     folder: PathBuf,
 }
 
 impl Commands {
-    pub(crate) fn new(programs: Vec<String>, folder: PathBuf) -> Self {
+    /// The plugin may run `programs`, spelled as its permission spells them (`~/…` too).
+    pub(crate) fn new(programs: &[String], folder: PathBuf) -> Self {
+        let home = std::env::home_dir();
+        let programs = programs.iter().map(|program| expand_home(program, home.as_deref())).collect();
         Commands { programs, folder }
     }
 }
@@ -38,28 +41,30 @@ impl Commands {
 #[shared]
 impl CommandsApi for Commands {
     fn run_command(&mut self, command: Command, cx: &mut Context<Self>) -> Task<Result<CommandOutput>> {
-        if let Err(error) = self.allowed(&command.program) {
-            return Task::ready(Err(error));
-        }
+        let program = match self.allowed(&command.program) {
+            Ok(program) => program,
+            Err(error) => return Task::ready(Err(error)),
+        };
         let folder = self.folder.clone();
-        cx.background_spawn(async move { run(&command, &folder, TIMEOUT) })
+        cx.background_spawn(async move { run(&program, &command, &folder, TIMEOUT) })
     }
 }
 
 impl Commands {
-    /// Whether the manifest lists `program`: exactly, and in the standard folders (the
-    /// manifest is checked for that too, when it is read).
-    fn allowed(&self, program: &str) -> Result<()> {
-        if validate_program(program).is_err() || !self.programs.iter().any(|listed| listed == program) {
-            bail!("{program} isn't one of the programs this plugin's manifest lists");
+    /// `program` where it is on this Mac, if it is one the plugin may run: exactly that program,
+    /// `~` being the home folder.
+    fn allowed(&self, program: &str) -> Result<PathBuf> {
+        let path = expand_home(program, std::env::home_dir().as_deref());
+        if !self.programs.contains(&path) {
+            bail!("{program} isn't one of the programs this plugin may run");
         }
-        Ok(())
+        Ok(path)
     }
 }
 
-/// Run `command` in `folder`, for at most `limit`.
-fn run(command: &Command, folder: &std::path::Path, limit: Duration) -> Result<CommandOutput> {
-    let mut child = std::process::Command::new(&command.program)
+/// Run `command`, its program being at `program`, in `folder`, for at most `limit`.
+fn run(program: &std::path::Path, command: &Command, folder: &std::path::Path, limit: Duration) -> Result<CommandOutput> {
+    let mut child = std::process::Command::new(program)
         .args(&command.args)
         .env_clear()
         .current_dir(folder)
@@ -104,7 +109,7 @@ mod tests {
     }
 
     fn in_tmp(command: &Command, limit: Duration) -> Result<CommandOutput> {
-        run(command, &std::env::temp_dir(), limit)
+        run(std::path::Path::new(&command.program), command, &std::env::temp_dir(), limit)
     }
 
     #[test]
@@ -133,7 +138,7 @@ mod tests {
     #[test]
     fn it_runs_in_the_folder_with_an_empty_environment() {
         let folder = std::env::temp_dir().canonicalize().unwrap();
-        let output = run(&command("/bin/pwd", &[], ""), &folder, TIMEOUT).unwrap();
+        let output = run(std::path::Path::new("/bin/pwd"), &command("/bin/pwd", &[], ""), &folder, TIMEOUT).unwrap();
         assert_eq!(output.stdout.trim(), folder.to_str().unwrap());
         let output = in_tmp(&command("/usr/bin/env", &[], ""), TIMEOUT).unwrap();
         assert!(!output.stdout.contains("HOME="), "{:?}", output.stdout);
@@ -151,12 +156,15 @@ mod tests {
     }
 
     #[test]
-    fn only_listed_programs_in_the_standard_folders() {
-        let commands = Commands::new(vec!["/bin/ps".into(), "/opt/tool".into()], std::env::temp_dir());
-        assert!(commands.allowed("/bin/ps").is_ok());
-        assert!(commands.allowed("/bin/ls").is_err(), "not listed");
+    fn only_the_programs_it_may_run_wherever_they_are() {
+        let commands = Commands::new(&["/bin/ps".into(), "/opt/tool".into(), "~/bin/tool".into()], std::env::temp_dir());
+        assert_eq!(commands.allowed("/bin/ps").unwrap(), std::path::Path::new("/bin/ps"));
+        assert!(commands.allowed("/opt/tool").is_ok(), "anywhere");
+        let home = std::env::home_dir().expect("a home folder");
+        assert_eq!(commands.allowed("~/bin/tool").unwrap(), home.join("bin/tool"), "~ is the home folder");
+        assert!(commands.allowed(&home.join("bin/tool").to_string_lossy()).is_ok(), "as it is on this Mac too");
+        assert!(commands.allowed("/bin/ls").is_err(), "not one of them");
         assert!(commands.allowed("ps").is_err(), "not a path");
-        assert!(commands.allowed("/bin/../bin/ps").is_err(), "not the listed path");
-        assert!(commands.allowed("/opt/tool").is_err(), "listed but not in a standard folder");
+        assert!(commands.allowed("/bin/../bin/ps").is_err(), "not the path it may run");
     }
 }

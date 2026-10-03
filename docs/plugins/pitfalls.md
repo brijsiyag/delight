@@ -355,10 +355,10 @@ sandbox can't see the Mac's resolvers either: use `host(cx).dns_resolvers`.
 
 **A program that works in Terminal fails here.** No shell (`|`, `;` and `$(…)` are plain text), an
 empty environment (no `PATH`, no `HOME`), the data folder as working folder, 60 seconds at most,
-16 MiB of output per stream. A failing program is `Ok` with `success()` false. Programs outside
-`/bin`, `/sbin`, `/usr/bin` and `/usr/sbin` (Homebrew's) can't be listed, and programs run as the
-user: `lsof` sees only the user's processes. Prefer a host API or a crate to parsing a program's
-output.
+16 MiB of output per stream. A failing program is `Ok` with `success()` false. A program is named
+by its path in full (`/opt/homebrew/bin/git`, not `git`): nothing is looked up in `PATH`, and one
+that moves, as a Homebrew upgrade can, needs asking for again. Programs run as the user: `lsof` sees
+only the user's processes. Prefer a host API or a crate to parsing a program's output.
 
 ## Time and the system
 
@@ -418,9 +418,9 @@ release uses up its number. Bump the version first, and try with a location of y
 update that fails to start leaves no working copy behind. Publish over `https://`, from a location
 only you can write, and try each build in Delight before publishing it.
 
-**Permission changes wait.** An update that asks for a new permission, or changes the programs
-`Commands` lists, isn't installed automatically: users review it. Ask for what you need from the
-start.
+**Permission changes wait.** An update that asks for a new permission, another program or folder,
+or writing where it read, isn't installed automatically: users review it. Ask for what you need
+from the start, or ask the user for it while the plugin runs (`host(cx).request_permission`).
 
 ## Testing
 

@@ -72,10 +72,10 @@ struct FakeApp {
     /// user answers to them.
     confirmations: Vec<(String, String, String, bool)>,
     confirm_answer: bool,
-    /// The folders the plugin asked for: (path, write, reason); whether the user is taken to
-    /// allow one (the fake has no restart, so allowed answers `true`).
-    folders_asked: Vec<(String, bool, String)>,
-    folder_answer: bool,
+    /// The permissions the plugin asked for: (the permission as JSON, reason); whether the user is
+    /// taken to allow one (the fake has no restart, so allowed answers `true`).
+    asked: Vec<(String, String)>,
+    asked_answer: bool,
     /// TEMPORARY(pick_folders): the pickers the plugin opened: (multiple, write, prompt); the
     /// folders the user picks.
     pickers: Vec<(bool, bool, Option<String>)>,
@@ -157,9 +157,9 @@ impl HostApi for FakeApp {
         gpui::Task::ready(Ok(self.confirm_answer))
     }
 
-    fn request_folder(&mut self, path: String, write: bool, reason: String, _cx: &mut Context<Self>) -> gpui::Task<anyhow::Result<bool>> {
-        self.folders_asked.push((path, write, reason));
-        gpui::Task::ready(Ok(self.folder_answer))
+    fn request_permission(&mut self, permission: String, reason: String, _cx: &mut Context<Self>) -> gpui::Task<anyhow::Result<bool>> {
+        self.asked.push((permission, reason));
+        gpui::Task::ready(Ok(self.asked_answer))
     }
 
     // TEMPORARY(pick_folders)

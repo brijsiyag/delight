@@ -1,6 +1,6 @@
 //! Running programs for a plugin, headless: the fixture runs the programs its manifest
-//! lists, with arguments that are only text, and can't run any other, nor any without
-//! the `Commands` permission.
+//! lists and those it was given, wherever they are, with arguments that are only text, and
+//! can't run any other, nor any without the `Commands` permission.
 
 use super::*;
 
@@ -32,7 +32,35 @@ async fn it_runs_in_the_plugins_data_folder_with_nothing_in_the_environment(cx: 
 async fn a_program_the_manifest_does_not_list_is_refused(cx: &mut TestAppContext) {
     let toast = run("unlisted", "/bin/ls", cx).await;
     // The app's refusal reaches the plugin as a failed call.
-    assert_eq!(toast, "call failed: /bin/ls isn't one of the programs this plugin's manifest lists");
+    assert_eq!(toast, "call failed: /bin/ls isn't one of the programs this plugin may run");
+}
+
+#[gpui::test]
+async fn a_program_given_runs_wherever_it_is(cx: &mut TestAppContext) {
+    use std::os::unix::fs::PermissionsExt as _;
+    cx.executor().allow_parking();
+    // A program of the user's own, in no system folder.
+    let folder = data_dir("given-program-tools");
+    std::fs::create_dir_all(&folder).unwrap();
+    let program = folder.join("hello");
+    std::fs::write(&program, "#!/bin/sh\necho given \"$1\"\n").unwrap();
+    std::fs::set_permissions(&program, std::fs::Permissions::from_mode(0o755)).unwrap();
+    let program = program.to_string_lossy().into_owned();
+
+    let (plugin, app) = start_given("given-program", vec![Permission::commands([program.clone()])], cx).await;
+    let tool = tool_with(&plugin, &format!("{program}\nhi"), cx).await;
+    cx.update(|cx| drop(tool.perform_action("Run".into(), cx)));
+    assert_eq!(wait_for_toast(&app, cx, |toast| !toast.is_empty()), "Some(0)|given hi\n|");
+}
+
+#[gpui::test]
+async fn a_plugin_asks_to_run_a_program(cx: &mut TestAppContext) {
+    cx.executor().allow_parking();
+    let (plugin, app) = start("asks-for-a-program", cx).await;
+    // Declined: the answer reaches the plugin. (Allowed, the app starts it again instead.)
+    assert_eq!(toasted(&plugin, &app, "RequestProgram", "/opt/homebrew/bin/git", cx).await, "declined");
+    let asked = app.read_with(cx, |app, _| app.asked.clone());
+    assert_eq!(asked[0].0, r#"{"permission":"Commands","programs":["/opt/homebrew/bin/git"]}"#);
 }
 
 #[gpui::test]

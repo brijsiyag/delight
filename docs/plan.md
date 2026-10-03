@@ -301,8 +301,9 @@ fork's `delight` branch.
     and Lucide `add_font` (its icon font: the app shapes plugins' text, so a
     font a plugin loads itself isn't seen). The `Commands` permission
     (done, its own commit) is an object in `Granted` that runs only the
-    programs its manifest lists (shown when installing), each an absolute
-    path directly in `/bin`, `/sbin`, `/usr/bin` or `/usr/sbin`, with any
+    programs its manifest lists (shown when installing) and those the user
+    gives it while it runs (`host(cx).request_permission`), each a path in full,
+    anywhere, from `/` or `~/`, with any
     arguments (not checked: no shell, so `|` and `;` are just text), a
     cleared environment, the plugin's data folder as the working folder,
     and a time limit. It is generic, for any plugin, so Process and Port

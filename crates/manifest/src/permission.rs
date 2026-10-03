@@ -15,12 +15,6 @@ use std::path::{Path, PathBuf};
 use anyhow::{Result, bail};
 use serde::{Deserialize, Serialize};
 
-/// The folders a program a plugin may run is in: the system's own, which macOS protects.
-pub const COMMAND_DIRS: [&str; 4] = ["/bin", "/sbin", "/usr/bin", "/usr/sbin"];
-/// Most programs [`CommandsPermission`] lists, so people can read them all when they
-/// install.
-pub const MAX_PROGRAMS: usize = 20;
-
 /// What every permission is: checked when the manifest is, and described to people who
 /// install the plugin and look at it in Settings.
 pub trait PermissionSpec {
@@ -69,8 +63,8 @@ pub trait PermissionData: PermissionSpec + Sized {
     fn covers(&self, asked: &Self) -> bool;
 }
 
-/// What a plugin may do outside its sandbox. Each is granted when the plugin is
-/// installed (and some, `Files`, also while it runs), and gates what the app hands it. In the
+/// What a plugin may do outside its sandbox. Each is granted when the plugin is installed (and
+/// more of `Files` and `Commands` while it runs), and gates what the app hands it. In the
 /// manifest it is an object named by its `permission` field, next to its own data:
 /// `{"permission": "Commands", "programs": ["/bin/ps"]}`.
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -113,13 +107,6 @@ impl Permission {
             read: read.into_iter().map(Into::into).collect(),
             write: write.into_iter().map(Into::into).collect(),
         })
-    }
-
-    /// `Files` for the one folder at `path`, to read or (`write`) to write too, spelled as a
-    /// manifest spells it: `~/Projects` in `home`.
-    pub fn folder(path: &Path, write: bool, home: Option<&Path>) -> Self {
-        let (folder, none) = ([home_spelled(path, home)], [] as [String; 0]);
-        if write { Permission::files(none, folder) } else { Permission::files(folder, none) }
     }
 
     /// The permission as [`PermissionSpec`], whichever it is.
@@ -259,13 +246,26 @@ impl PermissionData for NetworkPermission {
     }
 }
 
-/// Run programs, with any arguments.
+/// Run programs, with any arguments: those it lists, which it has from the start, and those the
+/// user gives it while it runs.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CommandsPermission {
-    /// The programs it may run, each an absolute path directly in one of the
-    /// [`COMMAND_DIRS`], such as `/bin/ps`. At least one, at most [`MAX_PROGRAMS`].
+    /// The programs it may run, each a [`validate_program`] path, anywhere: absolute
+    /// (`/opt/homebrew/bin/git`) or in the home folder of whoever runs it (`~/.cargo/bin/rg`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub programs: Vec<String>,
+}
+
+impl CommandsPermission {
+    /// Whether it allows every program `asked` runs, with `~` in both as `home`: the programs are
+    /// compared where they are, so `~/.cargo/bin/rg` is `/Users/ada/.cargo/bin/rg`.
+    pub fn covers_in(&self, asked: &CommandsPermission, home: Option<&Path>) -> bool {
+        asked.programs.iter().all(|program| {
+            let program = expand_home(program, home);
+            self.programs.iter().any(|had| expand_home(had, home) == program)
+        })
+    }
 }
 
 impl PermissionSpec for CommandsPermission {
@@ -273,15 +273,9 @@ impl PermissionSpec for CommandsPermission {
         "Commands"
     }
 
-    /// At least one program, at most [`MAX_PROGRAMS`], each a [`validate_program`]
-    /// path, none twice.
+    /// Each program a [`validate_program`] path, none twice. With none, it runs only those the
+    /// user gives it.
     fn validate(&self) -> Result<()> {
-        if self.programs.is_empty() {
-            bail!("Commands lists no programs");
-        }
-        if self.programs.len() > MAX_PROGRAMS {
-            bail!("Commands lists {} programs: at most {MAX_PROGRAMS}", self.programs.len());
-        }
         let mut listed = HashSet::new();
         for program in &self.programs {
             validate_program(program)?;
@@ -297,7 +291,11 @@ impl PermissionSpec for CommandsPermission {
     }
 
     fn describe(&self) -> String {
-        "Can run these programs, with any arguments".into()
+        if self.programs.is_empty() {
+            "Can ask you for programs to run, and run those you allow, with any arguments".into()
+        } else {
+            "Can run these programs, with any arguments, and ask you for others".into()
+        }
     }
 
     fn items(&self) -> Vec<String> {
@@ -313,7 +311,8 @@ impl PermissionSpec for CommandsPermission {
     }
 }
 
-/// Its programs are a set: it covers another that runs none it doesn't.
+/// Its programs are a set: it covers another that runs none it doesn't, wherever `~` is
+/// ([`CommandsPermission::covers_in`]).
 impl PermissionData for CommandsPermission {
     fn from_permission(permission: &Permission) -> Option<&Self> {
         match permission {
@@ -334,8 +333,9 @@ impl PermissionData for CommandsPermission {
         self.programs.retain(|program| program != item);
     }
 
+    /// `~` is the home folder of whoever runs it, as it means.
     fn covers(&self, asked: &Self) -> bool {
-        asked.programs.iter().all(|program| self.programs.contains(program))
+        self.covers_in(asked, std::env::home_dir().as_deref())
     }
 }
 
@@ -475,14 +475,16 @@ fn counted(count: usize, noun: &str) -> Option<String> {
     }
 }
 
-/// Check a program a plugin may run: an absolute path directly in one of the
-/// [`COMMAND_DIRS`] (so no `..`, no subfolder, no relative name looked up in `PATH`).
+/// Check a program a plugin may run: a path to it in full, anywhere, from `/` or from the home
+/// folder (`~/`), so no name looked up in `PATH`; with no `.` or `..` in it, so it says where the
+/// program is; and ending in the program's name.
 pub fn validate_program(program: &str) -> Result<()> {
-    let listed = program.rsplit_once('/').is_some_and(|(dir, name)| {
-        COMMAND_DIRS.contains(&dir) && !matches!(name, "" | "." | "..") && !name.chars().any(char::is_control)
+    let rest = program.strip_prefix("~/").or_else(|| program.strip_prefix('/'));
+    let full = rest.is_some_and(|rest| {
+        rest.split('/').all(|part| !matches!(part, "" | "." | "..")) && !rest.chars().any(char::is_control)
     });
-    if !listed {
-        bail!("{program:?} isn't a program directly in {}", COMMAND_DIRS.join(", "));
+    if !full {
+        bail!("{program:?} isn't a program's path: give it in full, from / or ~/, with no . or .. in it");
     }
     Ok(())
 }
@@ -534,9 +536,11 @@ mod tests {
         };
         assert_eq!(serde_json::to_string(&request).unwrap(), json);
         assert_eq!(serde_json::from_str::<PermissionRequest>(json).unwrap(), request);
-        // Network has nowhere to put programs; Commands has to have them.
+        // Network has nowhere to put programs; Commands without them runs only those it is given.
         assert!(serde_json::from_str::<PermissionRequest>(r#"{"permission":"Network","programs":["/bin/ps"],"reason":"x"}"#).is_err());
-        assert!(serde_json::from_str::<PermissionRequest>(r#"{"permission":"Commands","reason":"x"}"#).is_err());
+        let given_only = serde_json::from_str::<PermissionRequest>(r#"{"permission":"Commands","reason":"x"}"#).unwrap();
+        assert_eq!(given_only.permission, Permission::Commands(CommandsPermission::default()));
+        assert_eq!(serde_json::to_string(&given_only.permission).unwrap(), r#"{"permission":"Commands"}"#);
     }
 
     #[test]
@@ -583,30 +587,37 @@ mod tests {
 
     #[test]
     fn commands_check_their_programs() {
-        for good in [&["/bin/ps"][..], &["/sbin/ping", "/usr/bin/curl", "/usr/sbin/lsof"]] {
+        // Anywhere, in full; none at all: only those the user gives it.
+        for good in [&[][..], &["/bin/ps"], &["/opt/homebrew/bin/git", "/usr/local/bin/brew", "~/.cargo/bin/rg", "/Applications/Tool.app/Contents/MacOS/tool"]] {
             Permission::commands(good.iter().copied()).spec().validate().unwrap();
         }
         for (bad, why) in [
-            (&[][..], "none"),
-            (&["ps"], "not absolute"),
+            (&["ps"][..], "looked up in PATH"),
+            (&["bin/ps"], "relative"),
+            (&["~"], "no name"),
+            (&["~/"], "no name"),
+            (&["~bob/bin/x"], "another user's home"),
             (&["/bin/../usr/bin/ps"], "up a folder"),
-            (&["/usr/local/bin/brew"], "not a system folder"),
-            (&["/usr/bin/sub/tool"], "a subfolder"),
+            (&["/bin/./ps"], "a dot"),
+            (&["/bin//ps"], "an empty part"),
             (&["/bin/"], "no name"),
             (&["/bin/.."], "no name"),
+            (&["/bin/p\ns"], "a control character"),
             (&["/bin/ps", "/bin/ps"], "twice"),
         ] {
             assert!(Permission::commands(bad.iter().copied()).spec().validate().is_err(), "{why}");
         }
-        let many = (0..=MAX_PROGRAMS).map(|n| format!("/bin/p{n}"));
-        assert!(Permission::commands(many).spec().validate().is_err(), "too many");
+        let many = (0..500).map(|n| format!("/opt/tools/p{n}"));
+        assert!(Permission::commands(many).spec().validate().is_ok(), "as many as it needs");
     }
 
     #[test]
     fn people_are_told_what_each_allows() {
         let commands = Permission::commands(["/bin/ps", "/bin/kill"]);
         assert_eq!(commands.spec().title(), "Runs commands");
-        assert_eq!(commands.spec().describe(), "Can run these programs, with any arguments");
+        assert_eq!(commands.spec().describe(), "Can run these programs, with any arguments, and ask you for others");
+        let given_only = Permission::Commands(CommandsPermission::default());
+        assert_eq!(given_only.spec().describe(), "Can ask you for programs to run, and run those you allow, with any arguments");
         assert_eq!(commands.spec().items(), ["/bin/ps", "/bin/kill"]);
         assert!(Permission::network().spec().items().is_empty());
         assert_eq!(Permission::files(["~/Desktop"], ["~/Notes"]).spec().items(), ["~/Desktop", "~/Notes"]);
@@ -684,13 +695,15 @@ mod tests {
     }
 
     #[test]
-    fn a_folder_given_is_spelled_as_a_manifest_spells_it() {
+    fn programs_are_covered_wherever_home_is() {
         let home = Some(Path::new("/Users/ada"));
-        let none: [&str; 0] = [];
-        assert_eq!(Permission::folder(Path::new("/Users/ada/Projects"), false, home), Permission::files(["~/Projects"], none));
-        assert_eq!(Permission::folder(Path::new("/Users/ada"), true, home), Permission::files(none, ["~"]));
-        assert_eq!(Permission::folder(Path::new("/Volumes/Work"), true, home), Permission::files(none, ["/Volumes/Work"]), "outside home");
-        assert_eq!(Permission::folder(Path::new("/Users/ada/Projects"), false, None), Permission::files(["/Users/ada/Projects"], none));
+        let commands = |programs: &[&str]| CommandsPermission { programs: programs.iter().map(|program| program.to_string()).collect() };
+        let has = commands(&["~/.cargo/bin/rg", "/opt/homebrew/bin/git"]);
+        assert!(has.covers_in(&commands(&["/Users/ada/.cargo/bin/rg"]), home), "~ is the home folder");
+        assert!(has.covers_in(&commands(&["~/.cargo/bin/rg", "/opt/homebrew/bin/git"]), home));
+        assert!(!has.covers_in(&commands(&["/opt/homebrew/bin/git-lfs"]), home), "another program");
+        assert!(!has.covers_in(&commands(&["/opt/homebrew/bin"]), home), "a program's folder isn't a program");
+        assert!(!has.covers_in(&commands(&["/Users/ada/.cargo/bin/rg"]), None), "no home: ~ is only ~");
     }
 
     #[test]

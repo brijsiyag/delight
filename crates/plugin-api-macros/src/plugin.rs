@@ -223,7 +223,7 @@ fn generate(item: &TokenStream, plugin: &Ident, properties: &PluginProperties, i
 #[cfg(test)]
 mod tests {
     use super::*;
-    use delight_manifest::Permission;
+    use delight_manifest::{CommandsPermission, Permission};
 
     fn read(element: Expr) -> Result<PermissionRequest, String> {
         permission(&element).map_err(|error| error.to_string())
@@ -246,9 +246,13 @@ mod tests {
         let request = read(syn::parse_quote!(Commands("Lists processes", programs = ["/bin/ps", "/usr/sbin/lsof"]))).unwrap();
         assert_eq!(request.permission, Permission::commands(["/bin/ps", "/usr/sbin/lsof"]));
 
-        assert!(read(syn::parse_quote!(Commands("Lists processes"))).unwrap_err().contains("missing field `programs`"));
-        assert!(read(syn::parse_quote!(Commands("Lists", programs = []))).unwrap_err().contains("no programs"));
-        assert!(read(syn::parse_quote!(Commands("Lists", programs = ["ps"]))).unwrap_err().contains("directly in"));
+        // No programs: only those the user gives it while it runs.
+        let empty = Permission::Commands(CommandsPermission::default());
+        assert_eq!(read(syn::parse_quote!(Commands("Runs the tools you allow"))).unwrap().permission, empty);
+        assert_eq!(read(syn::parse_quote!(Commands("Lists", programs = []))).unwrap().permission, empty);
+        let anywhere = read(syn::parse_quote!(Commands("Commits", programs = ["/opt/homebrew/bin/git", "~/.cargo/bin/rg"]))).unwrap();
+        assert_eq!(anywhere.permission, Permission::commands(["/opt/homebrew/bin/git", "~/.cargo/bin/rg"]));
+        assert!(read(syn::parse_quote!(Commands("Lists", programs = ["ps"]))).unwrap_err().contains("in full"));
         assert!(read(syn::parse_quote!(Commands("Lists", programs = [1]))).is_err(), "a number is not a program");
         assert!(read(syn::parse_quote!(Commands("Lists", ["/bin/ps"]))).unwrap_err().contains("expected a permission"));
         assert!(read(syn::parse_quote!(Network("Fetches", programs = ["/bin/ps"]))).unwrap_err().contains("unknown field"));
