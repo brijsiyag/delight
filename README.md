@@ -22,10 +22,6 @@
   <a href="CONTRIBUTING.md">Contributing</a>
 </p>
 
-> [!WARNING]
-> **Delight is in alpha.** The plugin API may change often, and plugins may break with a new
-> release until they are rebuilt.
-
 Press **⌘⇧Space** and type or paste anything. Delight asks every plugin whether it can help,
 lists the tools that fit, best first, and opens the best one before you choose. Every tool, the
 built-in ones too, is a plugin: one `.wasm` file that draws its own interface and can do only what
