@@ -267,7 +267,7 @@ Turn on the plugin API's `grpc` feature, generate clients with
 [`tonic-prost-build`](https://docs.rs/tonic-prost-build), and give them a channel through Delight:
 
 ```toml
-delight-plugin-api = { git = "https://github.com/brijsiyag/delight.git", tag = "v0.0.6", features = ["grpc"] }
+delight-plugin-api = { git = "https://github.com/brijsiyag/delight.git", tag = "v0.0.7", features = ["grpc"] }
 tonic = { version = "=0.14.6", default-features = false, features = ["codegen"] }
 ```
 

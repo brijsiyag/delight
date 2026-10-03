@@ -8,7 +8,7 @@ members = ["formats", "graphics", "network"]
 
 [workspace.package]
 # The built-ins ship with the app: its version.
-version = "0.0.6"
+version = "0.0.7"
 edition = "2024"
 license = "MIT"
 

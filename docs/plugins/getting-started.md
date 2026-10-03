@@ -44,7 +44,7 @@ crate-type = ["cdylib"]    # a WebAssembly component, not a Rust library
 
 [dependencies]
 # Delight's plugin API, from the release of Delight you build for: its tag.
-delight-plugin-api = { git = "https://github.com/brijsiyag/delight.git", tag = "v0.0.6" }
+delight-plugin-api = { git = "https://github.com/brijsiyag/delight.git", tag = "v0.0.7" }
 # GPUI, named exactly like this: any other spelling links a second GPUI.
 gpui = { git = "https://github.com/zed-industries/zed.git", branch = "gpui-multi-root-embedded-rebased", version = "=0.2.2", default-features = false }
 

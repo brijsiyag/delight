@@ -24,7 +24,10 @@ pub const PLUGIN_API_VERSION: &str = env!("CARGO_PKG_VERSION");
 /// The protocol so far is the host API (toast, hide, `remember_input`, the theme, the
 /// clipboard, `http`, `open_url`, `dns`, `commands`, secrets, settings, `set_launcher_input`, the
 /// UTC offset, `show_settings`, windows of a plugin's own, which it opens, brings back and closes
-/// but never hides, going with the launcher or staying up, and the system's confirm alert); the
+/// but never hides, going with the launcher or staying up, the system's confirm alert,
+/// `request_permission` for more of a permission the manifest asks for, the system's folder picker
+/// and its save panel); the permissions (`Network`; `Commands`, its programs anywhere; `Files`, its
+/// folders in the sandbox where they are), each with more given while the plugin runs; the
 /// plugin's tools with their actions (each with a style, normal, primary or attention, and shown or
 /// hidden: a key and no button in the footer), told when a click lands elsewhere in the launcher
 /// and when their view is shown and hidden; its settings as sections; the whole theme, in which the

@@ -95,7 +95,7 @@ Updates aren't signed: the SHA-256 proves a file matches its manifest, not who m
 
 ### Which Delight runs a plugin
 
-**Delight 0.0.6 runs plugin API 0.4** (`0.4.0`, the version of the crates plugins build against).
+**Delight 0.0.7 runs plugin API 0.5** (`0.5.0`, the version of the crates plugins build against).
 A plugin carries the plugin API version it was built against in its `.wasm`; one built for a newer
 plugin API than Delight's is refused (*Not a plugin for this Delight*) until Delight is updated.
 
