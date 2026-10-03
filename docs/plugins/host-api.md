@@ -32,6 +32,9 @@ host(cx).set_secret("api-key", key, cx).detach_and_log_err(cx); // a call with a
 | `http(request, cx)`, `listen_http(port, respond, cx)` | `Network` | HTTP, and a listener on `127.0.0.1` ([The network](#the-network)) |
 | `dns_resolvers(cx)` | `Network` | The Mac's DNS setup, VPNs included ([DNS](#dns)) |
 | `run(Command, cx)` | `Commands` | Runs a program the manifest lists ([Commands](#commands)) |
+| `request_folder(path, access, reason, cx)` | `Files` | Asks the user for a folder; the plugin starts again with it ([Files](#files)) |
+| `pick_folders(PickFolders, cx)` | `Files` | macOS's folder picker; the plugin starts again with what is picked. [Temporary](publishing.md#temporary-apis) |
+| `save_file(name, contents, cx)` | | macOS's save panel; Delight writes the file ([Saving a file](#saving-a-file)). [Temporary](publishing.md#temporary-apis) |
 
 Beside `host(cx)`: `delight_plugin_api::theme(cx)` is the app's theme as data, `settings_changed(cx)`
 tells Delight the plugin's settings sections changed ([Settings](settings.md)), and the clipboard
@@ -180,7 +183,8 @@ let key = host(cx).secret("api-key", cx);                        // Ok(None) if 
 
 ### The data folder
 
-The plugin's own folder is mounted at `/data`, the only folder it sees, and `std::fs` works there:
+The plugin's own folder is mounted at `/data`, which it always has, and `std::fs` works there (with
+`Files` it has [other folders](#files) too):
 
 ```rust
 std::fs::write("/data/services.tmp", &bytes)?;
@@ -311,12 +315,15 @@ struct Ports;
 |---|---|---|
 | `Network("why")` | *Network* | The internet and the local network, and listening on this Mac: [the network](#the-network) |
 | `Commands("why", programs = [...])` | *Runs commands* | Running the listed programs, with any arguments |
+| `Files("why", read = [...], write = [...])` | *Files* | Reading the folders in `read`, writing (and reading) those in `write`, and the folders the user gives it: [files](#files) |
 
 **The reason** is one sentence, at most 100 characters, saying what the plugin does with it:
 *Reads your repositories from api.github.com with your token*, not *Needs network access*.
 
-An update that asks for a new permission, or changes the programs `Commands` lists, doesn't install
-by itself: people review it like a new install. Ask for what you need from the start.
+An update that asks for more than the installed version has (a new permission, another program
+for `Commands`, another folder for `Files`, or writing where it read) doesn't install by itself:
+people review it like a new install. One that asks for less installs as usual. Ask for what you need
+from the start.
 
 ### Commands
 
@@ -341,3 +348,77 @@ if output.success() {
 
 Prefer the host API to a program (`http` rather than `curl`): a program's output is text meant for
 people, and it changes between macOS versions.
+
+### Files
+
+With `Files`, a plugin works with folders on the Mac through `std::fs`, at their real paths. Each
+time it starts, Delight puts its folders in its sandbox: those its manifest lists, and those the
+user gave it since.
+
+```rust
+permissions = [Files("Lists your screenshots, and keeps notes on them", read = ["~/Desktop"], write = ["~/Notes"])],
+```
+
+```rust
+let home = std::env::var("HOME")?;                         // /Users/you
+for entry in std::fs::read_dir(format!("{home}/Desktop"))? {
+    // …
+}
+```
+
+- **The folders** are any paths, absolute or starting with `~/`, each in one list: `read` for those
+  whose files it only reads, `write` for those it also writes in (write, add, remove), which it reads
+  too. With no folders (`Files("why")`), it has only those the user gives it.
+- **Nothing else is there.** A path outside its folders fails as a missing one would, and `..` or a
+  symlink doesn't lead out of a folder.
+- **`HOME`** is the user's home folder, so a plugin can build `~` paths. Without `Files` it isn't set.
+- **The user sees every folder** on the plugin's page in Settings, with its access, and can remove
+  one the plugin was given: the plugin starts again without it.
+
+**Asking for a folder**, while it runs:
+
+```rust
+use delight_plugin_api::{Access, PickFolders};
+
+// Save what you need first: when the user allows it, the plugin starts again.
+let had = host(cx).request_folder("~/Projects", Access::Write, "Lists your repositories", cx).await?;
+// Only here if the user declined (`false`), or the plugin has that folder already (`true`); an
+// error if there is no folder there, or Delight can't ask (another alert or picker is open).
+
+// Temporary: macOS's folder picker, until GPUI's own `cx.prompt_for_paths` works in a plugin.
+let picked = host(cx).pick_folders(PickFolders::new().multiple().access(Access::Read).prompt("Choose"), cx).await?;
+// Only here if the user cancelled (none), or picked folders the plugin has already; an error if
+// Delight can't show the picker.
+```
+
+- **A new folder starts the plugin again.** Its sandbox has folders only from its start, so when the
+  user allows a folder, or picks one the plugin didn't have, Delight keeps it and starts the plugin
+  again with it: the call never returns. Save what you need (in `/data`, or settings) before you
+  ask. The launcher then asks the plugin about the input again, so its tool comes back; its windows
+  close.
+- A folder inside one it has, with that access, is one it has: no question, no restart.
+- `request_folder` says the plugin's `reason` under the question: *Allow “Notes” to read and write
+  the files in ~/Projects?* `Access::Write` reads too.
+
+#### Saving a file
+
+`save_file` shows macOS's save panel, in Downloads with the name suggested, and Delight writes the
+file wherever the user chooses. It needs no permission: the plugin never gets that folder.
+
+```rust
+// Temporary, until GPUI's own `cx.prompt_for_new_path` works in a plugin.
+match host(cx).save_file("report.csv", csv, cx).await? {
+    Some(path) => host(cx).toast(format!("Saved {}", path.display()), cx),
+    None => {} // cancelled
+}
+```
+
+**Large files.** The contents go to Delight in one call, as base64 text, a third larger than the
+file, while the whole file is in the plugin's memory too (512 MiB for everything a plugin holds). For a
+file larger than about 100 MB, don't pass it to `save_file`:
+
+- **Write it in a folder the user gave the plugin, and say where it is.** Ask for one with
+  `Access::Write` (or pick one), write the file there with `std::fs`, and show its path.
+- **Or copy it there:** make it in `/data`, then `std::fs::copy` it into the folder the user asked
+  for. `std::fs` writes as it goes, so only the disk limits the size.
+

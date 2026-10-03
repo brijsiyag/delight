@@ -38,6 +38,9 @@ use syn::LitStr;
 /// next to what the permission allows when they install the plugin. `Commands` also
 /// lists the programs the plugin may run, each an absolute path directly in `/bin`,
 /// `/sbin`, `/usr/bin` or `/usr/sbin`: `Commands("Lists processes", programs = ["/bin/ps"])`.
+/// `Files` lists the folders the plugin always has, any path (`/`, `~/Notes`), those it reads and
+/// those it writes (and reads): `Files("Keeps notes", read = ["~/Desktop"], write = ["~/Notes"])`.
+/// Without folders it has only those the user gives it while it runs.
 /// A permission's own data is written by field name, after its reason.
 ///
 /// `tips` are shown now and then in the launcher's empty input, so each says what

@@ -14,7 +14,7 @@ use std::time::Duration;
 
 use gpui::Window;
 use objc2::rc::Retained;
-use objc2::runtime::AnyClass;
+use objc2::runtime::{AnyClass, AnyObject};
 use objc2::{AnyThread, MainThreadMarker, MainThreadOnly, Message, msg_send};
 use objc2_app_kit::{
     NSAnimatablePropertyContainer, NSAnimationContext, NSAppearance, NSAppearanceNameAqua, NSAppearanceNameDarkAqua, NSApplication,
@@ -23,7 +23,7 @@ use objc2_app_kit::{
     NSVisualEffectMaterial, NSVisualEffectState, NSVisualEffectView, NSWindow, NSWindowOrderingMode,
     NSWindowStyleMask, NSWorkspace,
 };
-use objc2_foundation::{NSEdgeInsets, NSPoint, NSRect, NSSize, NSString};
+use objc2_foundation::{NSArray, NSEdgeInsets, NSPoint, NSRect, NSSize, NSString};
 use objc2_quartz_core::{
     CAMediaTimingFunction, CAMediaTimingFunctionName, kCAMediaTimingFunctionEaseInEaseOut, kCAMediaTimingFunctionEaseOut,
 };
@@ -260,13 +260,18 @@ impl NativeWindow {
             None => {}
         });
         // Clip GPUI's content, and the glass, whose effect otherwise reaches into the
-        // window's square corners, to the same rounded shape.
+        // window's square corners, to the same rounded shape. And the window's frame view,
+        // which holds both: AppKit lays the dimming behind an alert's sheet over all of it
+        // (an `NSSheetEffectDimmingView` the size of the window), square corners and all.
         let glass = BACKDROP.with_borrow(|backdrop| match backdrop {
             Some(Backdrop::Glass(glass)) => Some(Retained::clone(glass).into_super()),
             _ => None,
         });
+        // SAFETY: the content view's superview is the window's frame view, alive while the
+        // window is.
+        let frame_view = self.window.contentView().and_then(|content| unsafe { content.superview() });
         let continuous = NSString::from_str("continuous");
-        for view in self.window.contentView().into_iter().chain(glass) {
+        for view in self.window.contentView().into_iter().chain(glass).chain(frame_view) {
             view.setWantsLayer(true);
             let Some(layer) = view.layer() else { continue };
             // SAFETY: plain CALayer property setters.
@@ -507,3 +512,68 @@ pub fn open_in_text_editor(path: &std::path::Path) {
         }
     }
 }
+
+// TEMPORARY(pick_folders), TEMPORARY(save_file): the system's panels a plugin asks for.
+/// The system's open or save panel Delight has on screen (the folder picker, the save panel).
+/// Take it, and call its methods, outside a GPUI update: AppKit calls back into GPUI.
+pub struct FilePanel(Retained<NSWindow>);
+
+/// The open or save panel Delight has on screen, if there is one yet: it appears a moment after
+/// it is asked for.
+// TEMPORARY(pick_folders), TEMPORARY(save_file)
+pub fn file_panel() -> Option<FilePanel> {
+    let mtm = main_thread()?;
+    // NSOpenPanel is an NSSavePanel too.
+    let save_panel = AnyClass::get(c"NSSavePanel")?;
+    NSApplication::sharedApplication(mtm)
+        .windows()
+        .iter()
+        .find(|window| {
+            let is_panel: bool = unsafe { msg_send![&**window, isKindOfClass: save_panel] };
+            is_panel && window.isVisible()
+        })
+        .map(FilePanel)
+}
+
+// TEMPORARY(pick_folders), TEMPORARY(save_file)
+impl FilePanel {
+    /// Lift it to `level`: it opens at the ordinary windows' level, behind the launcher, which
+    /// floats above it.
+    pub fn raise_to(&self, level: isize) {
+        if self.0.level() < level {
+            self.0.setLevel(level);
+        }
+    }
+
+    /// Keep `name`'s extension, in a save panel: tell it the file's type from the extension (GPUI
+    /// doesn't), so macOS keeps the extension on the name, adds it back if the user deletes it,
+    /// and asks before another is used; and show the extension, whatever Finder hides, with
+    /// `name` in the field again. Nothing for an open panel.
+    pub fn keep_extension(&self, name: &str) {
+        let open_panel = AnyClass::get(c"NSOpenPanel");
+        let opens = open_panel.is_some_and(|open_panel| unsafe { msg_send![&*self.0, isKindOfClass: open_panel] });
+        if opens {
+            return;
+        }
+        set_save_type(&self.0, name);
+        let _: () = unsafe { msg_send![&*self.0, setExtensionHidden: false] };
+        // Set again: hidden, the extension was already taken off the name.
+        let name = NSString::from_str(name);
+        let _: () = unsafe { msg_send![&*self.0, setNameFieldStringValue: &*name] };
+    }
+}
+
+/// Tell a save `panel` its file's type, from `name`'s extension (`json`): its allowed content type.
+/// The type is UniformTypeIdentifiers' `UTType`, which AppKit loads; one for an extension macOS
+/// doesn't know is a type all the same. Nothing for a name without an extension.
+// TEMPORARY(save_file)
+fn set_save_type(panel: &NSWindow, name: &str) {
+    let Some(extension) = std::path::Path::new(name).extension().and_then(|extension| extension.to_str()) else { return };
+    let Some(types) = AnyClass::get(c"UTType") else { return };
+    let extension = NSString::from_str(extension);
+    let file_type: Option<Retained<AnyObject>> = unsafe { msg_send![types, typeWithFilenameExtension: &*extension] };
+    let Some(file_type) = file_type else { return };
+    let allowed = NSArray::from_retained_slice(&[file_type]);
+    let _: () = unsafe { msg_send![panel, setAllowedContentTypes: &*allowed] };
+}
+

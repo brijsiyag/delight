@@ -66,9 +66,10 @@ location: the list (every plugin in it, to pick from) or one plugin's `<id>.xml`
   user clicks ↻ on the plugin's page.
 - It downloads `<id>.wasm` only when the version there is newer (by SemVer), and checks the file's
   SHA-256, id and version before anything of it runs.
-- **An update that asks for no new permission installs by itself**, keeping the plugin's data,
-  settings and secrets, unless *Update automatically* is off on its page. It waits while one of the
-  plugin's tools is shown or its window is open.
+- **An update that asks for nothing new installs by itself** (no new permission, program or
+  folder; fewer is fine), keeping the plugin's data, settings and secrets, unless *Update
+  automatically* is off on its page. It waits while one of the plugin's tools is shown or its window
+  is open.
 - **One that asks for more** is shown like a new install, and waits for a yes.
 
 ### On GitHub
@@ -135,5 +136,7 @@ changing**:
 | **The network**: `host(cx).http`, `listen_http`, `network::grpc::channel` | embedded_gpui links `wasi:http` | Use ordinary HTTP and gRPC clients |
 | **Opening a URL**: `host(cx).open_url` | embedded_gpui passes GPUI's own `cx.open_url` through | Call `cx.open_url` |
 | **The clipboard, refreshed early**: nothing to call | embedded_gpui sends the change before the key | Nothing changes |
+| **Picking folders**: `host(cx).pick_folders` | embedded_gpui passes GPUI's own `cx.prompt_for_paths` through | Call `cx.prompt_for_paths` |
+| **Saving a file**: `host(cx).save_file` | embedded_gpui passes GPUI's own `cx.prompt_for_new_path` through | Call `cx.prompt_for_new_path` and write the file |
 
 Keep each of these calls in one place in your plugin, so the change is small when it comes.

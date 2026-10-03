@@ -92,7 +92,8 @@ The plugin's GPUI runs in a sandbox, and some of its desktop calls do nothing th
 | `cx.open_url` | Does nothing | `host(cx).open_url` |
 | `cx.open_window` | Refused: *plugin windows mirror host windows* | `host(cx).open_window` |
 | `window.prompt` | Never answers | `host(cx).confirm` |
-| File pickers, `reveal_path`, `open_with_system` | Fail or do nothing | Nothing yet |
+| File pickers (`prompt_for_paths`, `prompt_for_new_path`) | Fail | `host(cx).pick_folders`, `host(cx).save_file` ([Files](host-api.md#files)) |
+| `reveal_path`, `open_with_system` | Do nothing | Nothing yet |
 | `cx.hide`, `cx.quit`, `activate` | Do nothing | `host(cx).hide` |
 | The credentials API | Reads nothing, can't write | `host(cx).secret` |
 | `cx.write_to_clipboard` | Keeps the text only: no images or files | Text |

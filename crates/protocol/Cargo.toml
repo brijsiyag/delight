@@ -11,7 +11,7 @@ publish = false
 workspace = true
 
 [dependencies]
-# TEMPORARY(network): anyhow, base64, http.
+# TEMPORARY(network): anyhow, http. base64 for the bytes that cross (`Bytes`).
 anyhow = { workspace = true }
 base64 = { workspace = true }
 delight-manifest = { workspace = true }

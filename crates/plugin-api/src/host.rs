@@ -14,8 +14,8 @@ use crate::gpui::{AnyView, App, Global, Subscription, Task};
 /// wait for the app. Natively (in a plugin's unit tests) they do nothing.
 #[derive(Clone)]
 pub struct Host {
-    // Crate-wide for `dns/`; TEMPORARY(network), TEMPORARY(open_url): and for
-    // `network/` and `open_url/`.
+    // Crate-wide for `dns/`; TEMPORARY(network), TEMPORARY(open_url), TEMPORARY(pick_folders),
+    // TEMPORARY(save_file): and for `network/`, `open_url/`, `pick_folders/` and `save_file/`.
     pub(crate) remote: Option<Remote<HostApi>>,
 }
 
@@ -197,6 +197,24 @@ impl Host {
         cx.spawn(async move |_| asked.await)
     }
 
+    /// Ask the user to give the plugin the folder at `path` (`~` is the home folder), with the
+    /// system's alert: *Allow "Plugin" to read the files in ~/Projects?*, the plugin's `reason`
+    /// under it. Needs the `Files` permission.
+    ///
+    /// **When the user allows it, the plugin starts again**, with the folder in its sandbox at
+    /// `path`, and this never returns: save what it needs (in `/data`, or its settings) before
+    /// asking. The launcher then asks it about the input again, so its tool comes back; its
+    /// windows close. `Ok(false)` when the user declines, `Ok(true)` at once when the plugin has the
+    /// folder already, with that access; an error when there is no folder at `path`, or Delight
+    /// can't ask (another alert or picker is open).
+    pub fn request_folder(&self, path: impl Into<String>, access: Access, reason: impl Into<String>, cx: &mut App) -> Task<Result<bool>> {
+        let Some(remote) = &self.remote else {
+            return Task::ready(Err(anyhow!("folders are Delight's to give: a plugin has them only in Delight")));
+        };
+        let asked = remote.request_folder(path.into(), access == Access::Write, reason.into(), cx);
+        cx.spawn(async move |_| asked.await)
+    }
+
     /// Remember `text` as an input worth coming back to, for `operation`: the
     /// launcher offers it as a completion while typing and in its history search
     /// (⌃R), and brings this tool up when it's used. Nothing else is remembered.
@@ -235,6 +253,16 @@ impl Confirm {
         self.destructive = true;
         self
     }
+}
+
+/// What a plugin may do in a folder it is given ([`Host::request_folder`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum Access {
+    /// Read its files.
+    #[default]
+    Read,
+    /// Write them (and add and remove them), and read them.
+    Write,
 }
 
 /// What a window of the plugin's own is like ([`Host::open_window`]).

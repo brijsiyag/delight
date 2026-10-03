@@ -6,13 +6,10 @@
 //! The wire carries the `http` crate's requests and responses as the plain data here;
 //! the conversions at the bottom are what both ends use.
 
-use std::ops::Deref;
-
 use anyhow::{Context as _, Result};
-use base64::Engine as _;
-use base64::engine::general_purpose::STANDARD;
-use embedded_gpui::serde::{Deserialize, Deserializer, Serialize, Serializer};
-use embedded_gpui::{Describe, Ref, TypeSchema, data, interface};
+use embedded_gpui::{Ref, data, interface};
+
+use crate::Bytes;
 
 /// HTTP for one plugin, homed in the app.
 #[interface]
@@ -141,50 +138,6 @@ pub struct HttpHit {
 pub struct HttpReply {
     pub head: HttpResponseHead,
     pub body: Bytes,
-}
-
-/// Bytes, crossing as base64 text: payloads are JSON, where they would otherwise be a
-/// list of numbers.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct Bytes(pub Vec<u8>);
-
-impl Deref for Bytes {
-    type Target = [u8];
-
-    fn deref(&self) -> &[u8] {
-        &self.0
-    }
-}
-
-impl From<Vec<u8>> for Bytes {
-    fn from(bytes: Vec<u8>) -> Self {
-        Bytes(bytes)
-    }
-}
-
-impl From<&[u8]> for Bytes {
-    fn from(bytes: &[u8]) -> Self {
-        Bytes(bytes.to_vec())
-    }
-}
-
-impl Serialize for Bytes {
-    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
-        serializer.serialize_str(&STANDARD.encode(&self.0))
-    }
-}
-
-impl<'de> Deserialize<'de> for Bytes {
-    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        let text = String::deserialize(deserializer)?;
-        STANDARD.decode(text).map(Bytes).map_err(embedded_gpui::serde::de::Error::custom)
-    }
-}
-
-impl Describe for Bytes {
-    fn describe() -> TypeSchema {
-        TypeSchema::String
-    }
 }
 
 // The `http` crate's types, to and from the wire.

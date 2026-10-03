@@ -41,9 +41,10 @@ async fn without_commands_a_plugin_runs_nothing(cx: &mut TestAppContext) {
     let wasm = fixture();
     let mut manifest = read_manifest(&std::fs::read(&wasm).unwrap()).unwrap();
     manifest.plugin.permissions.retain(|request| !matches!(request.permission, Permission::Commands(_)));
-    let options = plugin_options(&manifest, data_dir("no-commands"), Arc::new(gpui::NoopTextSystem::new()));
+    let permissions = Permissions::from(&manifest.plugin);
+    let options = plugin_options(&manifest, &permissions, data_dir("no-commands"), Arc::new(gpui::NoopTextSystem::new()));
     let app = cx.new(|_| FakeApp::default());
-    let started = cx.update(|cx| Plugin::start(wasm, manifest, options, data_dir("no-commands"), root_of(&app), cx));
+    let started = cx.update(|cx| Plugin::start(wasm, manifest, permissions, options, data_dir("no-commands"), root_of(&app), cx));
     settle(cx);
     let plugin = started.await.expect("starts");
     let tool = tool_with(&plugin, "/bin/echo", cx).await;

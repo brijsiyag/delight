@@ -14,8 +14,9 @@
 //! are unique across the interfaces here and don't clash with type names.
 
 pub use delight_manifest::{
-    COMMAND_DIRS, CommandsPermission, MAX_TIP_CHARS, Manifest, NetworkPermission, Operation, PLUGIN_API_VERSION,
-    PROTOCOL_VERSION, Permission, PermissionRequest, PermissionSpec, PluginProperties, ProtocolVersion, validate_id, validate_tip,
+    COMMAND_DIRS, CommandsPermission, FilesPermission, MAX_TIP_CHARS, Manifest, NetworkPermission, Operation, PLUGIN_API_VERSION,
+    PROTOCOL_VERSION, Permission, PermissionRequest, PermissionSpec, Permissions, PluginProperties, ProtocolVersion,
+    expand_home, home_spelled, validate_id, validate_tip,
 };
 
 /// The most a plugin's settings ([`HostApi::set_settings`]) are, as JSON: they are a small
@@ -31,6 +32,11 @@ pub use commands::*;
 mod dns;
 
 pub use dns::*;
+
+/// Bytes that cross, as base64 text.
+mod bytes;
+
+pub use bytes::Bytes;
 
 // TEMPORARY(network): the app's HTTP for plugins, until embedded_gpui links `wasi:http`. It's all
 // in `network/`; docs/development.md, "Temporary host APIs".
@@ -211,6 +217,29 @@ pub trait HostApi {
     /// ↵ doesn't confirm. Whether the user chose to continue; `false` too when the app can't show
     /// the alert (another is open, or nothing of the app is on screen).
     async fn confirm(&mut self, title: String, message: String, continue_label: String, destructive: bool, cx: &mut gpui::Context<Self>) -> bool;
+
+    /// Ask the user to give the plugin the folder at `path` (`~` meaning the home folder), to read
+    /// its files or (`write`) to change them too, with the system's alert and the plugin's
+    /// `reason` in it. Allowed, the folder is kept for the plugin and the plugin starts again with
+    /// it, so the answer never reaches it. Otherwise the answer is `false` (declined), or `true` when
+    /// the plugin has that folder already; an error when there is no folder there, or the app can't
+    /// ask (another alert or picker is up). Only for a plugin with `Files`.
+    async fn request_folder(&mut self, path: String, write: bool, reason: String, cx: &mut gpui::Context<Self>) -> bool;
+
+    // TEMPORARY(pick_folders): until GPUI's own picker (`cx.prompt_for_paths`) works in a plugin.
+    /// Show the system's folder picker: one folder, or several with `multiple`, its button saying
+    /// `prompt`. The folders picked are kept for the plugin, to read or (`write`) to change too; if
+    /// any is new, the plugin starts again with them, so the answer never reaches it. Otherwise the
+    /// answer is the folders picked (all of which the plugin had), or none when the user
+    /// cancelled; an error when the app can't show the picker. Only for a plugin with `Files`.
+    async fn pick_folders(&mut self, multiple: bool, write: bool, prompt: Option<String>, cx: &mut gpui::Context<Self>) -> Vec<String>;
+
+    // TEMPORARY(save_file): until GPUI's own save panel (`cx.prompt_for_new_path`) works in a plugin.
+    /// Show the system's save panel, `name` suggested (in Downloads), and write `contents` to the
+    /// file the user chose: its path, or none when they cancelled; an error when the app can't show
+    /// the panel or write the file. The app writes it, so the plugin needs no folder for it, nor
+    /// any permission.
+    async fn save_file(&mut self, name: String, contents: Bytes, cx: &mut gpui::Context<Self>) -> Option<String>;
 }
 
 /// One section of a plugin's settings: a titled card in the settings window. The plugin
@@ -445,7 +474,7 @@ mod tests {
         );
         assert_eq!(
             methods(HostApi::schema()),
-            ["toast", "hide", "remember_input", "current_theme", "clipboard", "http", "open_url", "dns", "commands", "secret", "set_secret", "set_launcher_input", "settings", "set_settings", "utc_offset_seconds", "show_settings", "open_window", "show_window", "close_window", "confirm"]
+            ["toast", "hide", "remember_input", "current_theme", "clipboard", "http", "open_url", "dns", "commands", "secret", "set_secret", "set_launcher_input", "settings", "set_settings", "utc_offset_seconds", "show_settings", "open_window", "show_window", "close_window", "confirm", "request_folder", "pick_folders", "save_file"]
         );
     }
 }

@@ -7,6 +7,11 @@
 mod dialogs;
 mod files;
 mod history;
+mod permissions;
+// TEMPORARY(pick_folders): the folder picker for plugins; docs/development.md, "Temporary host APIs".
+mod pick_folders;
+// TEMPORARY(save_file): the save panel for plugins; docs/development.md, "Temporary host APIs".
+mod save_file;
 mod plugin_settings;
 mod secrets;
 mod hotkey;
@@ -126,6 +131,7 @@ fn main() {
         keymap::init(cx);
         history::init(cx);
         plugin_settings::init(cx);
+        permissions::init(cx);
         secrets::init(cx);
         cx.on_action(|_: &Quit, cx| cx.quit());
         if let Err(error) = launcher::open(cx) {

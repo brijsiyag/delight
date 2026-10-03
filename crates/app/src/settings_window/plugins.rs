@@ -1,10 +1,9 @@
 //! A plugin's page (its tools, each with its own switch, and its permissions), and the
 //! page of a plugin file that doesn't load.
 
-use std::collections::HashSet;
 use std::path::Path;
 
-use delight_protocol::{PermissionRequest, SettingsSection};
+use delight_protocol::{Permission, PermissionRequest, SettingsSection};
 use delight_runtime::Plugin;
 use embedded_gpui::Surface;
 use delight_ui::{
@@ -13,10 +12,11 @@ use delight_ui::{
 };
 use gpui::{
     AnyElement, App, AppContext as _, ClickEvent, ClipboardItem, Context, Entity, FontWeight, IntoElement, ParentElement,
-    PromptLevel, SharedString, Styled, Task, Window, div, prelude::*, px,
+    PromptLevel, SharedString, Styled, Task, div, prelude::*, px,
 };
 
 use super::{ITEM_ICON, SettingsWindow, item};
+use crate::permissions::view::{Given, OpenPermissions, Toggle, permission_rows};
 use crate::plugins::{self, Broken, Source};
 use crate::settings;
 
@@ -138,7 +138,12 @@ impl SettingsWindow {
         let plugin_on = current.plugin_on(&id);
 
         let stopped = plugin.stopped().map(|reason| {
-            notice(format!("Stopped: {reason}. It’s off until Delight restarts."), t)
+            v_flex()
+                .items_stretch()
+                .gap(px(8.))
+                .child(notice(format!("Stopped: {}", plugins::stop_summary(&reason)), t))
+                .child(h_flex().gap(px(8.)).child(plugins::restart_button(&id, cx)).child(plugins::copy_details_button(&id, &reason)))
+                .into_any_element()
         });
 
         let tools = manifest
@@ -249,13 +254,25 @@ impl SettingsWindow {
     fn permissions_of(&self, plugin_id: &str, permissions: &[PermissionRequest], t: &Theme, cx: &mut Context<Self>) -> Vec<AnyElement> {
         let closed = OpenPermissions::default();
         let open = self.open_permissions.get(plugin_id).unwrap_or(&closed);
+        // Taken back, the plugin starts again without it.
+        let take_back = |kind: &Permission, item: &str| -> Toggle {
+            let (plugin_id, kind, item) = (plugin_id.to_string(), kind.clone(), item.to_string());
+            Box::new(cx.listener(move |_, _: &ClickEvent, _, cx| {
+                cx.stop_propagation();
+                crate::permissions::take_back(&plugin_id, &kind, &item, cx);
+                cx.notify();
+            }))
+        };
         permission_rows(
             permissions,
+            &Given { permissions: crate::permissions::given(plugin_id, cx), take_back: Some(&take_back) },
             open,
-            |index| {
+            |toggled| {
                 let plugin_id = plugin_id.to_string();
                 Box::new(cx.listener(move |this, _: &ClickEvent, _, cx| {
-                    this.open_permissions.entry(plugin_id.clone()).or_default().toggle(index);
+                    // A click on "Show more" isn't one on its row too.
+                    cx.stop_propagation();
+                    this.open_permissions.entry(plugin_id.clone()).or_default().toggle(toggled);
                     cx.notify();
                 }))
             },
@@ -387,112 +404,6 @@ pub(super) fn broken_header(broken: &Broken, t: &Theme) -> AnyElement {
         .into_any_element()
 }
 
-/// Which of a plugin's permission rows are open: none, until one is clicked.
-#[derive(Debug, Default)]
-pub(crate) struct OpenPermissions(HashSet<usize>);
-
-impl OpenPermissions {
-    pub(crate) fn is_open(&self, index: usize) -> bool {
-        self.0.contains(&index)
-    }
-
-    pub(crate) fn toggle(&mut self, index: usize) {
-        if !self.0.remove(&index) {
-            self.0.insert(index);
-        }
-    }
-}
-
-/// What a click on a permission's row does: the view that draws the rows makes one for each.
-pub(crate) type Toggle = Box<dyn Fn(&ClickEvent, &mut Window, &mut App)>;
-
-/// The rows of a Permissions section: one per permission. Each shows an icon, the permission's name
-/// and the plugin's own reason in one line; click it (or its chevron) for the reason in full, what
-/// the permission allows, and, for a permission that lists things (the programs `Commands` runs),
-/// each as a chip. Or one row saying there are none.
-pub(crate) fn permission_rows(
-    permissions: &[PermissionRequest],
-    open: &OpenPermissions,
-    toggle: impl Fn(usize) -> Toggle,
-    t: &Theme,
-) -> Vec<AnyElement> {
-    if permissions.is_empty() {
-        let check = Icon::new(IconName::CircleCheck).size(px(18.)).color(t.success).into_any_element();
-        return vec![item(check, "Needs no permissions".into(), None, None, t)];
-    }
-    let last = permissions.len() - 1;
-    permissions
-        .iter()
-        .enumerate()
-        .map(|(index, request)| permission_row(index, index == last, request, open.is_open(index), toggle(index), t))
-        .collect()
-}
-
-/// One permission's row: `index` in the card, and whether it is the `last` (the card's corners are
-/// its own there).
-fn permission_row(index: usize, last: bool, request: &PermissionRequest, open: bool, toggle: Toggle, t: &Theme) -> AnyElement {
-    let spec = request.permission.spec();
-    let icon = IconName::from_name(spec.icon()).unwrap_or(IconName::Puzzle);
-    // Just the icon, in the permission's colour: no tile behind it.
-    let tile = div().size(px(20.)).flex_shrink_0().flex().items_center().justify_center().child(Icon::new(icon).size(px(18.)).color(t.warning));
-    // The reason: one line when the row is closed, all of it (at most a sentence) when it is open.
-    let why = div().mt(px(2.)).text_size(px(12.)).clamp_lines(if open { 4 } else { 1 }).child(request.reason.clone());
-    let allows = open.then(|| {
-        v_flex()
-            .mt(px(8.))
-            .gap(px(1.))
-            .child(div().text_size(px(10.)).font_weight(FontWeight::BOLD).text_color(t.text_faint).child("ALLOWS"))
-            .child(div().text_size(px(12.)).text_color(t.text_muted).clamp_lines(3).child(spec.describe()))
-    });
-    // Orange like the icon, so what the plugin runs stands out; a step darker in light mode,
-    // where the orange itself is too pale for text.
-    let ink = if t.dark { t.warning } else { gpui::hsla(t.warning.h, t.warning.s, t.warning.l * 0.72, 1.) };
-    let items = spec.items();
-    let items = (open && !items.is_empty()).then(|| {
-        h_flex().flex_wrap().gap(px(6.)).mt(px(7.)).children(items.into_iter().map(|item| {
-            // One line, cut with an ellipsis at the card's width: a program's path can be very long.
-            div()
-                .max_w_full()
-                .truncate()
-                .px(px(8.))
-                .py(px(2.))
-                .rounded(px(10.))
-                .bg(t.tint(t.warning))
-                .border_1()
-                .border_color(t.warning.opacity(0.4))
-                .font_family(t.mono_font.clone())
-                .text_size(px(11.))
-                .font_weight(FontWeight::MEDIUM)
-                .text_color(ink)
-                .child(delight_ui::ellipsize(&item, 100))
-        }))
-    });
-    let chevron = Icon::new(if open { IconName::ChevronUp } else { IconName::ChevronDown }).size(px(14.)).color(t.text_faint);
-    // The icon, the name and the chevron share one line, so they line up; the text under it starts
-    // at the name.
-    v_flex()
-        .id(("permission", index))
-        .px(px(14.))
-        .py(px(10.))
-        // The hover colour follows the card's rounded corners at its top and bottom: GPUI clips to
-        // rectangles, so the card can't round it.
-        .when(index == 0, |row| row.rounded_t(t.radius))
-        .when(last, |row| row.rounded_b(t.radius))
-        .cursor_pointer()
-        .hover(|row| row.bg(t.fill_subtle()))
-        .on_click(toggle)
-        .child(
-            h_flex()
-                .items_center()
-                .gap(px(12.))
-                .child(tile)
-                .child(div().flex_1().min_w(px(0.)).font_weight(FontWeight::SEMIBOLD).truncate().child(spec.title()))
-                .child(div().flex_shrink_0().child(chevron)),
-        )
-        .child(v_flex().pl(px(32.)).child(why).children(allows).children(items))
-        .into_any_element()
-}
-
 /// The rows of a Tips section: each tip as its author wrote it, beside a lightbulb.
 fn tip_rows(tips: &[String], t: &Theme) -> Vec<AnyElement> {
     tips.iter()
@@ -605,7 +516,7 @@ fn notice(text: String, t: &Theme) -> AnyElement {
         .rounded(t.radius)
         .bg(t.tint(t.error))
         .child(div().pt(px(1.)).child(Icon::new(IconName::CircleX).size(px(14.)).color(t.error)))
-        .child(div().flex_1().min_w(px(0.)).child(text))
+        .child(div().flex_1().min_w(px(0.)).line_clamp(3).child(text))
         .into_any_element()
 }
 

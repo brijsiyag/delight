@@ -344,8 +344,8 @@ fork's `delight` branch.
     installed plugin's `<id>.xml` at launch and once a day, and downloads `<id>.wasm` only when the
     version is newer; built-ins update with the app. A download is checked before anything runs:
     its SHA-256, its manifest (read without running it), the id and version the `.xml` said, newer
-    than the installed one. An update that asks for nothing new (the same permissions, the same
-    programs) replaces the file and restarts that plugin alone, keeping its data, secrets and
+    than the installed one. An update that asks for nothing new (no permission, program or folder the
+    installed one wasn't granted) replaces the file and restarts that plugin alone, keeping its data, secrets and
     settings; one that asks for more goes through the install window, like a new plugin. Each
     plugin's page has "Update automatically" (on by default, stored per plugin): it applies the first
     kind on its own, never while the plugin's tool is shown or one of its windows is open; the second

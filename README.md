@@ -134,8 +134,8 @@ back to it.
 ## Troubleshooting
 
 - **A tool says its plugin stopped.** The plugin crashed or took too long, and the other plugins
-  carry on. It stays off until Delight starts again (*Quit Delight* in the menu bar, then open
-  it); *Open Logs* shows why it stopped.
+  carry on. *Restart*, in its tool or on its page in Settings, starts it again; *Copy details*
+  copies why it stopped, and *Open Logs* shows the rest.
 - **A plugin won't load.** Settings lists it with a warning sign; its page says why, and *Copy
   Details* copies all of it. A plugin built for a newer Delight needs Delight updated; one built
   for an older plugin API needs rebuilding by its author.

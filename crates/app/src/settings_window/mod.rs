@@ -27,8 +27,9 @@ use gpui::{
 };
 
 use crate::{hotkey, launcher};
+use crate::permissions::view::OpenPermissions;
 use crate::plugins::{self as loaded, Broken, Source};
-pub(crate) use plugins::{OpenPermissions, file_name, permission_rows};
+pub(crate) use plugins::file_name;
 use plugins::SettingsPage;
 use shortcut_recorder::{Recorded, ShortcutRecorder};
 

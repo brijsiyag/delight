@@ -18,7 +18,7 @@ use futures::StreamExt as _;
 use gpui::{App, AppContext as _, Global, Task};
 
 use super::{all, install, save_download, sources};
-use crate::{install_window, launcher, plugin_windows, settings};
+use crate::{install_window, launcher, permissions, plugin_windows, settings};
 
 /// The first look waits for the plugins to have started, and for launch to be over.
 const FIRST_CHECK: Duration = Duration::from_secs(30);
@@ -230,8 +230,8 @@ fn downloaded_update(id: &str, installed: &Manifest, automatic: bool, downloaded
             log::warn!("updating {id}: {error:#}");
             State::Failed(format!("{error:#}"))
         }
-        Ok((manifest, _)) if automatic && updates::asks_for_more(installed, &manifest) => State::AsksForMore,
-        Ok((manifest, file)) if updates::asks_for_more(installed, &manifest) => {
+        Ok((manifest, _)) if automatic && permissions::asks_for_more(installed, &manifest) => State::AsksForMore,
+        Ok((manifest, file)) if permissions::asks_for_more(installed, &manifest) => {
             install_window::open_files(vec![file], cx);
             State::Ready
         }

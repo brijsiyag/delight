@@ -49,6 +49,12 @@ mod dns;
 // TEMPORARY(open_url): `Host::open_url`, until embedded_gpui forwards GPUI's own;
 // docs/development.md, "Temporary host APIs".
 mod open_url;
+// TEMPORARY(pick_folders): `Host::pick_folders`, until GPUI's own picker works in a plugin;
+// docs/development.md, "Temporary host APIs".
+mod pick_folders;
+// TEMPORARY(save_file): `Host::save_file`, until GPUI's own save panel works in a plugin;
+// docs/development.md, "Temporary host APIs".
+mod save_file;
 // TEMPORARY(network): HTTP, callbacks and gRPC through the app, until embedded_gpui links
 // `wasi:http`; docs/development.md, "Temporary host APIs".
 pub mod network;
@@ -64,7 +70,9 @@ pub use http;
 // TEMPORARY(network)
 #[cfg(feature = "grpc")]
 pub use tonic;
-pub use host::{Confirm, Host, WindowOptions, host, settings_changed, theme};
+pub use host::{Access, Confirm, Host, WindowOptions, host, settings_changed, theme};
+// TEMPORARY(pick_folders)
+pub use pick_folders::PickFolders;
 pub use tool::AnyTool;
 
 use gpui::{AnyView, App, AssetSource, Context, Render};

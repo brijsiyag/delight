@@ -129,9 +129,10 @@ A plugin is a WASI component that sees almost nothing of the Mac:
 ## When a plugin stops
 
 A panic, a turn over its second, too much memory or drawing, or a call it doesn't answer within
-three seconds stops the plugin. Delight then shows *"Name stopped: why. It's off until Delight
-restarts."* in place of its tools, toasts once, and carries on with every other plugin. Installing
-the plugin again starts it again. The reason is in the log.
+three seconds stops the plugin. Delight then shows *"Name stopped: why"* in place of its tools,
+with **Restart** (it starts again, from the same file) and **Copy details**, toasts once, and
+carries on with every other plugin. Its page in Settings has the same buttons. The reason is in the
+log.
 
 ## Talking to the app
 

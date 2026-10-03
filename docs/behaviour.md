@@ -192,8 +192,10 @@ that code was organised. Where the rewrite changes something on purpose,
 - Empty states (Sparkles icon): no candidates → "No tool fits this input" /
   "Plugins in the plugins folder add tools."; candidates but none selected →
   "No strong match" / "Pick a tool on the left, or keep typing."
-- A stopped plugin: "{name} stopped: {reason}\n\nIt's off until Delight
-  restarts (menu bar → Restart Delight)."
+- A stopped plugin: "{name} stopped: {why}", at most three lines (why: "it took too long, past
+  the time a plugin has to answer" for a turn that ran too long, "it crashed …" for another trap,
+  else its reason without the backtrace's frames), then **Restart** (starts it again from the same
+  file; "Restarting…" while it does) and **Copy details** (the whole reason, backtrace and all).
 - A pane is made on first selection, one per (plugin, operation), and kept
   with its state until its plugin starts again. Only the selected tool's view is
   shown in its plugin; the others, and every tool while the launcher is hidden, are
@@ -375,8 +377,8 @@ startup falls back to the default.
 - Every tool and every settings card a plugin has is shown. The launcher looks
   up a key (⌘1–⌘9) only for the first nine tools.
 - Plugin row: badge 26; name + "Built-in|Plugin · v{version} · N tool(s)";
-  description (truncated); permissions line; stopped line "Stopped: {reason}
-  — off until Delight restarts"; ⚙ if it has settings; 🗑 for installed ones
+  description (truncated); permissions line; stopped line "Stopped: {why}" (as the launcher
+  says it, three lines at most) with Restart and Copy details; ⚙ if it has settings; 🗑 for installed ones
   (confirm "Delete “name”?" — "This removes the plugin, its settings, its
   data and its saved secrets. It can't be undone."); an on/off switch.
   Delete removes the file, its settings, data folder, remembered inputs,

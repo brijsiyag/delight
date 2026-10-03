@@ -8,7 +8,7 @@ use std::collections::{BTreeSet, HashSet};
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use delight_protocol::Manifest;
+use delight_protocol::{Manifest, Permissions};
 use delight_runtime::{Plugin, plugin_options, read_manifest};
 // TEMPORARY(fork_compile_cache): the fork's, until upstream embedded_gpui caches compiled plugins
 // (docs/development.md, "The embedded_gpui fork").
@@ -17,7 +17,7 @@ use gpui::{App, AppContext as _, AsyncApp, PlatformTextSystem};
 
 use super::host_root::HostRoot;
 use super::{Broken, Plugins, Problem, Source, builtins_dir, data_dir, plugins_dir};
-use crate::{launcher, plugin_windows};
+use crate::{launcher, permissions, plugin_windows};
 
 /// Start the plugins at launch, shaping their text with the app's text system: every plugin file,
 /// built-in or installed, is named `<id>.wasm`, and each plugin is started on its own, as
@@ -39,10 +39,12 @@ pub fn load(text_system: Arc<dyn PlatformTextSystem>, cx: &mut App) {
     }
 }
 
-/// Plugin `id` was installed, updated or deleted: start it again, alone, from the file that is it
-/// now (the installed `<id>.wasm`, else the built-in one), or take it away if there is none. The
-/// other plugins go on as they are. A plugin already running from that very file goes on too.
-/// Asked again before it has started, the newer ask cancels this one.
+/// Plugin `id` was installed, updated or deleted, or what it may do changed (it was given a folder,
+/// or one was taken back, which it has only from its start): start it again, alone, from the file
+/// that is it now (the installed `<id>.wasm`, else the built-in one), or take it away if there is
+/// none. The other plugins go on as they are. A plugin already running from that very file, with
+/// the same permissions, goes on too. Asked again before it has started, the newer ask cancels
+/// this one.
 pub fn restart(id: &str, cx: &mut App) {
     let file = [(plugins_dir(), false), (builtins_dir(), true)]
         .into_iter()
@@ -68,16 +70,20 @@ pub fn restart(id: &str, cx: &mut App) {
                     return;
                 }
             };
-            // The very file it runs from, and still running: nothing changed.
+            let permissions = cx.update(|cx| permissions::of(&manifest.plugin, cx));
+            // The very file it runs from, with the same permissions, and still running: nothing
+            // changed.
             let unchanged = cx.update(|cx| {
                 let plugins = cx.global::<Plugins>();
-                plugins.sources.iter().zip(plugins.started.iter()).any(|(running, plugin)| *running == source && plugin.stopped().is_none())
+                plugins.sources.iter().zip(plugins.started.iter()).any(|(running, plugin)| {
+                    *running == source && *plugin.permissions() == permissions && plugin.stopped().is_none()
+                })
             });
             if unchanged {
                 cx.update(|cx| cx.global_mut::<Plugins>().starting.remove(&id));
                 return;
             }
-            start(id, source, manifest, cx).await;
+            start(id, source, manifest, permissions, cx).await;
         }
     });
     // Replacing a start in progress drops it, which cancels it.
@@ -102,8 +108,9 @@ enum Outcome {
     Gone,
 }
 
-/// Start plugin `id` from `source`, then put it in its place among the running plugins.
-async fn start(id: String, source: Source, manifest: Manifest, cx: &mut AsyncApp) {
+/// Start plugin `id` from `source`, with `permissions` (its manifest's, with what it was given),
+/// then put it in its place among the running plugins.
+async fn start(id: String, source: Source, manifest: Manifest, permissions: Permissions, cx: &mut AsyncApp) {
     let started = cx.update(|cx| {
         let (text_system, compile_cache) = {
             let plugins = cx.global::<Plugins>();
@@ -111,14 +118,14 @@ async fn start(id: String, source: Source, manifest: Manifest, cx: &mut AsyncApp
         };
         let data = data_dir(&id);
         // Compiled once, then loaded from the cache while the file is the same.
-        let mut options = plugin_options(&manifest, data.clone(), text_system);
+        let mut options = plugin_options(&manifest, &permissions, data.clone(), text_system);
         // TEMPORARY(fork_compile_cache)
         if let Some(cache) = compile_cache {
             options = options.with_compile_cache(cache);
         }
-        let host_id = id.clone();
-        let root = move |granted, cx: &mut App| cx.new(|cx| HostRoot::new(host_id, granted, cx));
-        Some(Plugin::start(source.file.clone(), manifest, options, data, root, cx))
+        let plugin = manifest.plugin.clone();
+        let root = move |granted, cx: &mut App| cx.new(|cx| HostRoot::new(plugin, granted, cx));
+        Some(Plugin::start(source.file.clone(), manifest, permissions, options, data, root, cx))
     });
     let Some(started) = started else {
         cx.update(|cx| cx.global_mut::<Plugins>().starting.remove(&id));

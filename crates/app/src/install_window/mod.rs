@@ -26,7 +26,8 @@ mod link;
 use link::{LINK_EXAMPLE, LinkPage};
 
 use crate::plugins;
-use crate::settings_window::{ITEM_ICON, OpenPermissions, content_color, file_name, item, permission_rows};
+use crate::permissions::view::{Given, OpenPermissions, permission_rows};
+use crate::settings_window::{ITEM_ICON, content_color, file_name, item};
 
 const WIDTH: f32 = 520.;
 const HEIGHT: f32 = 540.;
@@ -372,10 +373,13 @@ impl InstallWindow {
     fn permissions(&self, permissions: &[delight_protocol::PermissionRequest], t: &Theme, cx: &mut Context<Self>) -> Vec<AnyElement> {
         permission_rows(
             permissions,
+            &Given::none(),
             &self.open,
-            |index| {
+            |toggled| {
                 Box::new(cx.listener(move |this, _: &gpui::ClickEvent, _, cx| {
-                    this.open.toggle(index);
+                    // A click on "Show more" isn't one on its row too.
+                    cx.stop_propagation();
+                    this.open.toggle(toggled);
                     cx.notify();
                 }))
             },

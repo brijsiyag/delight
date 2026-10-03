@@ -237,7 +237,7 @@ mod tests {
 
         assert!(read(syn::parse_quote!(Network)).unwrap_err().contains("say why"));
         assert!(read(syn::parse_quote!(Network("  "))).unwrap_err().contains("blank"));
-        assert!(read(syn::parse_quote!(Files("Reads files"))).unwrap_err().contains("unknown variant"));
+        assert!(read(syn::parse_quote!(Camera("Takes photos"))).unwrap_err().contains("unknown variant"));
         assert!(read(syn::parse_quote!(Network("a", "b"))).unwrap_err().contains("expected a permission"));
     }
 
@@ -252,5 +252,14 @@ mod tests {
         assert!(read(syn::parse_quote!(Commands("Lists", programs = [1]))).is_err(), "a number is not a program");
         assert!(read(syn::parse_quote!(Commands("Lists", ["/bin/ps"]))).unwrap_err().contains("expected a permission"));
         assert!(read(syn::parse_quote!(Network("Fetches", programs = ["/bin/ps"]))).unwrap_err().contains("unknown field"));
+
+        let none: [&str; 0] = [];
+        let request = read(syn::parse_quote!(Files("Lists your screenshots", read = ["~/Desktop"]))).unwrap();
+        assert_eq!(request.permission, Permission::files(["~/Desktop"], none));
+        let request = read(syn::parse_quote!(Files("Keeps notes", read = ["~/Desktop"], write = ["~/Notes"]))).unwrap();
+        assert_eq!(request.permission, Permission::files(["~/Desktop"], ["~/Notes"]));
+        assert_eq!(read(syn::parse_quote!(Files("Opens what you pick"))).unwrap().permission, Permission::files(none, none));
+        assert!(read(syn::parse_quote!(Files("Reads everything", read = ["/"]))).is_ok(), "any path");
+        assert!(read(syn::parse_quote!(Files("Twice", read = ["~/a"], write = ["~/a"]))).unwrap_err().contains("twice"));
     }
 }

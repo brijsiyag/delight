@@ -9,7 +9,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::{Context as _, Result, anyhow};
-use delight_manifest::{Manifest, NetworkPermission};
+use delight_manifest::{FilesPermission, Manifest, NetworkPermission, Permissions, expand_home};
 use delight_protocol::{Detection, HostApi, Input, PluginApi, PluginApiCaller as _, SettingsSection, ToolApi};
 use embedded_gpui::gpui::{App, Entity, PlatformTextSystem, Subscription, Task};
 use embedded_gpui::{PluginHost, PluginHostHandle as _, PluginOptions, Remote, Shared, Surface};
@@ -31,15 +31,23 @@ const STOPPED_BY_EMBEDDED_GPUI: &str = "call failed: plugin stopped";
 /// How long a question about a plugin's text field waits for the plugin's answer.
 const INPUT_QUERY_BUDGET: Duration = Duration::from_millis(20);
 
-/// The sandbox a plugin runs in, from what its manifest grants: its data folder
-/// (created if needed) at `/data`, and the network (sockets and name lookups) only
-/// with [`Permission::Network`]. Nothing else outside the sandbox is reachable.
+/// The sandbox a plugin runs in, from what it has (`permissions`: its manifest's, with what the
+/// user gave it): its data folder (created if needed) at `/data`; the network (sockets and name
+/// lookups) only with [`Permission::Network`]; and with [`Permission::Files`] its folders, each
+/// where it is on the Mac (`~` meaning the home folder), read-only unless it may write there,
+/// with `HOME` set. Nothing else outside the sandbox is reachable.
 pub fn plugin_options(
     manifest: &Manifest,
+    permissions: &Permissions,
     data_dir: PathBuf,
     text_system: Arc<dyn PlatformTextSystem>,
 ) -> PluginOptions {
-    let network = manifest.plugin.permission::<NetworkPermission>().is_some();
+    let home = std::env::home_dir();
+    let network = permissions.get::<NetworkPermission>().is_some();
+    // Its folders where they are on this Mac: `~` is the home folder, which macOS doesn't know.
+    let folders: Option<Vec<(PathBuf, bool)>> = permissions
+        .get::<FilesPermission>()
+        .map(|files| files.folders().map(|(folder, write)| (expand_home(folder, home.as_deref()), write)).collect());
     let name = manifest.plugin.name.clone();
     // The app asks a plugin's focused text field questions on the main thread (where the cursor is,
     // for the input method) and waits for the answer this long: the plugin's turn in between may
@@ -57,6 +65,19 @@ pub fn plugin_options(
         if network {
             wasi.inherit_network().allow_ip_name_lookup(true);
         }
+        if let Some(folders) = &folders {
+            // Each folder at its own path, so the plugin uses the paths the user knows; a folder
+            // that is gone (or can't be opened) is left out, and the others are still there.
+            for (folder, write) in folders {
+                let (dirs, file_perms) = if *write { (DirPerms::all(), FilePerms::all()) } else { (DirPerms::READ, FilePerms::READ) };
+                if let Err(error) = wasi.preopened_dir(folder, folder.to_string_lossy(), dirs, file_perms) {
+                    log::warn!("{name}: giving it the folder {}: {error:#}", folder.display());
+                }
+            }
+            if let Some(home) = &home {
+                wasi.env("HOME", home.to_string_lossy());
+            }
+        }
     })
 }
 
@@ -69,6 +90,8 @@ pub fn plugin_options(
 #[derive(Clone)]
 pub struct Plugin {
     manifest: Rc<Manifest>,
+    /// What it may do, as it started with it: its sandbox and [`Granted`] are made from it.
+    permissions: Rc<Permissions>,
     host: Entity<PluginHost>,
     root: Remote<PluginApi>,
     stopped: Rc<RefCell<Option<String>>>,
@@ -80,12 +103,13 @@ pub struct Plugin {
 impl Plugin {
     /// Start the plugin in `file`: compile and instantiate it on a background thread,
     /// make the app's root object for this plugin alone with `host_root`, given what
-    /// the manifest grants, install it, and connect to the plugin's root. A plugin
-    /// that can't start is an error. `data_dir` is the plugin's data folder (the one
-    /// `options` mounts), where the programs it may run work.
+    /// its `permissions` grant (those `options` was made with), install it, and connect to the
+    /// plugin's root. A plugin that can't start is an error. `data_dir` is the plugin's data
+    /// folder (the one `options` mounts), where the programs it may run work.
     pub fn start<H: Shared<HostApi>>(
         file: PathBuf,
         manifest: Manifest,
+        permissions: Permissions,
         options: PluginOptions,
         data_dir: PathBuf,
         host_root: impl FnOnce(Granted, &mut App) -> Entity<H> + 'static,
@@ -95,7 +119,7 @@ impl Plugin {
         cx.spawn(async move |cx| {
             let host = load.await.context("the plugin didn't start")?;
             Ok(cx.update(|cx| {
-                let granted = Granted::new(&manifest, data_dir, host.registry(cx), host.read(cx).clipboard(), cx);
+                let granted = Granted::new(&permissions, data_dir, host.registry(cx), host.read(cx).clipboard(), cx);
                 let host_root = host_root(granted, cx);
                 host.share_root(&host_root, cx);
                 let root = host.root::<PluginApi>(cx);
@@ -108,6 +132,7 @@ impl Plugin {
                 });
                 Plugin {
                     manifest: Rc::new(manifest),
+                    permissions: Rc::new(permissions),
                     host,
                     root,
                     stopped,
@@ -119,6 +144,11 @@ impl Plugin {
 
     pub fn manifest(&self) -> &Manifest {
         &self.manifest
+    }
+
+    /// What it may do: the permissions it started with.
+    pub fn permissions(&self) -> &Permissions {
+        &self.permissions
     }
 
     /// Whether both are the same running instance (clones of one start), not only the same plugin:

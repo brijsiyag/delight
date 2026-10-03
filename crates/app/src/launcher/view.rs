@@ -281,7 +281,9 @@ impl Launcher {
         let detail = detail.child(header);
         // A plugin that stopped isn't called again: say so instead.
         if let Some(reason) = plugin.stopped() {
-            return (detail.child(stopped_notice(t, format!("{name} stopped: {reason}\n\nIt's off until Delight restarts."))), None);
+            let id = &plugin.manifest().plugin.id;
+            let buttons = [plugins::restart_button(id, cx), plugins::copy_details_button(id, &reason)];
+            return (detail.child(stopped_notice(t, format!("{name} stopped: {}", plugins::stop_summary(&reason)), buttons)), None);
         }
         match self.selected_pane(cx) {
             // The rest of the height; the plugin draws its view there.
@@ -407,7 +409,9 @@ fn icon(plugin: &Plugin, operation: usize) -> &[u8] {
     own.unwrap_or(&manifest.plugin.icon).as_bytes()
 }
 
-fn stopped_notice(t: &Theme, text: String) -> impl IntoElement {
+/// What the tool pane shows for a plugin that stopped: why, in a few lines at most, and buttons
+/// to start it again and to copy all of why.
+fn stopped_notice(t: &Theme, text: String, buttons: [delight_ui::Button; 2]) -> impl IntoElement {
     h_flex()
         .items_start()
         .gap(px(8.))
@@ -418,5 +422,13 @@ fn stopped_notice(t: &Theme, text: String) -> impl IntoElement {
         .border_1()
         .border_color(t.error.opacity(0.25))
         .child(div().pt(px(1.)).child(Icon::new(IconName::CircleX).size(px(14.)).color(t.error)))
-        .child(div().flex_1().min_w(px(0.)).child(text))
+        .child(
+            v_flex()
+                .flex_1()
+                .min_w(px(0.))
+                .items_start()
+                .gap(px(10.))
+                .child(div().line_clamp(3).child(text))
+                .child(h_flex().gap(px(8.)).children(buttons)),
+        )
 }

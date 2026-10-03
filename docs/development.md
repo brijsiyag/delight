@@ -238,6 +238,18 @@ APIs of this kind follow the same rule.
   embedded_gpui forwards GPUI's own `cx.open_url` from plugins (its plugin
   platform drops it today). Folders: `crates/runtime/src/open_url/`,
   `crates/plugin-api/src/open_url/`, `tests/open_url.rs`.
+- **Picking folders**, `TEMPORARY(pick_folders)`. `host(cx).pick_folders(…)` shows
+  macOS's folder picker through the app; the folders picked are the plugin's (with
+  `Files`), and it starts again with them. It goes once embedded_gpui passes GPUI's own
+  `cx.prompt_for_paths` through from plugins, and gives a plugin the folders picked.
+  Folders: `crates/plugin-api/src/pick_folders/`, `crates/app/src/pick_folders/`,
+  `tests/pick_folders.rs`.
+- **Saving a file**, `TEMPORARY(save_file)`. `host(cx).save_file(…)` shows macOS's save
+  panel through the app, which writes the file the plugin hands it, so the plugin needs no
+  folder for it. It goes once embedded_gpui passes GPUI's own `cx.prompt_for_new_path`
+  through from plugins. Folders: `crates/plugin-api/src/save_file/`,
+  `crates/app/src/save_file/`, `tests/save_file.rs`. Both show their panel with
+  `dialogs::panel` and `macos::FilePanel`, marked with both names.
 
 - **Refreshing the clipboard early**, `TEMPORARY(clipboard)`. A paste in a plugin
   reads the plugin's own copy of the clipboard, which embedded_gpui refreshes when
@@ -268,6 +280,8 @@ Delight uses (Zed's `gpui-multi-root-embedded-rebased` branch, commit
 | `present`, `hide` | tell which app was in front and give it back the keyboard, and hide one window (`cx.hide()` hides the whole app) |
 | `enter`, `settle`, `leave` | animate a window's opacity and frame as it shows and hides (the launcher comes and goes as Spotlight does) |
 | `is_window_visible` | tell whether a window is on screen |
+| `FilePanel::raise_to` | open a system panel (`prompt_for_paths`, `prompt_for_new_path`) above a floating window: it opens at the ordinary windows' level, behind the launcher |
+| `FilePanel::keep_extension` | tell a save panel the file's type (`prompt_for_new_path` takes only a name), so its extension stays on the name and shows |
 
 `NativeWindow` exists because AppKit calls back into GPUI while a window
 changes, and GPUI drops those callbacks during its own updates ("RefCell

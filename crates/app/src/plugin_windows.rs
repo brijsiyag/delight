@@ -222,8 +222,13 @@ pub fn raise(window: &Window, cx: &mut App) {
 
 /// Whether the keyboard is in one of the plugins' windows, as AppKit says (not as GPUI last heard).
 pub fn has_keyboard(cx: &mut App) -> bool {
+    with_keyboard(cx).is_some()
+}
+
+/// The plugin window the keyboard is in, as AppKit says.
+pub fn with_keyboard(cx: &mut App) -> Option<AnyWindowHandle> {
     let windows: Vec<AnyWindowHandle> = cx.default_global::<Open>().0.iter().map(|open| open.window).collect();
-    windows.into_iter().any(|window| {
+    windows.into_iter().find(|window| {
         window
             .update(cx, |_, window, _| crate::macos::NativeWindow::of(window).is_some_and(|native| native.is_key()))
             .unwrap_or(false)

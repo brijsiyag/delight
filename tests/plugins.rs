@@ -11,7 +11,8 @@ use std::sync::{Arc, Once};
 use std::time::{Duration, Instant};
 
 use delight_protocol::{
-    Action, CommandsApi, DnsApi, HostApi, HttpApi, Input, Permission, PermissionRequest, Shortcut, Theme, ToolApi, ToolApiCaller as _,
+    Action, CommandsApi, DnsApi, HostApi, HttpApi, Input, Permission, PermissionRequest, Permissions, Shortcut, Theme, ToolApi,
+    ToolApiCaller as _,
 };
 use delight_runtime::{Candidate, Granted, Plugin, detect_all, plugin_options, read_manifest};
 use embedded_gpui::{ClipboardApi, Ref, Remote, Surface, shared};
@@ -71,6 +72,18 @@ struct FakeApp {
     /// user answers to them.
     confirmations: Vec<(String, String, String, bool)>,
     confirm_answer: bool,
+    /// The folders the plugin asked for: (path, write, reason); whether the user is taken to
+    /// allow one (the fake has no restart, so allowed answers `true`).
+    folders_asked: Vec<(String, bool, String)>,
+    folder_answer: bool,
+    /// TEMPORARY(pick_folders): the pickers the plugin opened: (multiple, write, prompt); the
+    /// folders the user picks.
+    pickers: Vec<(bool, bool, Option<String>)>,
+    picked: Vec<String>,
+    /// TEMPORARY(save_file): the files the plugin saved: (name, contents); where the user saves
+    /// them (none: cancelled).
+    saved: Vec<(String, Vec<u8>)>,
+    save_to: Option<String>,
 }
 
 #[shared]
@@ -142,6 +155,23 @@ impl HostApi for FakeApp {
     fn confirm(&mut self, title: String, message: String, continue_label: String, destructive: bool, _cx: &mut Context<Self>) -> gpui::Task<anyhow::Result<bool>> {
         self.confirmations.push((title, message, continue_label, destructive));
         gpui::Task::ready(Ok(self.confirm_answer))
+    }
+
+    fn request_folder(&mut self, path: String, write: bool, reason: String, _cx: &mut Context<Self>) -> gpui::Task<anyhow::Result<bool>> {
+        self.folders_asked.push((path, write, reason));
+        gpui::Task::ready(Ok(self.folder_answer))
+    }
+
+    // TEMPORARY(pick_folders)
+    fn pick_folders(&mut self, multiple: bool, write: bool, prompt: Option<String>, _cx: &mut Context<Self>) -> gpui::Task<anyhow::Result<Vec<String>>> {
+        self.pickers.push((multiple, write, prompt));
+        gpui::Task::ready(Ok(self.picked.clone()))
+    }
+
+    // TEMPORARY(save_file)
+    fn save_file(&mut self, name: String, contents: delight_protocol::Bytes, _cx: &mut Context<Self>) -> gpui::Task<anyhow::Result<Option<String>>> {
+        self.saved.push((name, contents.0));
+        gpui::Task::ready(Ok(self.save_to.clone()))
     }
 
     // As the app does it, without a window: a surface for the plugin to draw on.
@@ -237,6 +267,22 @@ async fn tool_with(plugin: &Plugin, text: &str, cx: &mut TestAppContext) -> Remo
     tool
 }
 
+/// What the fixture toasts after `action`, with `text` as its tool's input.
+async fn toasted(plugin: &Plugin, app: &Entity<FakeApp>, action: &str, text: &str, cx: &mut TestAppContext) -> String {
+    let before = app.read_with(cx, |app, _| app.toasts.len());
+    let tool = tool_with(plugin, text, cx).await;
+    cx.update(|cx| drop(tool.perform_action(action.into(), cx)));
+    let deadline = Instant::now() + Duration::from_secs(20);
+    loop {
+        cx.executor().run_until_parked();
+        if let Some(toast) = app.read_with(cx, |app, _| app.toasts.get(before).cloned()) {
+            return toast;
+        }
+        assert!(Instant::now() < deadline, "{action} toasted nothing");
+        std::thread::sleep(Duration::from_millis(10));
+    }
+}
+
 /// A fresh data folder for one test's plugin.
 fn data_dir(test: &str) -> PathBuf {
     std::env::temp_dir()
@@ -275,12 +321,22 @@ fn capture_logs() {
 
 /// Start the fixture with a fake app root, as the app will start any plugin.
 async fn start(test: &str, cx: &mut TestAppContext) -> (Plugin, Entity<FakeApp>) {
+    start_given(test, Vec::new(), cx).await
+}
+
+/// [`start`], with `given` added to its manifest's permissions, as the app adds what the user gave
+/// a plugin while it ran.
+async fn start_given(test: &str, given: Vec<Permission>, cx: &mut TestAppContext) -> (Plugin, Entity<FakeApp>) {
     capture_logs();
     let wasm = fixture();
     let manifest = read_manifest(&std::fs::read(&wasm).unwrap()).unwrap();
-    let options = plugin_options(&manifest, data_dir(test), Arc::new(gpui::NoopTextSystem::new()));
+    let mut permissions = Permissions::from(&manifest.plugin);
+    for permission in given {
+        permissions.add(permission);
+    }
+    let options = plugin_options(&manifest, &permissions, data_dir(test), Arc::new(gpui::NoopTextSystem::new()));
     let app = cx.new(|_| FakeApp::default());
-    let started = cx.update(|cx| Plugin::start(wasm, manifest, options, data_dir(test), root_of(&app), cx));
+    let started = cx.update(|cx| Plugin::start(wasm, manifest, permissions, options, data_dir(test), root_of(&app), cx));
     settle(cx);
     let started = started.await.expect("the fixture starts");
     app.update(cx, |app, _| app.plugin = Some(started.clone()));
@@ -311,7 +367,8 @@ fn the_manifest_is_read_from_the_wasm() {
         permission: Permission::commands(["/bin/echo", "/bin/pwd", "/usr/bin/env", "/bin/cat"]),
         reason: "Nothing: it's here to test running programs".into(),
     };
-    assert_eq!(manifest.plugin.permissions, [network, commands]);
+    let files = PermissionRequest { permission: Permission::Files(Default::default()), reason: "Nothing: it's here to test folders".into() };
+    assert_eq!(manifest.plugin.permissions, [network, commands, files]);
 }
 
 #[gpui::test]
@@ -440,10 +497,11 @@ async fn an_unknown_operation_is_an_error_not_a_stop(cx: &mut TestAppContext) {
 async fn a_plugin_that_overruns_its_turn_is_stopped(cx: &mut TestAppContext) {
     let wasm = fixture();
     let manifest = read_manifest(&std::fs::read(&wasm).unwrap()).unwrap();
-    let options = plugin_options(&manifest, data_dir("stops"), Arc::new(gpui::NoopTextSystem::new()))
+    let permissions = Permissions::from(&manifest.plugin);
+    let options = plugin_options(&manifest, &permissions, data_dir("stops"), Arc::new(gpui::NoopTextSystem::new()))
         .with_turn_budget(Duration::from_millis(200));
     let app = cx.new(|_| FakeApp::default());
-    let started = cx.update(|cx| Plugin::start(wasm, manifest, options, data_dir("stops"), root_of(&app), cx));
+    let started = cx.update(|cx| Plugin::start(wasm, manifest, permissions, options, data_dir("stops"), root_of(&app), cx));
     settle(cx);
     let plugin = started.await.unwrap();
 
@@ -468,10 +526,11 @@ async fn a_plugin_that_overruns_its_turn_is_stopped(cx: &mut TestAppContext) {
 async fn a_plugin_that_stops_outside_the_apps_calls_is_marked_stopped_at_once(cx: &mut TestAppContext) {
     let wasm = fixture();
     let manifest = read_manifest(&std::fs::read(&wasm).unwrap()).unwrap();
-    let options = plugin_options(&manifest, data_dir("stops-in-a-tool"), Arc::new(gpui::NoopTextSystem::new()))
+    let permissions = Permissions::from(&manifest.plugin);
+    let options = plugin_options(&manifest, &permissions, data_dir("stops-in-a-tool"), Arc::new(gpui::NoopTextSystem::new()))
         .with_turn_budget(Duration::from_millis(200));
     let app = cx.new(|_| FakeApp::default());
-    let started = cx.update(|cx| Plugin::start(wasm, manifest, options, data_dir("stops-in-a-tool"), root_of(&app), cx));
+    let started = cx.update(|cx| Plugin::start(wasm, manifest, permissions, options, data_dir("stops-in-a-tool"), root_of(&app), cx));
     settle(cx);
     let plugin = started.await.unwrap();
 
@@ -584,6 +643,7 @@ async fn a_plugin_reads_what_was_copied_after_the_app_refreshed_its_clipboard(cx
 }
 
 mod commands;
+mod folders;
 mod host_facts;
 
 // TEMPORARY(network): the app's HTTP for plugins.
@@ -591,3 +651,9 @@ mod network;
 
 // TEMPORARY(open_url): opening a URL.
 mod open_url;
+
+// TEMPORARY(pick_folders): the folder picker.
+mod pick_folders;
+
+// TEMPORARY(save_file): the save panel.
+mod save_file;

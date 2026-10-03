@@ -2,7 +2,7 @@
 //! reaches it through these functions; the window is a global.
 
 use gpui::{
-    App, AppContext as _, Bounds, Focusable as _, Global, Pixels, Point, SharedString, WindowBackgroundAppearance,
+    AnyWindowHandle, App, AppContext as _, Bounds, Focusable as _, Global, Pixels, Point, SharedString, WindowBackgroundAppearance,
     WindowBounds, WindowHandle, WindowKind, WindowOptions, point, px, size,
 };
 
@@ -192,6 +192,20 @@ pub(super) fn clicked(window: &gpui::Window, cx: &mut App) {
         }
     })
     .detach();
+}
+
+/// The launcher's window, if it has the keyboard (as AppKit says).
+pub fn window_with_keyboard(cx: &mut App) -> Option<AnyWindowHandle> {
+    let handle = handle(cx)?;
+    let key = handle.update(cx, |_, window, _| macos::NativeWindow::of(window).is_some_and(|native| native.is_key())).unwrap_or(false);
+    key.then(|| handle.into())
+}
+
+/// The launcher's window, if it is on screen.
+pub fn window_on_screen(cx: &mut App) -> Option<AnyWindowHandle> {
+    let handle = handle(cx)?;
+    let visible = handle.update(cx, |_, window, _| macos::is_window_visible(window)).unwrap_or(false);
+    visible.then(|| handle.into())
 }
 
 /// Where the launcher window is on screen.

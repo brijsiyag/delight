@@ -3,7 +3,7 @@
 //! `Network`, running programs for `Commands`). A `Network` plugin also has the sandbox's own sockets: see
 //! [`plugin_options`](crate::plugin_options).
 
-use delight_manifest::{CommandsPermission, Manifest, NetworkPermission};
+use delight_manifest::{CommandsPermission, NetworkPermission, Permissions};
 use std::path::PathBuf;
 
 use delight_protocol::{CommandsApi, DnsApi, HttpApi};
@@ -20,7 +20,7 @@ use crate::network::Http;
 ///
 /// Each is shared anew whenever the plugin asks for it: a ref lasts until the plugin
 /// drops what it connected. An object for a permission is made here only when the
-/// manifest asks for the permission.
+/// plugin has the permission.
 pub struct Granted {
     /// The plugin's end of the connection, to share them through.
     registry: Registry,
@@ -33,26 +33,23 @@ pub struct Granted {
     http: Option<Entity<Http>>,
     /// With [`Permission::Network`]: the Mac's DNS setup.
     dns: Option<Entity<Dns>>,
-    /// With [`Permission::Commands`]: the programs the manifest lists.
+    /// With [`Permission::Commands`]: the programs it lists.
     commands: Option<Entity<Commands>>,
 }
 
 impl Granted {
     pub(crate) fn new(
-        manifest: &Manifest,
+        permissions: &Permissions,
         data_dir: PathBuf,
         registry: Registry,
         clipboard: Entity<Clipboard>,
         cx: &mut App,
     ) -> Self {
         // TEMPORARY(network)
-        let network = manifest.plugin.permission::<NetworkPermission>().is_some();
+        let network = permissions.get::<NetworkPermission>().is_some();
         let http = network.then(|| cx.new(|_| Http::new(registry.clone())));
         let dns = network.then(|| cx.new(|_| Dns));
-        let commands = manifest
-            .plugin
-            .permission::<CommandsPermission>()
-            .map(|commands| cx.new(|_| Commands::new(commands.programs.clone(), data_dir)));
+        let commands = permissions.get::<CommandsPermission>().map(|commands| cx.new(|_| Commands::new(commands.programs.clone(), data_dir)));
         Granted { registry, clipboard, http, dns, commands }
     }
 
@@ -74,7 +71,7 @@ impl Granted {
         Some(self.registry.share(dns, cx))
     }
 
-    /// Running the manifest's programs, if the plugin has [`Permission::Commands`].
+    /// Running the programs it may run, if the plugin has [`Permission::Commands`].
     pub fn commands(&self, cx: &mut App) -> Option<Ref<CommandsApi>> {
         let commands = self.commands.as_ref()?;
         Some(self.registry.share(commands, cx))

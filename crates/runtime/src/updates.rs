@@ -87,14 +87,6 @@ pub fn check(release: &Release, installed: Option<&Manifest>, wasm: Vec<u8>) -> 
     Ok(Downloaded { wasm, manifest })
 }
 
-/// Whether `new` asks for anything `installed` wasn't granted: a permission it didn't have, or
-/// the same permission with other data (other programs to run). A reason that changed asks for
-/// nothing more.
-pub fn asks_for_more(installed: &Manifest, new: &Manifest) -> bool {
-    let granted = &installed.plugin.permissions;
-    new.plugin.permissions.iter().any(|request| !granted.iter().any(|had| had.permission == request.permission))
-}
-
 /// GET `url`, at most `limit` bytes, within `timeout`, telling `progress` the bytes so far and the
 /// size the server gives. Certificates are checked by macOS, as the rest of Delight's network does,
 /// so a company's TLS proxy works.
@@ -266,18 +258,5 @@ mod tests {
         assert!(refused(release(&logs("1.2.0"), &older), &older).contains("not newer"));
         let text = Release { sha256: hex(&Sha256::digest(b"text")), ..release(&logs("1.4.0"), &file) };
         assert!(refused(text, b"text").contains("downloaded file"));
-    }
-
-    #[test]
-    fn an_update_asks_for_more_only_with_a_new_permission_or_other_programs() {
-        let id = "com.example.logs";
-        let installed = manifest(id, "1.0.0", vec![Permission::network(), Permission::commands(["/bin/ps"])]);
-        assert!(!asks_for_more(&installed, &manifest(id, "1.1.0", vec![Permission::network()])), "fewer");
-        let mut reworded = installed.clone();
-        reworded.plugin.permissions[0].reason = "Another reason".into();
-        assert!(!asks_for_more(&installed, &reworded), "a new reason");
-        assert!(asks_for_more(&manifest(id, "1.0.0", vec![Permission::network()]), &installed), "a new permission");
-        let more_programs = manifest(id, "1.1.0", vec![Permission::network(), Permission::commands(["/bin/ps", "/bin/kill"])]);
-        assert!(asks_for_more(&installed, &more_programs), "other programs");
     }
 }

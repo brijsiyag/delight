@@ -37,7 +37,7 @@ use gpui::{
 pub use history_search::CONTEXT as HISTORY_SEARCH_CONTEXT;
 pub use window::{
     bounds, focus_gained, focus_left, hide, hide_then, level, open, plugins_loaded, refresh, set_input, show, shows_plugin, toast,
-    toggle,
+    toggle, window_on_screen, window_with_keyboard,
 };
 
 use crate::macos::{self, NativeWindow};
@@ -604,12 +604,15 @@ impl Launcher {
     /// A toast for each plugin that stopped since the last look (Delight keeps
     /// running without it).
     fn announce_stops(&mut self, cx: &mut Context<Self>) {
-        for plugin in plugins::all(cx).iter() {
+        let all = plugins::all(cx);
+        // One that was restarted is announced again if it stops again.
+        self.announced_stops.retain(|id| all.iter().any(|plugin| plugin.manifest().plugin.id == *id && plugin.stopped().is_some()));
+        for plugin in all.iter() {
             let manifest = plugin.manifest();
             if let Some(reason) = plugin.stopped()
                 && self.announced_stops.insert(manifest.plugin.id.clone())
             {
-                let message = format!("{} stopped and is off until Delight restarts: {reason}", manifest.plugin.name);
+                let message = format!("{} stopped: {}. Its tool, or its page in Settings, can restart it.", manifest.plugin.name, plugins::stop_summary(&reason));
                 self.flash_for(message, STOPPED_TOAST, cx);
             }
         }

@@ -9,10 +9,13 @@ mod network;
 use delight_plugin_api::gpui::{App, AppContext as _, ClipboardItem, Context, IntoElement, Render, Window, div};
 use delight_plugin_api::gpui::{Hsla, ParentElement as _, Styled as _, prelude::FluentBuilder as _};
 use delight_plugin_api::{
-    Action, Actions, AnyTool, Confirm, Detection, Input, Operations, Plugin, SettingsSection, Shortcut, Tool, WindowOptions, host,
+    Access, Action, Actions, AnyTool, Confirm, Detection, Input, Operations, Plugin, SettingsSection, Shortcut, Tool,
+    WindowOptions, host,
     plugin, settings_changed,
     theme,
 };
+// TEMPORARY(pick_folders)
+use delight_plugin_api::PickFolders;
 
 #[plugin(
     id = "dev.delight.fixture",
@@ -26,6 +29,7 @@ use delight_plugin_api::{
             "Nothing: it's here to test running programs",
             programs = ["/bin/echo", "/bin/pwd", "/usr/bin/env", "/bin/cat"],
         ),
+        Files("Nothing: it's here to test folders"),
     ],
 )]
 struct Fixture;
@@ -131,6 +135,22 @@ enum EchoAction {
     SetInput,
     // TEMPORARY(open_url): opens the input as a URL, toasting "opened" or why not.
     OpenUrl,
+    /// Lists the folder the input names with `std::fs`: toasts its entries' names, sorted and
+    /// joined by ", ", or why not.
+    ListFolder,
+    /// Writes "hi" to the file the input names with `std::fs`: toasts "written", or why not.
+    WriteFile,
+    /// Toasts `HOME`, or "no HOME".
+    Home,
+    /// Asks for the folder the input names, to write: toasts "allowed", "declined", or
+    /// why it can't.
+    RequestFolder,
+    // TEMPORARY(pick_folders): opens the folder picker for several folders, read-only: toasts what
+    // was picked, joined by ", ", "none", or why not.
+    PickFolders,
+    // TEMPORARY(save_file): saves the input as `notes.txt`: toasts where it went, "cancelled", or
+    // why not.
+    SaveFile,
 }
 
 impl Tool for Echo {
@@ -182,6 +202,36 @@ impl Tool for Echo {
             EchoAction::Log => {
                 log::warn!("the fixture warns");
                 log::error!("the fixture fails");
+            }
+            EchoAction::ListFolder => {
+                let listed = std::fs::read_dir(self.text.trim()).and_then(|entries| {
+                    let mut names = entries.map(|entry| Ok(entry?.file_name().to_string_lossy().into_owned())).collect::<std::io::Result<Vec<_>>>()?;
+                    names.sort();
+                    Ok(names.join(", "))
+                });
+                host(cx).toast(listed.unwrap_or_else(|error| format!("{error}")), cx);
+            }
+            EchoAction::WriteFile => {
+                let written = std::fs::write(self.text.trim(), "hi").map(|()| "written".to_string());
+                host(cx).toast(written.unwrap_or_else(|error| format!("{error}")), cx);
+            }
+            EchoAction::Home => host(cx).toast(std::env::var("HOME").unwrap_or_else(|_| "no HOME".into()), cx),
+            EchoAction::RequestFolder => {
+                let asked = host(cx).request_folder(self.text.trim(), Access::Write, "Nothing: it's here to test asking", cx);
+                toast_when_done(asked, |allowed| if allowed { "allowed".into() } else { "declined".into() }, cx);
+            }
+            // TEMPORARY(pick_folders)
+            EchoAction::PickFolders => {
+                let picked = host(cx).pick_folders(PickFolders::new().multiple().prompt("Choose"), cx);
+                let said = |picked: Vec<std::path::PathBuf>| {
+                    if picked.is_empty() { "none".into() } else { picked.iter().map(|path| path.display().to_string()).collect::<Vec<_>>().join(", ") }
+                };
+                toast_when_done(picked, said, cx);
+            }
+            // TEMPORARY(save_file)
+            EchoAction::SaveFile => {
+                let saved = host(cx).save_file("notes.txt", self.text.clone(), cx);
+                toast_when_done(saved, |saved| saved.map_or_else(|| "cancelled".into(), |path| path.display().to_string()), cx);
             }
             EchoAction::Confirm => {
                 let asked = host(cx).confirm(Confirm::new("Remove it?", "It cannot be undone.").continue_label("Remove").destructive(), cx);
@@ -257,3 +307,20 @@ impl Render for Echo {
         div().p_2().when_some(color, |div, color| div.text_color(color)).child(self.text.clone())
     }
 }
+
+/// Toast what `task` came to, said by `say`, or its error.
+fn toast_when_done<T: 'static, E: std::fmt::Display + 'static>(
+    task: delight_plugin_api::gpui::Task<Result<T, E>>,
+    say: impl FnOnce(T) -> String + 'static,
+    cx: &mut Context<Echo>,
+) {
+    cx.spawn(async move |_, cx| {
+        let message = match task.await {
+            Ok(value) => say(value),
+            Err(error) => format!("{error:#}"),
+        };
+        cx.update(|cx| host(cx).toast(message, cx));
+    })
+    .detach();
+}
+

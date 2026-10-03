@@ -164,6 +164,16 @@ task that computes for two seconds is a two-second turn (*wasm trap: interrupt*)
 work, or split it into pieces with a short timer between them (a timer of 0 ms is due at once, in
 the same turn). Waiting for the network doesn't count: only computing does.
 
+**Pieces that never pause.** *You see:* *wasm trap: interrupt* in a loop that was split into slices
+of 25 ms, after *input query unanswered within the query budget* in the log; a logs plugin reading
+hundreds of small files hit it on the second search, when the files came from its data folder.
+*Why:* it paused only inside an item too big for one slice, so items that each finished within
+theirs ran one after another; and awaiting a future that is already ready (a file read from
+`/data`, a cached answer) doesn't end the turn either. *Do:* give the turn one budget for all the
+items in it, measured from when the turn began, and pause once it is used up, between items too;
+keep it near 10 ms, under the 20 ms below; and look at the clock every few lines, not every few
+hundred, when a line can be large.
+
 **`Plugin::new` is a turn too.** Parse big embedded data when it is first needed (`OnceLock`), not
 at start.
 
@@ -215,6 +225,20 @@ these.
 **The plugin stops when a page gets big.** *You see:* *display list has 120000 primitives, more
 than the 100000 allowed*. *Why:* GPUI lays out and draws every element. *Do:* show the first few
 hundred rows and say how many more, or use `uniform_list`.
+
+**Animations freeze, and the launcher lags while one is on screen.** *You see:* a spinner stopped
+part way round, or a view that is drawn only partly and catches up when the mouse moves or a key is
+pressed (taking a screenshot made one draw); and Delight lagging while the animation shows, worst
+while the mouse moves over it. A Zoho People page hit both after Refresh, whose button turned into a
+turning spinner. *Why:* embedded_gpui doesn't deliver animation frames to a plugin yet. GPUI's
+`with_animation` (and `window.request_animation_frame`) asks the window for its next frame, and a
+plugin's window passes that request to no one: its `schedule_frame` does nothing and it sets no
+frame waker, so the frame waits for whatever gives the plugin its next turn (input, a timer, an
+answer from Delight). Each of those turns then redraws the animating view whole and sends it to
+Delight: the Zoho page rebuilt about fifty rows on every mouse move. *Do:* no continuous animation
+in a plugin for now: a still spinner, or *Refreshing…*. A view that must move can drive itself with
+its own timer (`cx.background_executor().timer(…)`, then `cx.notify()`), which does wake the plugin:
+at a modest rate, only while the tool is shown, and on a small view rather than the whole page.
 
 **GPUI's desktop calls.** `cx.open_url`, `cx.open_window`, `window.prompt`, file pickers,
 `cx.hide`, fonts, images on the clipboard and gradients don't work in a plugin, and

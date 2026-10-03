@@ -20,7 +20,7 @@ use std::sync::Arc;
 use std::time::SystemTime;
 
 use delight_runtime::Plugin;
-use gpui::{App, Global, PlatformTextSystem, Task};
+use gpui::{SharedString, App, Global, PlatformTextSystem, Task};
 
 pub use install::{delete, delete_file, download, download_fraction, download_size, inspect, install, megabytes};
 use install::save_download;
@@ -150,6 +150,59 @@ pub fn loading(cx: &App) -> bool {
     cx.try_global::<Plugins>().is_some_and(|plugins| !plugins.starting.is_empty())
 }
 
+/// Whether plugin `id` is starting now (again, after it stopped, say).
+pub fn is_starting(id: &str, cx: &App) -> bool {
+    cx.try_global::<Plugins>().is_some_and(|plugins| plugins.starting.contains_key(id))
+}
+
+/// Why a plugin stopped, short enough for a card and a toast: the cause in words where it is a
+/// trap people know (its turn ran too long, a crash), else what it said without the backtrace's
+/// frames. "Copy details" gives the whole of it.
+pub fn stop_summary(reason: &str) -> String {
+    let trap = reason.rsplit_once("wasm trap: ").map(|(_, trap)| trap.lines().next().unwrap_or(trap).trim());
+    match trap {
+        Some("interrupt") => "it took too long, past the time a plugin has to answer".into(),
+        Some("unreachable") => "it crashed (a panic: its log says where)".into(),
+        Some(trap) => format!("it crashed: {trap}"),
+        None => {
+            let said: Vec<&str> = reason.lines().filter(|line| !is_backtrace_frame(line)).map(str::trim).filter(|line| !line.is_empty()).collect();
+            said.join(" ")
+        }
+    }
+}
+
+/// `  4:  0xa0ed3 - <unknown>!<wasm function 2299>`: one frame of a backtrace.
+fn is_backtrace_frame(line: &str) -> bool {
+    line.trim_start().split_once(':').is_some_and(|(number, rest)| {
+        !number.is_empty() && number.chars().all(|c| c.is_ascii_digit()) && rest.trim_start().starts_with("0x")
+    })
+}
+
+/// The Copy Details button of a plugin that stopped: the whole reason, backtrace and all, to the
+/// clipboard.
+pub fn copy_details_button(id: &str, reason: &str) -> delight_ui::Button {
+    let details = reason.to_string();
+    delight_ui::Button::new(SharedString::from(format!("copy-stop-{id}")), "Copy details").on_click(move |_, _, cx| {
+        cx.write_to_clipboard(gpui::ClipboardItem::new_string(details.clone()));
+        crate::launcher::toast("Copied the details".into(), cx);
+    })
+}
+
+/// The Restart button of a plugin that stopped: it starts again, from the same file (a stopped
+/// plugin is never one [`restart`] leaves running). While it does, the button says so and can't be
+/// pressed.
+pub fn restart_button(id: &str, cx: &App) -> delight_ui::Button {
+    use delight_ui::Disableable as _;
+    if is_starting(id, cx) {
+        return delight_ui::Button::new(SharedString::from(format!("restart-{id}")), "Restarting…").disabled(true);
+    }
+    let restarting = id.to_string();
+    delight_ui::Button::new(SharedString::from(format!("restart-{id}")), "Restart").on_click(move |_, _, cx| {
+        restart(&restarting, cx);
+        cx.refresh_windows();
+    })
+}
+
 /// Where installed plugins are: `.wasm` files.
 fn plugins_dir() -> PathBuf {
     crate::app_dir().join("plugins")
@@ -171,3 +224,19 @@ fn builtins_dir() -> PathBuf {
 fn data_dir(plugin_id: &str) -> PathBuf {
     crate::app_dir().join("plugin-data").join(plugin_id)
 }
+
+#[cfg(test)]
+mod stop_tests {
+    use super::*;
+
+    #[test]
+    fn a_stop_is_said_short_without_its_backtrace() {
+        let interrupted = "plugin stopped: error while executing at wasm backtrace:\n    0: 0x533d90 - <unknown>!<wasm function 16054>\n   20: 0x1519be - <unknown>!<wasm function 5326>: wasm trap: interrupt";
+        assert_eq!(stop_summary(interrupted), "it took too long, past the time a plugin has to answer");
+        assert_eq!(stop_summary("call failed: plugin stopped: error while executing at wasm backtrace:\n    0: 0x1 - x: wasm trap: unreachable"), "it crashed (a panic: its log says where)");
+        assert_eq!(stop_summary("wasm backtrace:\n    0: 0x1 - x: wasm trap: out of bounds memory access"), "it crashed: out of bounds memory access");
+        assert_eq!(stop_summary("no answer in 3 seconds"), "no answer in 3 seconds");
+        assert_eq!(stop_summary("it failed:\n    0: 0x1 - f\n    1: 0x2 - g\nthe end"), "it failed: the end");
+    }
+}
+
